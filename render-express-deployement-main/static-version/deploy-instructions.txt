@@ -1,0 +1,81 @@
+HOSTINGER DEPLOYMENT INSTRUCTIONS
+==================================
+
+STEP 1: PREPARE YOUR FILES
+---------------------------
+1. Download all files from the static-version folder
+2. Make sure you have these files:
+   - index.html
+   - styles.css
+   - app.js
+   - README.md
+   - htaccess.txt
+
+STEP 2: UPLOAD TO HOSTINGER
+----------------------------
+1. Login to your Hostinger control panel
+2. Go to "File Manager"
+3. Navigate to public_html directory
+4. Upload all files from the static-version folder
+
+STEP 3: CONFIGURE HOSTINGER
+---------------------------
+1. After uploading, rename "htaccess.txt" to ".htaccess"
+2. Make sure .htaccess is in the public_html directory
+3. Set file permissions:
+   - index.html: 644
+   - styles.css: 644
+   - app.js: 644
+   - .htaccess: 644
+
+STEP 4: VERIFY DEPLOYMENT
+-------------------------
+1. Visit your domain (e.g., https://yourdomain.com)
+2. Check that the website loads properly
+3. Test all features:
+   - Navigation between pages
+   - Live market data
+   - Trading interface
+   - User registration/login
+
+STEP 5: TROUBLESHOOTING
+-----------------------
+If website doesn't work:
+
+1. Check browser console (F12) for errors
+2. Verify all files are uploaded correctly
+3. Ensure .htaccess is renamed properly
+4. Check that your domain has SSL certificate
+5. Contact Hostinger support if needed
+
+IMPORTANT NOTES:
+---------------
+- This is a STATIC website - no server required
+- All data comes from public APIs (Binance, CoinGecko)
+- User data is stored in browser localStorage only
+- Works best with HTTPS (required for API calls)
+- Mobile responsive design included
+
+API LIMITS:
+-----------
+- Binance API: 1200 requests per minute
+- CoinGecko API: 10-50 requests per minute (free tier)
+- Frankfurter API: No limits (for forex data)
+
+CUSTOMIZATION:
+---------------
+Edit app.js to change:
+- Site name, colors, trading pairs
+- API endpoints if needed
+- Update intervals
+
+SECURITY:
+----------
+- No backend = no server vulnerabilities
+- All authentication is client-side only
+- For production, consider adding proper backend
+
+SUPPORT:
+--------
+For hosting issues: Contact Hostinger
+For website issues: Check browser console

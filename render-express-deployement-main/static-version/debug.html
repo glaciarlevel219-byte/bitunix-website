@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitBank Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0b0e11;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        .nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .nav button {
+            padding: 10px 20px;
+            background: #161b22;
+            color: white;
+            border: 1px solid #30363d;
+            cursor: pointer;
+        }
+        .nav button.active {
+            background: #238636;
+        }
+        .page {
+            display: none;
+            padding: 20px;
+            background: #161b22;
+            border-radius: 8px;
+        }
+        .page.active {
+            display: block;
+        }
+        .error {
+            color: #f85149;
+            background: #da3633;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #3fb950;
+            background: #238636;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>BitBank Debug Version</h1>
+    
+    <div class="nav">
+        <button class="nav-btn active" data-page="home">Home</button>
+        <button class="nav-btn" data-page="market">Market</button>
+        <button class="nav-btn" data-page="trade">Trade</button>
+        <button class="nav-btn" data-page="assets">Assets</button>
+        <button class="nav-btn" data-page="user">User</button>
+        <button class="nav-btn" data-page="futures">Futures</button>
+    </div>
+
+    <div id="homePage" class="page active">
+        <h2>Home Page</h2>
+        <p>Welcome to BitBank Trading Platform</p>
+        <div id="homeStatus"></div>
+    </div>
+
+    <div id="marketPage" class="page">
+        <h2>Market Page</h2>
+        <p>Cryptocurrency Market Overview</p>
+        <div id="marketStatus"></div>
+    </div>
+
+    <div id="tradePage" class="page">
+        <h2>Trade Page</h2>
+        <p>Trading Interface</p>
+        <div id="tradeStatus"></div>
+    </div>
+
+    <div id="assetsPage" class="page">
+        <h2>Assets Page</h2>
+        <p>Your Portfolio</p>
+        <div id="assetsStatus"></div>
+    </div>
+
+    <div id="userPage" class="page">
+        <h2>User Page</h2>
+        <p>User Profile and Settings</p>
+        <div id="userStatus"></div>
+    </div>
+
+    <div id="futuresPage" class="page">
+        <h2>Futures Page</h2>
+        <p>Futures Trading</p>
+        <div id="futuresStatus"></div>
+    </div>
+
+    <script>
+        console.log('Debug script loaded');
+        
+        // Test basic functionality
+        function showPage(pageName) {
+            console.log('Switching to page:', pageName);
+            
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show selected page
+            const targetPage = document.getElementById(pageName + 'Page');
+            if (targetPage) {
+                targetPage.classList.add('active');
+                document.getElementById(pageName + 'Status').innerHTML = '<div class="success">Page loaded successfully!</div>';
+            } else {
+                console.error('Page not found:', pageName);
+            }
+            
+            // Update navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-page') === pageName) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            // Add click handlers
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const page = this.getAttribute('data-page');
+                    console.log('Navigation clicked:', page);
+                    showPage(page);
+                });
+            });
+            
+            // Test initial load
+            showPage('home');
+            
+            console.log('Debug version initialized');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#000000">
+    <title>BitBank - Crypto Trading Platform</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">₿</span>
+                    <span class="logo-text">BitBank</span>
+                </div>
+                <nav class="nav">
+                    <button class="nav-item active" onclick="showPage('home')">Home</button>
+                    <button class="nav-item" onclick="showPage('market')">Market</button>
+                    <button class="nav-item" onclick="showPage('trade')">Trade</button>
+                    <button class="nav-item" onclick="showPage('futures')">Futures</button>
+                    <button class="nav-item" onclick="showPage('assets')">Assets</button>
+                    <button class="nav-item" onclick="showPage('user')">User</button>
+                </nav>
+                <div class="header-actions">
+                    <button class="icon-btn" id="notificationBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 22C13.1 22 14 21.1 14 20C14 19.4 13.6 19 13 19H11C10.4 19 10 19.4 10 20C10 21.1 10.9 22 12 22Z" fill="currentColor"/>
+                            <path d="M18 10V8C18 4.69 15.31 2 12 2C8.69 2 6 4.69 6 8V10C6 11.31 8.69 14 12 14C15.31 14 18 11.31 18 10Z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" id="languageBtn">EN</button>
+                    <button class="icon-btn" id="themeBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 18C8.69 18 6 15.31 6 12C6 8.69 8.69 6 12 6C15.31 6 18 8.69 18 12C18 12.55 17.98 13.09 17.95 13.6L17.95 13.6C17.98 13.09 18 12.55 18 12Z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Home Page -->
+            <div class="page active" id="homePage">
+                <!-- Hero Section -->
+                <section class="hero">
+                    <div class="hero-content">
+                        <h1 class="hero-title">Welcome to BitBank</h1>
+                        <p class="hero-subtitle">Your Trusted Crypto Trading Platform</p>
+                        <div class="hero-stats">
+                            <div class="stat-item">
+                                <span class="stat-value">$2.5T+</span>
+                                <span class="stat-label">24h Trading Volume</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">350+</span>
+                                <span class="stat-label">Listed Coins</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">50M+</span>
+                                <span class="stat-label">Registered Users</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Market Overview -->
+                <section class="market-overview">
+                    <h2 class="section-title">Market Overview</h2>
+                    <div class="market-grid">
+                        <div class="market-card">
+                            <div class="coin-info">
+                                <div class="coin-header">
+                                    <span class="coin-icon">₿</span>
+                                    <div class="coin-details">
+                                        <span class="coin-name">Bitcoin</span>
+                                        <span class="coin-symbol">BTC</span>
+                                    </div>
+                                </div>
+                                <div class="coin-price">
+                                    <span class="current-price">$45,234.56</span>
+                                    <span class="price-change positive">+2.34%</span>
+                                </div>
+                            </div>
+                            <div class="mini-chart" id="btcChart"></div>
+                        </div>
+                        <div class="market-card">
+                            <div class="coin-info">
+                                <div class="coin-header">
+                                    <span class="coin-icon">Ξ</span>
+                                    <div class="coin-details">
+                                        <span class="coin-name">Ethereum</span>
+                                        <span class="coin-symbol">ETH</span>
+                                    </div>
+                                </div>
+                                <div class="coin-price">
+                                    <span class="current-price">$2,845.32</span>
+                                    <span class="price-change positive">+1.87%</span>
+                                </div>
+                            </div>
+                            <div class="mini-chart" id="ethChart"></div>
+                        </div>
+                        <div class="market-card">
+                            <div class="coin-info">
+                                <div class="coin-header">
+                                    <span class="coin-icon">🟡</span>
+                                    <div class="coin-details">
+                                        <span class="coin-name">Binance Coin</span>
+                                        <span class="coin-symbol">BNB</span>
+                                    </div>
+                                </div>
+                                <div class="coin-price">
+                                    <span class="current-price">$312.45</span>
+                                    <span class="price-change negative">-0.65%</span>
+                                </div>
+                            </div>
+                            <div class="mini-chart" id="bnbChart"></div>
+                        </div>
+                        <div class="market-card">
+                            <div class="coin-info">
+                                <div class="coin-header">
+                                    <span class="coin-icon">🟣</span>
+                                    <div class="coin-details">
+                                        <span class="coin-name">Solana</span>
+                                        <span class="coin-symbol">SOL</span>
+                                    </div>
+                                </div>
+                                <div class="coin-price">
+                                    <span class="current-price">$98.76</span>
+                                    <span class="price-change positive">+5.23%</span>
+                                </div>
+                            </div>
+                            <div class="mini-chart" id="solChart"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quick Actions -->
+                <section class="quick-actions">
+                    <h2 class="section-title">Quick Actions</h2>
+                    <div class="action-grid">
+                        <button class="action-card" onclick="handleQuickAction('buy')">
+                            <div class="action-icon">📈</div>
+                            <span class="action-title">Buy Crypto</span>
+                        </button>
+                        <button class="action-card" onclick="handleQuickAction('sell')">
+                            <div class="action-icon">📉</div>
+                            <span class="action-title">Sell Crypto</span>
+                        </button>
+                        <button class="action-card" onclick="handleQuickAction('transfer')">
+                            <div class="action-icon">💸</div>
+                            <span class="action-title">Transfer</span>
+                        </button>
+                        <button class="action-card" onclick="handleQuickAction('staking')">
+                            <div class="action-icon">💰</div>
+                            <span class="action-title">Staking</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Market Page -->
+            <div class="page" id="marketPage">
+                <div class="market-header">
+                    <h1 class="page-title">Market</h1>
+                    <div class="market-filters">
+                        <div class="filter-group">
+                            <input type="text" placeholder="Search coins..." class="search-input" id="coinSearch">
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-select" id="categoryFilter">
+                                <option value="all">All Categories</option>
+                                <option value="spot">Spot</option>
+                                <option value="futures">Futures</option>
+                                <option value="defi">DeFi</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="market-table-container">
+                    <table class="market-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>24h Change</th>
+                                <th>24h Volume</th>
+                                <th>Market Cap</th>
+                                <th>Chart (7d)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="marketTableBody">
+                            <!-- Market data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Trade Page -->
+            <div class="page" id="tradePage">
+                <div class="trade-container">
+                    <div class="trade-left">
+                        <div class="trading-pair-selector">
+                            <h3>Select Trading Pair</h3>
+                            <div class="pair-search">
+                                <input type="text" placeholder="Search pairs..." id="pairSearch">
+                            </div>
+                            <div class="pair-categories">
+                                <button class="category-btn active" onclick="selectCategory('spot')">Spot</button>
+                                <button class="category-btn" onclick="selectCategory('futures')">Futures</button>
+                            </div>
+                            <div class="pair-list" id="pairList">
+                                <!-- Trading pairs will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trade-main">
+                        <div class="trading-header">
+                            <div class="pair-info">
+                                <h2 id="selectedPair">BTC/USDT</h2>
+                                <div class="price-info">
+                                    <span class="current-price" id="currentPrice">$45,234.56</span>
+                                    <span class="price-change positive" id="priceChange">+2.34%</span>
+                                </div>
+                            </div>
+                            <div class="timeframes">
+                                <button class="timeframe-btn active" onclick="selectTimeframe('1m')">1m</button>
+                                <button class="timeframe-btn" onclick="selectTimeframe('5m')">5m</button>
+                                <button class="timeframe-btn" onclick="selectTimeframe('15m')">15m</button>
+                                <button class="timeframe-btn" onclick="selectTimeframe('1h')">1h</button>
+                                <button class="timeframe-btn" onclick="selectTimeframe('4h')">4h</button>
+                                <button class="timeframe-btn" onclick="selectTimeframe('1d')">1d</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div id="tradingChart"></div>
+                        </div>
+                        <div class="trading-forms">
+                            <div class="buy-sell-tabs">
+                                <button class="tab-btn active" onclick="selectOrderSide('buy')">Buy</button>
+                                <button class="tab-btn" onclick="selectOrderSide('sell')">Sell</button>
+                            </div>
+                            <div class="order-form">
+                                <div class="form-group">
+                                    <label>Price</label>
+                                    <input type="number" id="orderPrice" placeholder="Market Price">
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount</label>
+                                    <input type="number" id="orderAmount" placeholder="0.00">
+                                </div>
+                                <div class="form-group">
+                                    <label>Total</label>
+                                    <input type="number" id="orderTotal" placeholder="0.00" readonly>
+                                </div>
+                                <button class="btn btn-buy" onclick="placeOrder('buy')">Buy</button>
+                                <button class="btn btn-sell" onclick="placeOrder('sell')">Sell</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trade-right">
+                        <div class="order-book">
+                            <h3>Order Book</h3>
+                            <div class="order-book-content">
+                                <div class="book-section sells">
+                                    <div class="book-header">Sells</div>
+                                    <div class="book-rows" id="sellOrders">
+                                        <!-- Sell orders will be populated here -->
+                                    </div>
+                                </div>
+                                <div class="spread-info">
+                                    <span id="spreadPrice">45,234.56</span>
+                                    <span id="spreadValue">0.00</span>
+                                </div>
+                                <div class="book-section buys">
+                                    <div class="book-header">Buys</div>
+                                    <div class="book-rows" id="buyOrders">
+                                        <!-- Buy orders will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recent-trades">
+                            <h3>Recent Trades</h3>
+                            <div class="trades-list" id="recentTrades">
+                                <!-- Recent trades will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assets Page -->
+            <div class="page" id="assetsPage">
+                <div class="assets-container">
+                    <div class="assets-header">
+                        <h1 class="page-title">My Assets</h1>
+                        <div class="total-balance">
+                            <span class="balance-label">Total Balance (USDT)</span>
+                            <span class="balance-amount" id="totalBalance">10,000.00</span>
+                        </div>
+                    </div>
+                    <div class="assets-tabs">
+                        <button class="tab-btn active" onclick="showAssetsTab('spot')">Spot Wallet</button>
+                        <button class="tab-btn" onclick="showAssetsTab('futures')">Futures Wallet</button>
+                        <button class="tab-btn" onclick="showAssetsTab('earn')">Earn</button>
+                    </div>
+                    <div class="assets-content">
+                        <div class="wallet-overview">
+                            <div class="wallet-card">
+                                <div class="wallet-header">
+                                    <span class="wallet-icon">₿</span>
+                                    <span class="wallet-name">Bitcoin</span>
+                                </div>
+                                <div class="wallet-balance">
+                                    <span class="available">Available: 0.00000000</span>
+                                    <span class="in-order">In Order: 0.00000000</span>
+                                </div>
+                            </div>
+                            <div class="wallet-card">
+                                <div class="wallet-header">
+                                    <span class="wallet-icon">Ξ</span>
+                                    <span class="wallet-name">Ethereum</span>
+                                </div>
+                                <div class="wallet-balance">
+                                    <span class="available">Available: 0.00000000</span>
+                                    <span class="in-order">In Order: 0.00000000</span>
+                                </div>
+                            </div>
+                            <div class="wallet-card">
+                                <div class="wallet-header">
+                                    <span class="wallet-icon">🟡</span>
+                                    <span class="wallet-name">Tether</span>
+                                </div>
+                                <div class="wallet-balance">
+                                    <span class="available">Available: 10,000.00</span>
+                                    <span class="in-order">In Order: 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Page -->
+            <div class="page" id="userPage">
+                <div class="user-container">
+                    <div class="user-sidebar">
+                        <div class="user-menu">
+                            <button class="menu-item active" onclick="showUserSection('profile')">
+                                <span class="menu-icon">👤</span>
+                                <span>Profile</span>
+                            </button>
+                            <button class="menu-item" onclick="showUserSection('security')">
+                                <span class="menu-icon">🔒</span>
+                                <span>Security</span>
+                            </button>
+                            <button class="menu-item" onclick="showUserSection('kyc')">
+                                <span class="menu-icon">📋</span>
+                                <span>Verification</span>
+                            </button>
+                            <button class="menu-item" onclick="showUserSection('api')">
+                                <span class="menu-icon">🔑</span>
+                                <span>API Management</span>
+                            </button>
+                            <button class="menu-item" onclick="showUserSection('referral')">
+                                <span class="menu-icon">🎁</span>
+                                <span>Referral</span>
+                            </button>
+                            <button class="menu-item" onclick="openAdminPanel()">
+                                <span class="menu-icon">⚙️</span>
+                                <span>Admin Panel</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="user-content">
+                        <div class="user-section active" id="profileSection">
+                            <h2>Profile Information</h2>
+                            <div class="profile-form">
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" id="userEmail" placeholder="your@email.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone Number</label>
+                                    <input type="tel" id="userPhone" placeholder="+1234567890">
+                                </div>
+                                <div class="form-group">
+                                    <label>Username</label>
+                                    <input type="text" id="username" placeholder="username">
+                                </div>
+                                <button class="btn btn-primary" onclick="saveUserProfile()">Save Changes</button>
+                            </div>
+                        </div>
+                        <div class="user-section" id="securitySection">
+                            <h2>Security Settings</h2>
+                            <div class="security-options">
+                                <div class="security-item">
+                                    <div class="security-info">
+                                        <span class="security-title">Two-Factor Authentication</span>
+                                        <span class="security-desc">Add an extra layer of security</span>
+                                    </div>
+                                    <button class="btn btn-secondary">Enable</button>
+                                </div>
+                                <div class="security-item">
+                                    <div class="security-info">
+                                        <span class="security-title">Password</span>
+                                        <span class="security-desc">Last changed 30 days ago</span>
+                                    </div>
+                                    <button class="btn btn-secondary">Change</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-section" id="kycSection">
+                            <h2>Identity Verification</h2>
+                            <div class="kyc-status">
+                                <div class="status-item">
+                                    <span class="status-label">Identity Verification</span>
+                                    <span class="status-value pending">Pending</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Address Verification</span>
+                                    <span class="status-value pending">Pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Futures Page -->
+            <div class="page" id="futuresPage">
+                <div class="futures-container">
+                    <div class="futures-header">
+                        <h1 class="page-title">Futures Trading</h1>
+                        <div class="futures-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Open Interest</span>
+                                <span class="stat-value">$125.3B</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">24h Volume</span>
+                                <span class="stat-value">$89.2B</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="futures-content">
+                        <div class="futures-trading">
+                            <div class="contract-selector">
+                                <h3>Select Contract</h3>
+                                <div class="contract-list">
+                                    <div class="contract-item active" onclick="selectContract('BTCUSDT')">
+                                        <span class="contract-name">BTCUSDT</span>
+                                        <span class="contract-price">45,234.56</span>
+                                        <span class="contract-change positive">+2.34%</span>
+                                    </div>
+                                    <div class="contract-item" onclick="selectContract('ETHUSDT')">
+                                        <span class="contract-name">ETHUSDT</span>
+                                        <span class="contract-price">2,845.32</span>
+                                        <span class="contract-change positive">+1.87%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="futures-form">
+                                <div class="leverage-selector">
+                                    <label>Leverage</label>
+                                    <select id="leverageSelect" onchange="updateLeverage(this.value)">
+                                        <option value="1">1x</option>
+                                        <option value="5">5x</option>
+                                        <option value="10" selected>10x</option>
+                                        <option value="20">20x</option>
+                                        <option value="50">50x</option>
+                                        <option value="100">100x</option>
+                                    </select>
+                                </div>
+                                <div class="futures-order-form">
+                                    <div class="buy-sell-tabs">
+                                        <button class="tab-btn active" onclick="selectFuturesSide('long')">Long</button>
+                                        <button class="tab-btn" onclick="selectFuturesSide('short')">Short</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Price</label>
+                                        <input type="number" placeholder="Market Price">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Amount (USDT)</label>
+                                        <input type="number" placeholder="0.00">
+                                    </div>
+                                    <button class="btn btn-long" onclick="placeFuturesOrder('long')">Long</button>
+                                    <button class="btn btn-short" onclick="placeFuturesOrder('short')">Short</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <nav class="mobile-nav">
+            <button class="nav-item active" onclick="showPage('home')">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </button>
+            <button class="nav-item" onclick="showPage('market')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Market</span>
+            </button>
+            <button class="nav-item" onclick="showPage('trade')">
+                <span class="nav-icon">💹</span>
+                <span class="nav-label">Trade</span>
+            </button>
+            <button class="nav-item" onclick="showPage('futures')">
+                <span class="nav-icon">📈</span>
+                <span class="nav-label">Futures</span>
+            </button>
+            <button class="nav-item" onclick="showPage('assets')">
+                <span class="nav-icon">💰</span>
+                <span class="nav-label">Assets</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        // Simple and direct JavaScript
+        console.log('Loading BitBank...');
+        
+        // Global state
+        let currentPage = 'home';
+        let selectedPair = 'BTC/USDT';
+        let orderSide = 'buy';
+        
+        // Page switching
+        function showPage(pageName) {
+            console.log('Switching to page:', pageName);
+            
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show selected page
+            const targetPage = document.getElementById(pageName + 'Page');
+            if (targetPage) {
+                targetPage.classList.add('active');
+                console.log('Page activated:', pageName);
+            } else {
+                console.error('Page not found:', pageName);
+                return;
+            }
+            
+            // Update navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Update active nav button
+            document.querySelectorAll(`[onclick="showPage('${pageName}')"]`).forEach(item => {
+                item.classList.add('active');
+            });
+            
+            currentPage = pageName;
+            
+            // Page-specific initialization
+            if (pageName === 'market') {
+                loadMarketData();
+            } else if (pageName === 'trade') {
+                loadTradingPairs();
+                initializeChart();
+            } else if (pageName === 'assets') {
+                updateWalletDisplay();
+            }
+        }
+        
+        // Quick actions
+        function handleQuickAction(action) {
+            console.log('Quick action:', action);
+            switch (action) {
+                case 'buy':
+                    showPage('trade');
+                    selectOrderSide('buy');
+                    break;
+                case 'sell':
+                    showPage('trade');
+                    selectOrderSide('sell');
+                    break;
+                case 'transfer':
+                    alert('Transfer feature coming soon!');
+                    break;
+                case 'staking':
+                    alert('Staking feature coming soon!');
+                    break;
+            }
+        }
+        
+        // Trading functions
+        function selectOrderSide(side) {
+            console.log('Order side:', side);
+            orderSide = side;
+            
+            // Update tabs
+            document.querySelectorAll('.buy-sell-tabs .tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeTab = document.querySelector(`[onclick="selectOrderSide('${side}')"]`);
+            if (activeTab) {
+                activeTab.classList.add('active');
+            }
+        }
+        
+        function selectTimeframe(timeframe) {
+            console.log('Timeframe:', timeframe);
+            
+            // Update timeframe buttons
+            document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeBtn = document.querySelector(`[onclick="selectTimeframe('${timeframe}')"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+            }
+        }
+        
+        function placeOrder(side) {
+            console.log('Placing order:', side);
+            const price = document.getElementById('orderPrice').value || 45234.56;
+            const amount = document.getElementById('orderAmount').value;
+            
+            if (!amount) {
+                alert('Please enter amount');
+                return;
+            }
+            
+            const total = price * amount;
+            alert(`${side.toUpperCase()} order placed: ${amount} at $${price} (Total: $${total.toFixed(2)})`);
+        }
+        
+        // Market functions
+        function loadMarketData() {
+            console.log('Loading market data...');
+            const marketData = [
+                { symbol: 'BTC', name: 'Bitcoin', price: 45234.56, change: 2.34 },
+                { symbol: 'ETH', name: 'Ethereum', price: 2845.32, change: 1.87 },
+                { symbol: 'BNB', name: 'Binance Coin', price: 312.45, change: -0.65 },
+                { symbol: 'SOL', name: 'Solana', price: 98.76, change: 5.23 }
+            ];
+            
+            const tbody = document.getElementById('marketTableBody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                marketData.forEach(coin => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${coin.name} (${coin.symbol})</td>
+                        <td>$${coin.price.toLocaleString()}</td>
+                        <td style="color: ${coin.change > 0 ? '#3fb950' : '#f85149'}">${coin.change > 0 ? '+' : ''}${coin.change}%</td>
+                        <td>$${(Math.random() * 1000).toFixed(0)}M</td>
+                        <td>$${(Math.random() * 100).toFixed(1)}B</td>
+                        <td>📊</td>
+                        <td><button class="btn btn-primary" onclick="showPage('trade')">Trade</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+        
+        function loadTradingPairs() {
+            console.log('Loading trading pairs...');
+            const pairs = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT'];
+            const pairList = document.getElementById('pairList');
+            if (pairList) {
+                pairList.innerHTML = '';
+                pairs.forEach(pair => {
+                    const pairItem = document.createElement('div');
+                    pairItem.className = 'pair-item';
+                    pairItem.innerHTML = `<span>${pair}</span><span>$45,234</span>`;
+                    pairItem.onclick = () => selectTradingPair(pair);
+                    pairList.appendChild(pairItem);
+                });
+            }
+        }
+        
+        function selectTradingPair(pair) {
+            console.log('Selected pair:', pair);
+            selectedPair = pair;
+            document.getElementById('selectedPair').textContent = pair;
+        }
+        
+        // User functions
+        function showUserSection(section) {
+            console.log('User section:', section);
+            
+            // Update menu
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            const activeItem = document.querySelector(`[onclick="showUserSection('${section}')"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+            }
+            
+            // Show section
+            document.querySelectorAll('.user-section').forEach(sec => {
+                sec.classList.remove('active');
+            });
+            
+            const targetSection = document.getElementById(section + 'Section');
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+        }
+        
+        function saveUserProfile() {
+            console.log('Saving profile...');
+            const email = document.getElementById('userEmail').value;
+            const phone = document.getElementById('userPhone').value;
+            const username = document.getElementById('username').value;
+            
+            alert('Profile saved successfully!');
+        }
+        
+        function openAdminPanel() {
+            console.log('Opening admin panel...');
+            window.open('/admin', '_blank');
+        }
+        
+        // Asset functions
+        function showAssetsTab(tab) {
+            console.log('Assets tab:', tab);
+            
+            // Update tabs
+            document.querySelectorAll('.assets-tabs .tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeTab = document.querySelector(`[onclick="showAssetsTab('${tab}')"]`);
+            if (activeTab) {
+                activeTab.classList.add('active');
+            }
+        }
+        
+        function updateWalletDisplay() {
+            console.log('Updating wallet display...');
+            // Balance already set in HTML
+        }
+        
+        // Chart functions
+        function initializeChart() {
+            console.log('Initializing chart...');
+            const chartContainer = document.getElementById('tradingChart');
+            if (chartContainer && typeof LightweightCharts !== 'undefined') {
+                chartContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #8b949e;">Trading Chart Loading...</div>';
+            }
+        }
+        
+        // Futures functions
+        function selectCategory(category) {
+            console.log('Category:', category);
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        function selectContract(contract) {
+            console.log('Contract:', contract);
+            document.querySelectorAll('.contract-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.closest('.contract-item').classList.add('active');
+        }
+        
+        function updateLeverage(leverage) {
+            console.log('Leverage:', leverage);
+        }
+        
+        function selectFuturesSide(side) {
+            console.log('Futures side:', side);
+            document.querySelectorAll('.futures-order-form .tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        function placeFuturesOrder(side) {
+            console.log('Placing futures order:', side);
+            alert(`${side.toUpperCase()} futures order placed!`);
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', function() {
+            console.log('BitBank loaded successfully!');
+            showPage('home');
+        });
+        
+        console.log('BitBank script loaded');
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "bitunix",
+  "version": "1.0.0",
+  "description": "Bitunix — Crypto trading platform with live market data",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server/server.js",
+    "dev": "node src/server/server.js"
+  },
+  "keywords": ["crypto", "trading", "bitunix"],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

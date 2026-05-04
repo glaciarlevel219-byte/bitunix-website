@@ -1,0 +1,14 @@
+{
+  "name": "web",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node responsive-rebuild/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test - Bitunix Static</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #0b1220; color: #e9eef7; }
+        .test-section { margin: 20px 0; padding: 15px; background: #131d2f; border-radius: 10px; }
+        .success { color: #22c55e; }
+        .error { color: #f87171; }
+        .loading { color: #2dd4bf; }
+        pre { background: #0c1628; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>API Test Results - Bitunix Static Version</h1>
+    
+    <div class="test-section">
+        <h2>Binance API Test</h2>
+        <div id="binance-result" class="loading">Testing...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>CoinGecko API Test</h2>
+        <div id="coingecko-result" class="loading">Testing...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Frankfurter API Test</h2>
+        <div id="frankfurter-result" class="loading">Testing...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>LightweightCharts Test</h2>
+        <div id="charts-result" class="loading">Testing...</div>
+    </div>
+
+    <script>
+        async function testAPI(name, url, elementId) {
+            const element = document.getElementById(elementId);
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    element.innerHTML = `<div class="success">✅ ${name} API Working</div><pre>${JSON.stringify(data, null, 2).substring(0, 500)}...</pre>`;
+                } else {
+                    element.innerHTML = `<div class="error">❌ ${name} API Failed: ${response.status}</div>`;
+                }
+            } catch (error) {
+                element.innerHTML = `<div class="error">❌ ${name} API Error: ${error.message}</div>`;
+            }
+        }
+        
+        function testCharts() {
+            const element = document.getElementById('charts-result');
+            if (typeof LightweightCharts !== 'undefined') {
+                element.innerHTML = `<div class="success">✅ LightweightCharts Loaded Successfully</div>`;
+            } else {
+                element.innerHTML = `<div class="error">❌ LightweightCharts Not Loaded</div>`;
+            }
+        }
+        
+        // Run tests
+        testAPI('Binance', 'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', 'binance-result');
+        testAPI('CoinGecko', 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', 'coingecko-result');
+        testAPI('Frankfurter', 'https://api.frankfurter.app/latest?from=USD&to=EUR', 'frankfurter-result');
+        
+        // Test charts after delay
+        setTimeout(testCharts, 2000);
+    </script>
+</body>
+</html>

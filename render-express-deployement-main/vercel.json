@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/[...route].js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "web/responsive-rebuild/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/[...route].js"
+    },
+    {
+      "src": "^/$",
+      "dest": "/web/responsive-rebuild/index.html"
+    },
+    {
+      "src": "^/(.*)$",
+      "dest": "/web/responsive-rebuild/$1"
+    }
+  ]
+}
