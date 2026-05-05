@@ -43,6 +43,7 @@ async function handleLogin(e) {
     const password = formData.get('password');
     
     try {
+        console.log('Attempting login to:', `${API_BASE}/login`);
         const response = await fetch(`${API_BASE}/login`, {
             method: 'POST',
             headers: {
@@ -52,6 +53,7 @@ async function handleLogin(e) {
         });
         
         const data = await response.json();
+        console.log('Login response:', response.status, data);
         
         if (response.ok) {
             authToken = data.token;
@@ -63,10 +65,14 @@ async function handleLogin(e) {
                 loadDashboard();
             }, 1000);
         } else {
-            showMessage('loginMessage', data.message || 'Login failed', 'error');
+            const errorMsg = data.message || 'Login failed';
+            showMessage('loginMessage', errorMsg, 'error');
+            alert('Login Error: ' + errorMsg);
         }
     } catch (error) {
+        console.error('Login network error:', error);
         showMessage('loginMessage', 'Network error. Please try again.', 'error');
+        alert('Network Error: Could not reach the API. Check your internet or if the server is down.');
     }
 }
 

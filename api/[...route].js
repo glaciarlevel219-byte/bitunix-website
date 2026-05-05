@@ -3,7 +3,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
 
-const BACKUP_ROOT = path.join(process.cwd(), "web", "wwwbitbank.vip", "api.wwwbitop.cc", "api");
+const BACKUP_ROOT = path.join(__dirname, "..", "web", "wwwbitbank.vip", "api.wwwbitop.cc", "api");
 const DATA_DIR = path.join(os.tmpdir(), "bitunix-data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const ADMIN_USERS_FILE = path.join(DATA_DIR, "admin_users.json");
@@ -539,8 +539,13 @@ module.exports = async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
   const pathname = url.pathname;
 
+  console.log(`[API Request] ${req.method} ${pathname}`);
+
   try {
-    if (await tryAdminRoutes(req, res, url, pathname)) return;
+    if (await tryAdminRoutes(req, res, url, pathname)) {
+        console.log(`[API Admin] Handled ${pathname}`);
+        return;
+    }
 
     if (req.method === "GET" && pathname === "/api/backup/config") {
       return sendJson(res, 200, readBackupJson("config"));
