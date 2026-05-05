@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "render-express-deployement-main/api/[...route].js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "render-express-deployement-main/web/responsive-rebuild/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "^/admin/api/(.*)$",
+      "dest": "/render-express-deployement-main/api/[...route].js"
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/render-express-deployement-main/api/[...route].js"
+    },
+    {
+      "src": "^/$",
+      "dest": "/render-express-deployement-main/web/responsive-rebuild/index.html"
+    },
+    {
+      "src": "^/(.*)$",
+      "dest": "/render-express-deployement-main/web/responsive-rebuild/$1"
+    }
+  ]
+}
