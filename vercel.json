@@ -4,9 +4,6 @@
   "rewrites": [
     { "source": "/admin/api/:path*", "destination": "/api/[...route].js" },
     { "source": "/api/:path*", "destination": "/api/[...route].js" },
-    { "source": "/admin", "destination": "/web/responsive-rebuild/admin/index.html" },
-    { "source": "/admin/:path*", "destination": "/web/responsive-rebuild/admin/:path*" },
-    { "source": "/", "destination": "/web/responsive-rebuild/index.html" },
-    { "source": "/:path*", "destination": "/web/responsive-rebuild/:path*" }
+    { "source": "/admin", "destination": "/admin/index.html" }
   ]
 }

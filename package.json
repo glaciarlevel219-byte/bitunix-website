@@ -1,15 +1,16 @@
 {
   "name": "bitunix-website",
   "version": "1.0.0",
-  "description": "Bitunix trading platform deployed on Vercel",
-  "main": "api/[...route].js",
+  "description": "Bitunix crypto trading platform website",
+  "private": true,
   "scripts": {
-    "start": "node web/responsive-rebuild/server.js",
-    "dev": "node web/responsive-rebuild/server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
+  "keywords": ["crypto", "trading", "bitunix"],
+  "author": "",
+  "license": "ISC",
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {},
-  "devDependencies": {}
+  }
 }
