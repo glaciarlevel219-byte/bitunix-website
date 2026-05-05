@@ -16,14 +16,17 @@ async function connectToDatabase() {
   }
   try {
     console.log("[DB] Attempting to connect to MongoDB...");
-    const client = await MongoClient.connect(MONGODB_URI);
+    const client = await MongoClient.connect(MONGODB_URI, {
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    });
     const db = client.db();
     cachedDb = db;
     console.log("[DB] Successfully connected to MongoDB.");
     return db;
   } catch (err) {
     console.error("[DB] MongoDB Connection Error:", err.message);
-    return null; // Fallback to local storage
+    return null; 
   }
 }
 
@@ -680,19 +683,27 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET" && pathname === "/api/debug/db") {
-      const db = await connectToDatabase();
-      if (db) {
-          return sendJson(res, 200, { 
-              status: "connected", 
-              database: db.databaseName,
-              message: "MongoDB is working correctly!" 
-          });
-      } else {
-          return sendJson(res, 500, { 
-              status: "failed", 
-              uri_present: !!MONGODB_URI,
-              message: "Could not connect to MongoDB. Check your Vercel Environment Variables and MongoDB Network Access (0.0.0.0/0)." 
-          });
+      try {
+        const db = await connectToDatabase();
+        if (db) {
+            return sendJson(res, 200, { 
+                status: "connected", 
+                database: db.databaseName,
+                message: "MongoDB is working correctly!" 
+            });
+        } else {
+            return sendJson(res, 500, { 
+                status: "failed", 
+                uri_present: !!MONGODB_URI,
+                error: "Connection returned null. Check your Vercel Environment Variables."
+            });
+        }
+      } catch (err) {
+        return sendJson(res, 500, { 
+            status: "error", 
+            message: err.message,
+            stack: err.stack ? "present" : "absent"
+        });
       }
     }
 
