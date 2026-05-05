@@ -11,23 +11,22 @@ let cachedDb = null;
 async function connectToDatabase() {
   if (cachedDb) return cachedDb;
   if (!MONGODB_URI) {
-    console.log("[DB] MONGODB_URI not found, using local JSON storage.");
+    console.log("[DB] MONGODB_URI not found.");
     return null;
   }
-  try {
-    console.log("[DB] Attempting to connect to MongoDB...");
-    const client = await MongoClient.connect(MONGODB_URI, {
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-    });
-    const db = client.db();
-    cachedDb = db;
-    console.log("[DB] Successfully connected to MongoDB.");
-    return db;
-  } catch (err) {
-    console.error("[DB] MongoDB Connection Error:", err.message);
-    return null; 
-  }
+  
+  console.log("[DB] Attempting to connect to MongoDB with new client...");
+  const client = new MongoClient(MONGODB_URI, {
+    connectTimeoutMS: 15000,
+    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 15000
+  });
+
+  await client.connect();
+  const db = client.db();
+  cachedDb = db;
+  console.log("[DB] Successfully connected to MongoDB.");
+  return db;
 }
 
 const BACKUP_ROOT = path.join(__dirname, "..", "web", "wwwbitbank.vip", "api.wwwbitop.cc", "api");
@@ -695,14 +694,16 @@ module.exports = async (req, res) => {
             return sendJson(res, 500, { 
                 status: "failed", 
                 uri_present: !!MONGODB_URI,
-                error: "Connection returned null. Check your Vercel Environment Variables."
+                error: "connectToDatabase returned null (No URI?)"
             });
         }
       } catch (err) {
+        console.error("[Debug Endpoint Error]", err);
         return sendJson(res, 500, { 
             status: "error", 
             message: err.message,
-            stack: err.stack ? "present" : "absent"
+            code: err.code || "N/A",
+            name: err.name || "Error"
         });
       }
     }
