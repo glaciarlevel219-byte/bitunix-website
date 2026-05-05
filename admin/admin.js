@@ -1,6 +1,9 @@
 const API_BASE = '/admin/api';
 
 let authToken = localStorage.getItem('admin_token') || '';
+let currentAdminToken = localStorage.getItem("admin_token") || "";
+let activeChatUserId = null;
+let chatRefreshInterval = null;
 let currentUser = null;
 
 // DOM Elements
@@ -57,6 +60,7 @@ async function handleLogin(e) {
         
         if (response.ok) {
             authToken = data.token;
+            currentAdminToken = data.token;
             currentUser = data.user;
             localStorage.setItem('admin_token', authToken);
             showMessage('loginMessage', 'Login successful!', 'success');
@@ -78,6 +82,7 @@ async function handleLogin(e) {
 
 function handleLogout() {
     authToken = '';
+    currentAdminToken = '';
     currentUser = null;
     localStorage.removeItem('admin_token');
     showScreen('login');
@@ -144,11 +149,14 @@ function switchTab(tabName) {
     const clickedNavTab = document.querySelector(`[data-tab="${tabName}"]`);
     if (clickedNavTab) {
         clickedNavTab.classList.add('active');
-        console.log('Nav tab activated:', tabName);
-    } else {
-        console.error('Nav tab not found:', tabName);
     }
-    
+
+    // Clear any existing chat interval
+    if (chatRefreshInterval) {
+        clearInterval(chatRefreshInterval);
+        chatRefreshInterval = null;
+    }
+
     // Load data based on tab
     switch(tabName) {
         case 'overview':
@@ -164,7 +172,19 @@ function switchTab(tabName) {
             loadWithdrawals();
             break;
         case 'support':
-            loadSupportTickets();
+            loadAllUserMessages();
+            // Polling for new messages every 5s
+            chatRefreshInterval = setInterval(loadAllUserMessages, 5000);
+            
+            // Bind listeners for new chat UI
+            const sendBtn = document.getElementById('sendSupportMessage');
+            const input = document.getElementById('supportChatInput');
+            if (sendBtn) sendBtn.onclick = sendAdminSupportReply;
+            if (input) {
+                input.onkeypress = (e) => {
+                    if (e.key === 'Enter') sendAdminSupportReply();
+                };
+            }
             break;
         case 'config':
             loadConfig();
@@ -764,58 +784,150 @@ async function loadSupportTickets() {
 }
 
 async function loadAllUserMessages() {
-    try {
-        const response = await fetch(`${API_BASE}/support/all-messages`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            renderAllUserConversations(data.conversations || []);
-        } else {
-            renderAllUserConversations([]);
-        }
-    } catch (error) {
-        console.error('Error loading all user messages:', error);
-        renderAllUserConversations([]);
+  try {
+    const res = await fetch("/admin/api/support/all-messages", {
+      headers: { Authorization: `Bearer ${currentAdminToken}` },
+    });
+    const data = await res.json();
+    const conversations = data.conversations || [];
+    renderAllUserConversations(conversations);
+    
+    // Auto-refresh chat if one is open
+    if (activeChatUserId) {
+        loadActiveChatMessages(activeChatUserId);
     }
+  } catch (e) {
+    console.error("Support load error:", e);
+  }
 }
 
 function renderAllUserConversations(conversations) {
-    const container = document.getElementById('adminMessagesList');
+  const root = document.getElementById("adminMessagesList");
+  if (!root) return;
+  
+  if (conversations.length === 0) {
+    root.innerHTML = '<div class="p-4 muted">No active conversations</div>';
+    return;
+  }
+
+  root.innerHTML = conversations.map(conv => {
+    const lastMsg = conv.lastMessage;
+    const name = conv.userName || "User";
+    const preview = lastMsg ? lastMsg.message : "No messages";
+    const time = lastMsg ? new Date(lastMsg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+    const isActive = activeChatUserId === conv.userId ? "active" : "";
+    const initials = name.slice(0, 2).toUpperCase();
+    const isUnread = conv.unreadCount > 0;
     
-    if (!conversations || conversations.length === 0) {
-        container.innerHTML = '<p class="text-muted">No messages found in your inbox.</p>';
-        return;
+    return `
+      <div class="conv-item ${isActive}" onclick="selectChatUser('${conv.userId}', '${name}', '${conv.userEmail}')">
+        <div class="conv-avatar" style="background: ${isUnread ? '#e7f3ff' : '#eee'}">${initials}</div>
+        <div class="conv-info">
+          <div style="display:flex; justify-content:space-between">
+            <span class="conv-name" style="font-weight: ${isUnread ? '700' : '600'}">${name}</span>
+            <span class="conv-time">${time}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <span class="conv-preview" style="color: ${isUnread ? '#1a1a1a' : '#666'}">${preview}</span>
+            ${conv.unreadCount > 0 ? `<span class="unread-badge">${conv.unreadCount}</span>` : ""}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function selectChatUser(userId, name, email) {
+    activeChatUserId = userId;
+    
+    // Update UI highlights
+    document.querySelectorAll(".conv-item").forEach(el => el.classList.remove("active"));
+    const selectedItem = document.querySelector(`.conv-item[onclick*="${userId}"]`);
+    if (selectedItem) selectedItem.classList.add("active");
+    
+    document.getElementById("activeUserName").textContent = name;
+    document.getElementById("activeUserEmail").textContent = email;
+    
+    const input = document.getElementById("supportChatInput");
+    const sendBtn = document.getElementById("sendSupportMessage");
+    const profileBtn = document.getElementById("viewActiveProfileBtn");
+    
+    if (input) { 
+        input.disabled = false; 
+        input.placeholder = "Type your reply...";
+        input.focus(); 
+    }
+    if (sendBtn) sendBtn.disabled = false;
+    if (profileBtn) {
+        profileBtn.style.display = "block";
+        profileBtn.onclick = () => {
+            document.getElementById("customerSearchInput").value = email;
+            searchCustomer();
+        };
     }
     
-    const html = conversations.map(conv => {
-        const last = conv.lastMessage;
-        const unreadCls = conv.unreadCount > 0 ? 'unread-conv' : '';
-        return `
-        <div class="admin-conversation-item ${unreadCls}" onclick="openSupportChat('${conv.userId}')">
-            <div class="conv-header">
-                <div class="conv-user">
-                    👤 <strong>${escapeHtml(conv.userName)}</strong>
-                    <span class="conv-id">${conv.userId.slice(0, 8)}...</span>
-                </div>
-                <div class="conv-time">${last ? new Date(last.time).toLocaleString() : ''}</div>
-            </div>
-            <div class="conv-preview">
-                ${last ? escapeHtml(last.message).slice(0, 60) + (last.message.length > 60 ? '...' : '') : 'No messages'}
-            </div>
-            <div class="conv-footer">
-                <span>📧 ${escapeHtml(conv.userEmail)}</span>
-                ${conv.unreadCount > 0 ? `<span class="badge-unread">${conv.unreadCount} new</span>` : ''}
-                <button class="btn-small" onclick="event.stopPropagation(); viewUserDetails('${conv.userId}')">View Profile</button>
-            </div>
-        </div>
-        `;
-    }).join('');
+    loadActiveChatMessages(userId);
+}
+
+async function loadActiveChatMessages(userId) {
+    const container = document.getElementById("supportChatMessages");
+    if (!container || activeChatUserId !== userId) return;
     
-    container.innerHTML = html;
+    try {
+        const res = await fetch(`/admin/api/support/history?userId=${userId}`, {
+            headers: { Authorization: `Bearer ${currentAdminToken}` }
+        });
+        const data = await res.json();
+        const messages = data.messages || [];
+        
+        if (messages.length === 0) {
+            container.innerHTML = '<div class="empty-chat-state">No messages in this thread</div>';
+        } else {
+            container.innerHTML = messages.map(msg => {
+                const isAdmin = msg.type === "admin";
+                const cls = isAdmin ? "msg-admin" : "msg-user";
+                const time = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                    <div class="msg-bubble ${cls}">
+                        <div>${msg.message}</div>
+                        <div class="msg-time">${time}</div>
+                    </div>
+                `;
+            }).join("");
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (e) {
+        console.error("Chat load error:", e);
+    }
+}
+
+async function sendAdminSupportReply() {
+    if (!activeChatUserId) return;
+    const input = document.getElementById("supportChatInput");
+    const text = input.value.trim();
+    if (!text) return;
+    
+    try {
+        const res = await fetch("/admin/api/support/reply", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${currentAdminToken}` 
+            },
+            body: JSON.stringify({ userId: activeChatUserId, message: text })
+        });
+        
+        if (res.ok) {
+            input.value = "";
+            await loadActiveChatMessages(activeChatUserId);
+            await loadAllUserMessages(); // Update sidebar preview
+        } else {
+            showToast("Error sending message", true);
+        }
+    } catch (e) {
+        console.error("Reply error:", e);
+        showToast("Connection error", true);
+    }
 }
 
 function renderSupportTickets(tickets) {
@@ -1085,6 +1197,27 @@ async function sendSupportMessage() {
         console.error('Error sending message:', error);
         alert('Error sending message');
     }
+}
+
+function initEventListeners() {
+    // Tab switching
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tabId = link.getAttribute('data-tab');
+            showTab(tabId);
+        });
+    });
+
+    // Support Tab Specific
+    document.getElementById('refreshMessagesBtn')?.addEventListener('click', loadAllUserMessages);
+    document.getElementById('sendSupportMessage')?.addEventListener('click', sendAdminSupportReply);
+    document.getElementById('supportChatInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendAdminSupportReply();
+    });
+
+    // Other listeners...
+    document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
 }
 
 // Start the app

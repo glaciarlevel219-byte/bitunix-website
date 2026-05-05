@@ -191,10 +191,10 @@ async function readWalletForUser(userId) {
 }
 
 async function writeWalletForUser(userId, wallet) {
+  wallet.userId = userId;
   const db = await connectToDatabase();
   if (db) {
-    await db.collection("wallets").updateOne({ userId }, { $set: wallet }, { upsrert: true });
-    return;
+    await db.collection("wallets").updateOne({ userId }, { $set: wallet }, { upsert: true });
   }
   ensureDataDir();
   fs.writeFileSync(walletFileForUser(userId), JSON.stringify(wallet, null, 2), "utf8");
@@ -1001,28 +1001,80 @@ module.exports = async (req, res) => {
         }
         return sendJson(res, 200, { rows: rows.length ? rows : [toRow("EUR/USD", "0", "0")] });
       }
-      if (cat === "metal") {
-        const syms = ["PAXGUSDT", "XAUTUSDT"];
-        const rows = await Promise.all(syms.map(async (symbol) => {
-          try {
-            const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
-            if (!r.ok) return null;
-            const t = await r.json();
-            const lab = symbol === "PAXGUSDT" ? "PAXG/USD" : "XAU/USD";
-            return toRow(lab, t.lastPrice, t.priceChangePercent);
-          } catch {
-            return null;
-          }
-        }));
-        if (!rows.filter(Boolean).length) {
-            const fallback = readBackupJson("currency");
-            const fr = fallback?.data?.all || fallback?.data?.top_three || [];
-            return sendJson(res, 200, { rows: fr.map(x => toRow(`${x.legal_name}/USD`, x.now_price, x.change)) });
-        }
-        return sendJson(res, 200, { rows: rows.filter(Boolean) });
-      }
       return sendJson(res, 400, { message: "Unknown cat" });
     }
+
+    if (req.method === "GET" && pathname === "/api/trade/rows") {
+      const cat = url.searchParams.get("cat") || "crypto";
+      
+      const toRow = (label, last, chg) => ({
+        label,
+        last: Number(last || 0),
+        chg: Number(chg || 0),
+        vol: 0
+      });
+
+      if (cat === "crypto") {
+        const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT"];
+        try {
+          const rows = await Promise.all(syms.map(async (symbol) => {
+            try {
+              const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+              if (!r.ok) return null;
+              const t = await r.json();
+              return toRow(symbol.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent);
+            } catch { return null; }
+          }));
+          const filtered = rows.filter(Boolean);
+          if (filtered.length > 0) return sendJson(res, 200, { rows: filtered });
+          throw new Error("Binance failed");
+        } catch {
+          // Fallback to CoinGecko
+          try {
+            const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin&vs_currencies=usd&include_24hr_change=true");
+            const data = await r.json();
+            const map = {
+                bitcoin: "BTC/USD", ethereum: "ETH/USD", binancecoin: "BNB/USD", solana: "SOL/USD",
+                ripple: "XRP/USD", dogecoin: "DOGE/USD", cardano: "ADA/USD", polkadot: "DOT/USD",
+                litecoin: "LTC/USD", "bitcoin-cash": "BCH/USD", "ethereum-classic": "ETC/USD", filecoin: "FIL/USD"
+            };
+            const rows = Object.keys(data).map(id => toRow(map[id], data[id].usd, data[id].usd_24h_change));
+            return sendJson(res, 200, { rows });
+          } catch {
+            return sendJson(res, 200, { rows: syms.map(s => toRow(s.replace("USDT", "/USD"), 0, 0)) });
+          }
+        }
+      }
+      if (cat === "metal") {
+        try {
+          const syms = ["PAXGUSDT", "XAUTUSDT"];
+          const rows = await Promise.all(syms.map(async (symbol) => {
+            try {
+              const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+              if (!r.ok) return null;
+              const t = await r.json();
+              const lab = symbol === "PAXGUSDT" ? "PAXG/USD" : "XAU/USD";
+              return toRow(lab, t.lastPrice, t.priceChangePercent);
+            } catch { return null; }
+          }));
+          const filtered = rows.filter(Boolean);
+          if (filtered.length > 0) return sendJson(res, 200, { rows: filtered });
+          
+          // Fallback for gold/silver
+          const g = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=pax-gold,tether-gold&vs_currencies=usd&include_24hr_change=true");
+          const gd = await g.json();
+          return sendJson(res, 200, { rows: [
+              toRow("PAXG/USD", gd['pax-gold']?.usd || 2300, gd['pax-gold']?.usd_24h_change || 0),
+              toRow("XAU/USD", gd['tether-gold']?.usd || 2305, gd['tether-gold']?.usd_24h_change || 0)
+          ]});
+        } catch {
+            return sendJson(res, 200, { rows: [toRow("PAXG/USD", 2300, 0), toRow("XAU/USD", 2305, 0)] });
+        }
+      }
+
+      return sendJson(res, 400, { message: "Unknown cat" });
+    }
+
     if (req.method === "GET" && pathname === "/api/trade/quote") {
       const fromC = String(url.searchParams.get("from") || "USD");
       const toC = String(url.searchParams.get("to") || "INR");
