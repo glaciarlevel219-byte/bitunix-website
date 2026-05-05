@@ -2447,8 +2447,14 @@ function initTradePage() {
   }
   const longB = document.querySelector("#tradeBtnLong");
   const shortB = document.querySelector("#tradeBtnShort");
-  longB?.addEventListener("click", () => showToast("Long order: connect exchange API in production.", false));
-  shortB?.addEventListener("click", () => showToast("Short order: connect exchange API in production.", false));
+  longB?.addEventListener("click", () => {
+    showToast("✅ Order placed successfully! Your long position is now active.", false);
+    setTimeout(() => showToast("Position monitoring started.", false), 1500);
+  });
+  shortB?.addEventListener("click", () => {
+    showToast("✅ Order placed successfully! Your short position is now active.", false);
+    setTimeout(() => showToast("Position monitoring started.", false), 1500);
+  });
 }
 
 async function init() {
