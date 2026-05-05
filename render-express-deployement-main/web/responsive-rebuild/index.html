@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bitunix - Digital Financial Platform</title>
+  <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" href="logo.png" type="image/png">
+  <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand-wrap brand-wrap-home">
+        <img src="./Bitunix.jpg" alt="Bitunix Logo" class="brand-logo">
+        <strong id="siteName">Bitunix</strong>
+      </div>
+      <nav class="desktop-nav">
+        <button data-tab="home" class="tab-btn active">Home</button>
+        <button data-tab="market" class="tab-btn">Market</button>
+        <button data-tab="trade" class="tab-btn">Trade</button>
+        <button data-tab="coin" class="tab-btn">Coin</button>
+        <button data-tab="user" class="tab-btn">User</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container app-main">
+    <section id="home" class="view active">
+      <article class="panel">
+        <div class="hero-banner hero-slider">
+          <div class="moving-posters">
+            <div class="poster poster1"><img src="./banner1.png" alt="Market banner 1"></div>
+            <div class="poster poster2"><img src="./banner2.png" alt="Market banner 2"></div>
+            <div class="poster poster3"><img src="./banner3.png" alt="Market banner 3"></div>
+          </div>
+          <div class="hero-copy">
+            <h1 id="heroTitle">Bitunix</h1>
+            <p id="heroSub">Digital financial service platform with live rates, secure trading, and account management in one place.</p>
+            <div class="dots"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel marquee-row">
+        <span class="kicker">Market broadcast</span>
+        <p id="tickerText" class="muted">Loading market ticker...</p>
+      </article>
+
+      <article class="panel">
+        <h3>Quick Services</h3>
+        <div class="quick-grid">
+          <button class="quick-action" data-quick="deposit">Deposit</button>
+          <button class="quick-action" data-quick="withdraw">Withdrawal</button>
+          <button class="quick-action" data-quick="c2c">C2C</button>
+          <button class="quick-action" data-quick="service">Customer service</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h3>Top Snapshot</h3>
+        <div id="topPairs" class="top-pairs"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Market Currencies</h3>
+        <p class="muted">Live market pairs on home page.</p>
+        <div id="homeMarketList" class="market-list"></div>
+      </article>
+    </section>
+
+    <section id="market" class="view">
+      <article class="panel">
+        <h2>Market</h2>
+        <div class="row-split">
+          <p class="muted">New exchange rate and rate changes.</p>
+          <div class="live-controls">
+            <span id="liveState" class="live-state">Live: off</span>
+            <button id="toggleLiveBtn" class="ghost small-btn" type="button">Enable Live</button>
+          </div>
+        </div>
+        <div class="market-tabs">
+          <button type="button" class="tab-btn active" data-market-cat="fx">Foreign Exchange</button>
+          <button type="button" class="tab-btn" data-market-cat="crypto">Cryptocurrency</button>
+          <button type="button" class="tab-btn" data-market-cat="metal">Precious Metals</button>
+        </div>
+        <div id="marketList" class="market-list"></div>
+      </article>
+    </section>
+
+    <section id="trade" class="view trade-pageview">
+      <div class="trade-workspace" id="tradeWorkspace">
+        <button type="button" class="trade-sidebar-backdrop" id="tradeSidebarBackdrop" hidden aria-label="Close list"></button>
+        <aside class="trade-left" id="tradeLeft">
+          <div class="trade-cat-bar">
+            <button type="button" class="trade-cat is-active" data-cat="fx">Foreign Exchange</button>
+            <button type="button" class="trade-cat" data-cat="crypto">Cryptocurrency</button>
+            <button type="button" class="trade-cat" data-cat="metal">Precious Metals</button>
+          </div>
+          <label class="trade-pair-search-wrap">
+            <span class="sr-only">Search pairs</span>
+            <input type="search" id="tradePairSearch" class="trade-pair-search" placeholder="Search pair (e.g. BTC, EUR)…" autocomplete="off">
+          </label>
+          <div class="trade-table-hdr">
+            <span>Currency</span>
+            <span>New exchange rate</span>
+            <span>Increase</span>
+          </div>
+          <ul class="trade-pair-rows" id="tradePairList"></ul>
+        </aside>
+        <div class="trade-right" id="tradeRight">
+          <header class="trade-topline">
+            <button type="button" class="trade-icon-btn" id="tradeBurger" aria-label="Open pairs">&#9776;</button>
+            <div class="trade-pair-titles">
+              <span class="trade-pair-pair" id="tradeHeaderPair">INR/USD</span>
+              <span class="trade-pair-chg" id="tradeHeaderChg">--</span>
+            </div>
+            <button type="button" class="trade-icon-btn" data-tab="home" id="tradeHomeBtn" title="Home">&#8962;</button>
+          </header>
+          <div class="trade-tf-row" id="tradeTfRow" role="tablist"></div>
+          <p class="trade-ohlc-line" id="tradeOhlcLine">--</p>
+          <p class="trade-ma-line" id="tradeMaLine">MA5: --  MA10: --  MA20: --</p>
+          <div class="trade-charts" id="tradeChartsWrap">
+            <div class="trade-chart-wrap" id="tradePriceChart"></div>
+            <div class="trade-vol-wrap" id="tradeVolChart"></div>
+          </div>
+          <p class="trade-vol-cap" id="tradeVolCaption">VOLUME: --</p>
+          <div class="trade-bottom-actions">
+            <button type="button" class="trade-btn-long" id="tradeBtnLong">Buy Long</button>
+            <button type="button" class="trade-btn-short" id="tradeBtnShort">Buy Short</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="coin" class="view coin-trading-view">
+      <div class="coin-trading-wrap">
+        <header class="coin-trading-header">
+          <button type="button" class="coin-pair-trigger" id="coinPairTrigger" aria-expanded="false" aria-controls="coinDrawer">
+            <span class="coin-pair-symbol" id="coinPairLabel">BTC</span>
+            <span class="coin-pair-sub" id="coinPairSub">BTC/USD</span>
+            <span class="coin-pair-chev" aria-hidden="true">&#9662;</span>
+          </button>
+          <button type="button" class="coin-header-chart" id="coinHeaderChartBtn" aria-label="Toggle chart">&#128200;</button>
+        </header>
+
+        <div class="coin-chart-block" id="coinChartBlock">
+          <div class="coin-chart-meta">
+            <span class="coin-chart-price" id="coinChartBigPrice">--</span>
+            <span class="coin-chart-pct" id="coinChartPct">--</span>
+          </div>
+          <canvas id="coinPriceCanvas" width="360" height="200" class="coin-price-canvas"></canvas>
+        </div>
+
+        <div class="coin-trading-grid">
+          <div class="coin-form-col">
+            <div class="coin-bs-toggle">
+              <button type="button" class="coin-bs-btn is-buy active" data-coin-side="buy">Buy</button>
+              <button type="button" class="coin-bs-btn is-sell" data-coin-side="sell">Sell</button>
+            </div>
+            <label class="coin-tf">
+              <span>Market Order</span>
+              <select id="coinOrderSelect" class="coin-order-select">
+                <option>Market Order</option>
+                <option>Limit Order</option>
+              </select>
+            </label>
+            <label class="coin-tf">
+              <span>Market Price</span>
+              <input id="coinDisplayPrice" class="coin-input" type="text" value="--" readonly>
+            </label>
+            <label class="coin-tf">
+              <span class="coin-amt-lbl">Amount</span>
+              <span class="coin-amt-wrap">
+                <input id="coinAmountInput" class="coin-input" type="number" min="0" step="any" placeholder="0">
+                <span class="coin-amt-suffix">USDT</span>
+              </span>
+            </label>
+            <div class="coin-pct-btns">
+              <button type="button" data-amt-pct="25">25%</button>
+              <button type="button" data-amt-pct="50">50%</button>
+              <button type="button" data-amt-pct="75">75%</button>
+              <button type="button" data-amt-pct="100">100%</button>
+            </div>
+            <p class="coin-avail">Available Balance <span id="coinAvailDisplay">0.000000</span> USDT</p>
+            <button type="button" class="coin-main-btn is-buy" id="coinMainActionBtn">Buy</button>
+          </div>
+          <div class="coin-book-col">
+            <div class="coin-book-hdr"><span>Price</span><span>Quantity</span></div>
+            <div class="coin-book-asks" id="coinBookAsks"></div>
+            <div class="coin-book-mid" id="coinBookMid">--</div>
+            <div class="coin-book-bids" id="coinBookBids"></div>
+          </div>
+        </div>
+
+        <div class="coin-bottom-tabs">
+          <button type="button" class="is-active" data-coin-subtab="pos">My position</button>
+          <button type="button" data-coin-subtab="closed">My closed position</button>
+        </div>
+        <p class="coin-nomore">No more data</p>
+      </div>
+
+      <div class="coin-drawer-overlay" id="coinDrawerOverlay" hidden></div>
+      <aside class="coin-side-drawer" id="coinDrawer" aria-hidden="true">
+        <div class="coin-drawer-seg">
+          <button type="button" class="is-on" data-cat="crypto">Cryptocurrency</button>
+          <button type="button" data-cat="metal">Precious Metals</button>
+        </div>
+        <ul class="coin-drawer-list" id="coinDrawerList"></ul>
+      </aside>
+    </section>
+
+    <section id="user" class="view">
+      <article class="panel user-profile-panel">
+        <div class="user-header-card user-profile-head">
+          <div class="avatar profile-logo">
+        <img src="./Bitunix.jpg" alt="Profile Logo" class="profile-brand-logo">
+      </div>
+          <div>
+            <h3 id="welcomeLine">Welcome</h3>
+            <p id="userMeta" class="muted">Welcome to Bitunix</p>
+            <div style="margin-top: 10px;">
+              <button id="transactionPasswordBtn" class="transaction-password-btn" style="padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;">
+                <span>&#128274;</span>
+                <span>Transaction Password</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="asset-card profile-asset-card">
+          <p>Credit score: <strong id="creditScore">0</strong></p>
+          <p>Total assets: <strong id="assetsText">0 USDT</strong></p>
+          <span class="asset-arrow">&#8250;</span>
+          <div class="stats-3">
+            <div><small>Yesterday</small><strong>0</strong></div>
+            <div><small>Today</small><strong>0</strong></div>
+            <div><small>Total revenue</small><strong>0</strong></div>
+          </div>
+        </div>
+        <div class="profile-actions">
+          <button class="quick-action profile-action" data-quick="deposit"><span class="action-icon">&#9636;</span><span>Deposit</span></button>
+          <button class="quick-action profile-action" data-quick="withdraw"><span class="action-icon">&#8673;</span><span>Withdrawal</span></button>
+          <button type="button" class="quick-action profile-action" onclick="openHelpCenter()"><span class="action-icon">&#10227;</span><span>Help Center</span></button>
+          <button class="quick-action profile-action" data-quick="lock"><span class="action-icon">&#10070;</span><span>Lock-up mining</span></button>
+        </div>
+        
+        </article>
+
+      <!-- Profile Options List -->
+      <article class="panel profile-options-list">
+        <div class="options-list">
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="margin-bottom: 15px;">
+              <button id="profileLogoutBtn" class="profile-logout-btn" style="width: 100%; padding: 12px; background: transparent; border: 1px solid #dc3545; color: #dc3545; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;">
+                <span>&#9167;</span>
+                <span>Logout</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Transaction Password Modal -->
+      <article id="transactionPasswordModal" class="panel overlay-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;">
+        <div class="modal-content" style="background: #2c3e50; padding: 30px; border-radius: 12px; max-width: 400px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <h3 style="margin-bottom: 20px; text-align: center; color: #ffffff;">Set Transaction Password</h3>
+          <form id="transactionPasswordForm">
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #ecf0f1;">User Profile Password</label>
+              <input type="password" id="currentPassword" name="currentPassword" required style="width: 100%; padding: 10px; border: 1px solid #34495e; border-radius: 6px; font-size: 14px; background: #34495e; color: #ecf0f1;">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #ecf0f1;">New Transaction Password</label>
+              <input type="password" id="newTransactionPassword" name="newTransactionPassword" required minlength="6" style="width: 100%; padding: 10px; border: 1px solid #34495e; border-radius: 6px; font-size: 14px; background: #34495e; color: #ecf0f1;">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #ecf0f1;">Confirm Transaction Password</label>
+              <input type="password" id="confirmTransactionPassword" name="confirmTransactionPassword" required minlength="6" style="width: 100%; padding: 10px; border: 1px solid #34495e; border-radius: 6px; font-size: 14px; background: #34495e; color: #ecf0f1;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+              <button type="submit" style="flex: 1; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Set Password</button>
+              <button type="button" id="cancelTransactionPassword" style="flex: 1; padding: 12px; background: #7f8c8d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <article class="panel login-panel auth-view-login">
+        <form id="loginForm" class="login-screen-form login-mode-phone">
+          <div class="login-head-row">
+            <h3 class="login-title">Welcome to login</h3>
+            <button class="lang-btn" type="button" aria-label="Language">&#127760;</button>
+          </div>
+
+          <div class="login-type-toggle">
+            <button class="login-type-btn" data-login-type="email" type="button">Email</button>
+            <button class="login-type-btn active" data-login-type="phone" type="button">Phone number</button>
+          </div>
+
+          <div id="loginEmailBlock" class="login-field login-email-block">
+            <span>Email</span>
+            <input id="loginEmailOnly" name="email_login" type="email" autocomplete="username" placeholder="Enter your email">
+          </div>
+
+          <div id="loginPhoneRow" class="login-row two-col">
+            <label class="login-field">
+              <span>Country code</span>
+              <select id="loginCountrySelect" name="country_code" aria-label="Country calling code">
+                <option value="">Loading codes…</option>
+              </select>
+            </label>
+            <label class="login-field">
+              <span>Phone number</span>
+              <input id="loginPhoneOnly" class="login-id-input" name="phone_number" type="tel" inputmode="numeric" placeholder="National number" autocomplete="tel-national">
+            </label>
+          </div>
+
+          <label class="login-field">
+            <span>Password</span>
+            <input name="password" type="password" placeholder="Enter password" minlength="6" required>
+          </label>
+
+          <button type="submit" class="login-submit-btn">Login</button>
+          <p class="login-foot-note">Don't have an account? <button id="showRegisterLink" type="button" class="link-register">Register here</button></p>
+          <button id="logoutBtn" type="button" class="logout-inline-btn" hidden>Logout</button>
+          <p id="authMessage" class="auth-inline-message"></p>
+        </form>
+
+        <form id="registerForm" class="auth-form register-screen-form">
+          <h3 class="register-title">Create account</h3>
+          <label>Name<input name="name" type="text" required></label>
+          <label>Email<input name="email" type="email" required></label>
+          <label>Password<input name="password" type="password" minlength="6" required></label>
+          <button type="submit" class="login-submit-btn">Register</button>
+          <p class="auth-switch">Already have an account? <button id="showLoginBtn" type="button" class="link-register-inline">Back to login</button></p>
+        </form>
+      </article>
+
+      <article class="panel profile-menu-panel">
+        <ul id="accountMenu" class="stack-list profile-menu-list"></ul>
+      </article>
+
+      <article id="withdrawPanel" class="panel collapsed-auth-panel">
+        <h3>Withdrawal Channel</h3>
+        <p class="muted">Withdraw coins <strong>USDT</strong></p>
+        <form id="withdrawForm" class="coin-form">
+          <label>USDT Address<input name="address" type="text" required></label>
+          <label>Withdrawal amount USDT<input name="amount" type="number" min="1" required></label>
+          <label>Transaction password<input name="password" type="password" minlength="4" required></label>
+          <div class="btn-row">
+            <button type="submit" class="cta">Withdrawal</button>
+          </div>
+        </form>
+        <p id="withdrawMessage" class="muted"></p>
+      </article>
+
+      <article class="panel collapsed-auth-panel">
+        <h3>Coverage & Notices</h3>
+        <div class="stats">
+          <div><p class="metric" id="countryCount">0</p><small>Countries</small></div>
+          <div><p class="metric" id="defaultCurrency">USDT</p><small>Default Currency</small></div>
+        </div>
+        <p id="newsState" class="muted">Loading news...</p>
+        <ul id="newsList" class="stack-list"></ul>
+      </article>
+    </section>
+  </main>
+
+  <nav class="mobile-tabbar">
+    <button data-tab="home" class="mobile-tab active"><span class="mobile-tab-icon">&#8962;</span><span>Home</span></button>
+    <button data-tab="market" class="mobile-tab"><span class="mobile-tab-icon">&#8601;</span><span>Market</span></button>
+    <button data-tab="trade" class="mobile-tab"><span class="mobile-tab-icon">&#9670;</span><span>Trade</span></button>
+    <button data-tab="coin" class="mobile-tab"><span class="mobile-tab-icon">&#9776;</span><span>Coin</span></button>
+    <button data-tab="user" class="mobile-tab"><span class="mobile-tab-icon">&#9728;</span><span>User</span></button>
+  </nav>
+
+  <div id="appToast" class="app-toast" role="status" aria-live="polite" hidden>
+    <span id="appToastText"></span>
+  </div>
+
+  <div id="overlayRoot" class="overlay-root" hidden>
+    <button type="button" class="overlay-scrim" id="overlayScrim" aria-label="Close dialog"></button>
+    <div class="overlay-sheet" id="overlayDeposit" role="dialog" aria-modal="true" aria-labelledby="depTitle" hidden>
+      <header class="overlay-hdr">
+        <h3 id="depTitle">Deposit USDT</h3>
+        <button type="button" class="overlay-close" data-close-overlay>&times;</button>
+      </header>
+      <p class="overlay-lead muted">Send only USDT on the network you select. The address below is a placeholder — do not send real funds.</p>
+      <div class="deposit-addr-block">
+        <div class="deposit-qr-wrap">
+          <img id="depositQrImg" width="220" height="220" alt="Deposit address QR code">
+        </div>
+        <p class="deposit-addr-hdr">Deposit address <span class="muted">(invalid / test — for UI only)</span></p>
+        <code id="depositAddressText" class="deposit-addr-code"></code>
+      </div>
+      <form id="depositForm" class="overlay-form">
+        <label>Network
+          <select id="depositNetworkSelect" name="network" required>
+            <option value="TRC20">TRC20 (Tron)</option>
+            <option value="ERC20">ERC20 (Ethereum)</option>
+            <option value="BEP20">BEP20 (BSC)</option>
+          </select>
+        </label>
+        <label>Amount (USDT)<input name="amount" type="number" min="1" step="0.01" required placeholder="e.g. 100"></label>
+        <label class="overlay-check"><input type="checkbox" name="confirm" required> I confirm the amount and network.</label>
+        <button type="submit" class="login-submit-btn">Submit deposit request</button>
+      </form>
+      <p id="depositCountdown" class="deposit-countdown muted" hidden></p>
+      <p id="depositMsg" class="overlay-msg muted"></p>
+    </div>
+    <div class="overlay-sheet overlay-sheet-wide" id="overlayC2c" role="dialog" aria-modal="true" aria-labelledby="c2cTitle" hidden>
+      <header class="overlay-hdr">
+        <h3 id="c2cTitle">C2C — peer USDT</h3>
+        <button type="button" class="overlay-close" data-close-overlay>&times;</button>
+      </header>
+      <div class="c2c-tabs">
+        <button type="button" class="c2c-tab is-on" data-c2c-side="buy">Buy USDT</button>
+        <button type="button" class="c2c-tab" data-c2c-side="sell">Sell USDT</button>
+      </div>
+      <p class="overlay-lead muted">Post a buy or sell ad. Open orders stay on the board until filled or cancelled.</p>
+      <form id="c2cForm" class="overlay-form">
+        <input type="hidden" name="side" id="c2cSideField" value="buy">
+        <label>Your price (per 1 USDT in fiat)<input name="price" type="number" min="0.01" step="0.0001" required placeholder="e.g. 1.00"></label>
+        <label>Amount USDT<input name="amount" type="number" min="1" step="0.01" required></label>
+        <label>Payment note (optional)<input name="note" type="text" maxlength="120" placeholder="Bank / UPI / etc."></label>
+        <button type="submit" class="login-submit-btn">Publish order</button>
+      </form>
+      <p id="c2cMsg" class="overlay-msg muted"></p>
+      <h4 class="overlay-sub">My orders</h4>
+      <ul id="c2cOrderList" class="overlay-list"></ul>
+    </div>
+    <div class="overlay-sheet overlay-sheet-wide" id="overlayLock" role="dialog" aria-modal="true" aria-labelledby="lockTitle" hidden>
+      <header class="overlay-hdr">
+        <h3 id="lockTitle">Lock-up mining</h3>
+        <button type="button" class="overlay-close" data-close-overlay>&times;</button>
+      </header>
+      <p class="overlay-lead muted">Subscribe USDT into a fixed term. Rewards accrue according to the published APR.</p>
+      <div id="lockProductGrid" class="lock-product-grid"></div>
+      <form id="lockSubscribeForm" class="overlay-form">
+        <input type="hidden" name="productId" id="lockProductId" value="">
+        <p class="muted" id="lockProductHint">Select a product above.</p>
+        <label>Amount USDT<input name="amount" type="number" min="10" step="0.01" required placeholder="Minimum per product"></label>
+        <button type="submit" class="login-submit-btn" id="lockSubscribeBtn" disabled>Subscribe</button>
+      </form>
+      <p id="lockMsg" class="overlay-msg muted"></p>
+      <h4 class="overlay-sub">Active positions</h4>
+      <div class="lock-table-wrap">
+        <table class="lock-table" aria-label="Lock positions">
+          <thead><tr><th>Product</th><th>Amount</th><th>APR</th><th>Unlock</th><th>Est. reward</th></tr></thead>
+          <tbody id="lockPositionsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="overlay-sheet overlay-sheet-wide help-center-sheet" id="overlayService" role="dialog" aria-modal="true" aria-labelledby="serviceTitle" hidden>
+      <header class="overlay-hdr">
+        <h3 id="serviceTitle">Customer Support</h3>
+        <button type="button" class="overlay-close" data-close-overlay>&times;</button>
+      </header>
+      <p class="overlay-lead muted">Our support team is here to help you. Send us a message and we'll get back to you as soon as possible.</p>
+      <div class="help-center-user-row" id="helpCenterUserRow">
+        <span class="muted">Signed in as:</span>
+        <strong id="currentUserName">—</strong>
+        <span class="muted">· ID</span> <code id="currentUserId" class="help-center-user-id">—</code>
+      </div>
+      <p class="help-center-quick-label muted">How can we help you today?</p>
+      <div class="help-center-topics">
+        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with my deposit')">Deposit</button>
+        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with withdrawal')">Withdrawal</button>
+        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with my account')">Account</button>
+        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with trading')">Trading</button>
+        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with verification')">Verification</button>
+      </div>
+      <div class="help-center-custom-message">
+        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Describe your issue in detail and our support team will assist you..." rows="3"></textarea>
+        <button type="button" class="help-topic-btn" onclick="sendCustomCustomerMessage()">Send Message</button>
+      </div>
+      <div id="customerMessages" class="help-center-thread" aria-live="polite"></div>
+      <p id="customerStatus" class="help-center-status muted"></p>
+      <p id="supportMsg" class="overlay-msg muted"></p>
+    </div>
+  </div>
+
+  <div id="profileModuleRoot" class="overlay-root profile-module-root" hidden aria-hidden="true">
+    <button type="button" class="overlay-scrim" id="profileModuleScrim" aria-label="Close"></button>
+    <div class="overlay-sheet overlay-sheet-wide profile-module-sheet" role="dialog" aria-modal="true" aria-labelledby="profileModuleTitle">
+      <header class="overlay-hdr">
+        <h3 id="profileModuleTitle">Account</h3>
+        <button type="button" class="overlay-close" data-close-profile>&times;</button>
+      </header>
+      <div id="profileModuleScroll" class="profile-module-scroll">
+        <div id="profileModuleBody" class="profile-module-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Panel Access - Hidden link for administrators -->
+  <footer class="app-footer" style="padding: 20px; text-align: center; background: #1a1f2e; border-top: 1px solid #2d3748; margin-top: 40px;">
+    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+      <div style="color: #718096; font-size: 12px;">
+        &copy; 2024 Bitunix. All rights reserved.
+      </div>
+      <div style="display: flex; gap: 20px; align-items: center;">
+        <a href="#" class="footer-link">Terms</a>
+        <a href="#" class="footer-link">Privacy</a>
+        <a href="#" class="footer-link">Support</a>
+        <!-- Admin Panel Link - Click 5 times rapidly to access -->
+        <a href="#" id="adminAccessLink" style="color: #2d3748; font-size: 12px; text-decoration: none; user-select: none;" title="Admin Access">.</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js" defer></script>
+  <script>
+    // Admin Panel Access - Click 5 times on the dot to access admin
+    (function() {
+      let clickCount = 0;
+      let lastClickTime = 0;
+      const adminLink = document.getElementById('adminAccessLink');
+      
+      if (adminLink) {
+        adminLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          const now = Date.now();
+          
+          // Reset if more than 2 seconds between clicks
+          if (now - lastClickTime > 2000) {
+            clickCount = 0;
+          }
+          
+          clickCount++;
+          lastClickTime = now;
+          
+          if (clickCount >= 5) {
+            clickCount = 0;
+            // Redirect to admin panel - update this URL after deployment
+            const adminUrl = localStorage.getItem('adminPanelUrl') || 'http://127.0.0.1:5618';
+            window.open(adminUrl, '_blank');
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

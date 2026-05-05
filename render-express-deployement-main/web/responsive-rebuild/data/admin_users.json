@@ -1,0 +1,9 @@
+[
+  {
+    "id": "48eb6fe4-2b48-4e28-b6fc-1d99a9b50497",
+    "username": "admin",
+    "passwordHash": "f05f05a5ecc74f67d256fcaa65128db9:2ec91ffc91898c2b0232610a9667a7373c1c5c497de386972bfa045b3f609f3c7641ea574b4a1a4c1d937b54a1999146cadc5ed5bf4b413f4b512e1c9f87b361",
+    "role": "super_admin",
+    "createdAt": 1777720115901
+  }
+]

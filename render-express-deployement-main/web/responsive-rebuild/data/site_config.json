@@ -1,0 +1,23 @@
+{
+  "site_name": "Bitunix",
+  "site_description": "Crypto trading platform with live market data",
+  "maintenance_mode": true,
+  "registration_enabled": true,
+  "trading_enabled": true,
+  "deposit_enabled": true,
+  "withdrawal_enabled": true,
+  "support_email": "support@bitunix.com",
+  "support_phone": "+1-800-BITUNIX",
+  "theme_color": "#323234",
+  "logo_url": "",
+  "footer_text": "© 2024 Bitunix. All rights reserved.",
+  "social_links": {
+    "twitter": "",
+    "telegram": "",
+    "discord": ""
+  },
+  "api_keys": {
+    "binance": "",
+    "coingecko": ""
+  }
+}

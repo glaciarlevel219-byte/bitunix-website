@@ -1,0 +1,17 @@
+{
+  "name": "bitunix-admin",
+  "version": "1.0.0",
+  "description": "Admin panel for Bitunix crypto trading platform",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node admin-server.js",
+    "dev": "node admin-server.js"
+  },
+  "keywords": ["admin", "crypto", "trading", "bitunix"],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

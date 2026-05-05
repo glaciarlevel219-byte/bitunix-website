@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Bitunix</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="login-container">
+                <div class="login-card">
+                    <h1>Admin Panel</h1>
+                    <p class="subtitle">Bitunix Management System</p>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                        <button type="submit" class="btn-primary">Login</button>
+                    </form>
+                    <div id="loginMessage" class="message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboardScreen" class="screen">
+            <header class="admin-header">
+                <div class="header-content">
+                    <h1>Admin Dashboard</h1>
+                    <div class="header-actions">
+                        <span id="adminUser" class="admin-info"></span>
+                        <button id="logoutBtn" class="btn-secondary">Logout</button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="overview">Overview</button>
+                <button class="nav-tab" data-tab="users">Users</button>
+                <button class="nav-tab" data-tab="deposits">Deposits</button>
+                <button class="nav-tab" data-tab="withdrawals">Withdrawals</button>
+                <button class="nav-tab" data-tab="support">Customer Support</button>
+                <button class="nav-tab" data-tab="config">Config</button>
+                <button class="nav-tab" data-tab="system">System</button>
+            </div>
+
+            <main class="admin-content">
+                <!-- Overview Tab -->
+                <div id="overviewTab" class="tab-content active">
+                    <h2>System Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Total Users</h3>
+                            <p id="totalUsers" class="stat-number">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>System Uptime</h3>
+                            <p id="systemUptime" class="stat-number">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Memory Usage</h3>
+                            <p id="memoryUsage" class="stat-number">-</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Node Version</h3>
+                            <p id="nodeVersion" class="stat-number">-</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration Tab -->
+                <div id="configTab" class="tab-content">
+                    <h2>Site Configuration</h2>
+                    <form id="configForm">
+                        <div class="config-section">
+                            <h3>Basic Settings</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="siteName">Site Name</label>
+                                    <input type="text" id="siteName" name="site_name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="siteDescription">Site Description</label>
+                                    <input type="text" id="siteDescription" name="site_description">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Feature Toggles</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="maintenanceMode" name="maintenance_mode">
+                                        Maintenance Mode
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="registrationEnabled" name="registration_enabled">
+                                        Registration Enabled
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="tradingEnabled" name="trading_enabled">
+                                        Trading Enabled
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="depositEnabled" name="deposit_enabled">
+                                        Deposit Enabled
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Support Information</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="supportEmail">Support Email</label>
+                                    <input type="email" id="supportEmail" name="support_email">
+                                </div>
+                                <div class="form-group">
+                                    <label for="supportPhone">Support Phone</label>
+                                    <input type="tel" id="supportPhone" name="support_phone">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Appearance</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="themeColor">Theme Color</label>
+                                    <input type="color" id="themeColor" name="theme_color">
+                                </div>
+                                <div class="form-group">
+                                    <label for="logoUrl">Logo URL</label>
+                                    <input type="url" id="logoUrl" name="logo_url">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Social Links</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="twitterUrl">Twitter</label>
+                                    <input type="url" id="twitterUrl" name="social_links.twitter">
+                                </div>
+                                <div class="form-group">
+                                    <label for="telegramUrl">Telegram</label>
+                                    <input type="url" id="telegramUrl" name="social_links.telegram">
+                                </div>
+                                <div class="form-group">
+                                    <label for="discordUrl">Discord</label>
+                                    <input type="url" id="discordUrl" name="social_links.discord">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save Configuration</button>
+                        </div>
+                    </form>
+                    <div id="configMessage" class="message"></div>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="usersTab" class="tab-content">
+                    <h2>User Management</h2>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>User ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Password Hash</th>
+                                    <th>Balance</th>
+                                    <th>Wallet</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Deposits Tab -->
+                <div id="depositsTab" class="tab-content">
+                    <h2>Deposit Approval</h2>
+                    <div class="table-container">
+                        <table id="depositsTable">
+                            <thead>
+                                <tr>
+                                    <th>Deposit ID</th>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Amount</th>
+                                    <th>Network</th>
+                                    <th>Requested</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="8">Loading deposits...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Withdrawals Tab -->
+                <div id="withdrawalsTab" class="tab-content">
+                    <h2>Withdrawal Approval</h2>
+                    <div class="table-container">
+                        <table id="withdrawalsTable">
+                            <thead>
+                                <tr>
+                                    <th>Withdrawal ID</th>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Amount</th>
+                                    <th>Network</th>
+                                    <th>Address</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="9">Loading withdrawals...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Customer Support Tab -->
+                <div id="supportTab" class="tab-content">
+                    <h2>Customer Support</h2>
+                    <div class="support-grid">
+                        <div class="support-section">
+                            <h3>📨 Recent User Messages</h3>
+                            <div id="adminChatContainer" class="admin-chat-container">
+                                <div id="adminMessagesList" class="admin-messages-list">
+                                    <!-- User messages will be loaded here -->
+                                </div>
+                                <div class="admin-chat-controls">
+                                    <button id="refreshMessagesBtn" class="btn-primary">🔄 Refresh Messages</button>
+                                    <button id="clearMessagesBtn" class="btn-secondary">🗑️ Clear Display</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="support-section">
+                            <h3>Customer Chat History</h3>
+                    <div class="customer-search">
+                        <input type="text" id="customerSearchInput" placeholder="Search customer by email or name...">
+                        <button id="searchCustomerBtn" class="btn-primary">Search</button>
+                    </div>
+                    <div id="customerChatHistory" class="chat-history">
+                        <!-- Chat history will be displayed here -->
+                        <div class="modal-header">
+                            <h2>User Details</h2>
+                            <button class="modal-close" onclick="closeUserModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                <div class="user-details-grid">
+                    <div class="detail-section">
+                        <h3>Basic Information</h3>
+                        <div class="detail-item">
+                            <label>User ID:</label>
+                            <span id="modalUserId"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Name:</label>
+                            <span id="modalUserName"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Email:</label>
+                            <span id="modalUserEmail"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Password Hash:</label>
+                            <code id="modalUserPassword"></code>
+                        </div>
+                        <div class="detail-item">
+                            <label>Registered:</label>
+                            <span id="modalUserCreated"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h3>Wallet Information</h3>
+                        <div class="detail-item">
+                            <label>Balance:</label>
+                            <span id="modalUserBalance"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>KYC Status:</label>
+                            <span id="modalUserKyc"></span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Account Level:</label>
+                            <span id="modalUserLevel"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Transaction History</h3>
+                    <div class="transaction-list">
+                        <div id="modalTransactions"></div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Deposit History</h3>
+                    <div class="deposit-list">
+                        <div id="modalDeposits"></div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Withdrawal History</h3>
+                    <div class="withdrawal-list">
+                        <div id="modalWithdrawals"></div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h3>Customer Support</h3>
+                    <div class="support-actions">
+                        <button class="btn-primary" onclick="openSupportChat()" id="contactSupportBtn">
+                            💬 Contact Support
+                        </button>
+                        <button class="btn-secondary" onclick="viewSupportHistory()" id="supportHistoryBtn">
+                            📋 Support History
+                        </button>
+                    </div>
+                </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Support Chat Modal -->
+    <div id="supportChatModal" class="modal" hidden>
+        <div class="modal-content support-chat-modal">
+            <div class="modal-header">
+                <h2>Customer Support Chat</h2>
+                <button class="modal-close" onclick="closeSupportChatModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="chat-container">
+                    <div id="supportChatMessages" class="chat-messages">
+                        <!-- Chat messages will be loaded here -->
+                    </div>
+                    <div class="chat-input-container">
+                        <input type="text" id="supportChatInput" placeholder="Type your message..." />
+                        <button id="sendSupportMessage" class="btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div id="userModal" class="modal" hidden>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>User Details</h2>
+                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="user-details-grid">
+                    <div class="detail-group">
+                        <label>User ID:</label>
+                        <span id="modalUserId"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Name:</label>
+                        <span id="modalUserName"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Email:</label>
+                        <span id="modalUserEmail"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Balance:</label>
+                        <span id="modalUserBalance"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Credit Score:</label>
+                        <span id="modalUserCreditScore"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Registered:</label>
+                        <span id="modalUserRegistered"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Wallet Status:</label>
+                        <span id="modalUserWalletStatus"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>Transaction Password Set:</label>
+                        <span id="modalUserTransactionPassword"></span>
+                    </div>
+                    <div class="detail-group">
+                        <label>KYC Status:</label>
+                        <span id="modalUserKyc"></span>
+                    </div>
+                </div>
+                <div id="modalKycSection" class="detail-group" style="margin-top:12px;">
+                    <label>KYC Document:</label>
+                    <div id="modalKycDocWrap"></div>
+                    <div style="margin-top:8px; display:flex; gap:8px;">
+                        <button class="btn-small btn-approve" onclick="kycAction('approve')">Approve KYC</button>
+                        <button class="btn-small btn-reject" onclick="kycAction('reject')">Reject KYC</button>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-primary" onclick="openSupportChat(window.currentModalUserId)">Send Message</button>
+                    <button class="btn-secondary" onclick="closeUserModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/admin/admin.js"></script>
+</body>
+</html>
