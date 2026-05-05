@@ -679,6 +679,23 @@ module.exports = async (req, res) => {
   console.log(`[API Request] ${req.method} ${pathname} (Original: ${url.pathname})`);
 
   try {
+    if (req.method === "GET" && pathname === "/api/debug/db") {
+      const db = await connectToDatabase();
+      if (db) {
+          return sendJson(res, 200, { 
+              status: "connected", 
+              database: db.databaseName,
+              message: "MongoDB is working correctly!" 
+          });
+      } else {
+          return sendJson(res, 500, { 
+              status: "failed", 
+              uri_present: !!MONGODB_URI,
+              message: "Could not connect to MongoDB. Check your Vercel Environment Variables and MongoDB Network Access (0.0.0.0/0)." 
+          });
+      }
+    }
+
     if (await tryAdminRoutes(req, res, url, pathname)) {
         console.log(`[API Admin] Handled ${pathname}`);
         return;
