@@ -1019,16 +1019,24 @@ module.exports = async (req, res) => {
       return sendJson(res, 200, { message: "Verification submitted" });
     }
 
-    if (req.method === "POST" && pathname === "/api/support/message") {
+    if (req.method === "POST" && pathname === "/api/support/messages/send") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
       const userId = decoded.id;
-      const file = path.join(DATA_DIR, `support_${userId}.json`);
-      ensureDataDir();
-      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
+      
+      const db = await connectToDatabase();
+      let raw;
+      if (db) {
+          const chat = await db.collection("support_chats").findOne({ userId });
+          raw = chat || { userId, messages: [] };
+      } else {
+          const file = path.join(DATA_DIR, `support_${userId}.json`);
+          raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { userId, messages: [] };
+      }
+
       const msg = {
         id: `msg_${Date.now()}`,
         userId,
@@ -1038,18 +1046,32 @@ module.exports = async (req, res) => {
         status: "sent"
       };
       raw.messages.push(msg);
-      fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+
+      if (db) {
+          await db.collection("support_chats").updateOne({ userId }, { $set: raw }, { upsert: true });
+      } else {
+          const file = path.join(DATA_DIR, `support_${userId}.json`);
+          fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+      }
       return sendJson(res, 200, { message: "Message sent", chat: msg });
     }
 
-    if (req.method === "GET" && pathname === "/api/support/history") {
+    if (req.method === "GET" && pathname === "/api/support/messages/user") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      const file = path.join(DATA_DIR, `support_${decoded.id}.json`);
-      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
-      return sendJson(res, 200, { messages: raw.messages });
+      
+      const userId = decoded.id;
+      const db = await connectToDatabase();
+      if (db) {
+          const chat = await db.collection("support_chats").findOne({ userId });
+          return sendJson(res, 200, { messages: chat ? chat.messages : [] });
+      } else {
+          const file = path.join(DATA_DIR, `support_${userId}.json`);
+          const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
+          return sendJson(res, 200, { messages: raw.messages });
+      }
     }
     return sendJson(res, 404, { message: "Not found" });
   } catch (err) {

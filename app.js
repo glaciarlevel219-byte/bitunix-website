@@ -1774,6 +1774,13 @@ async function refreshAuthUser() {
     const me = await fetchJson(endpoints.me, { headers: { Authorization: `Bearer ${state.token}` } });
     document.querySelector("#welcomeLine").textContent = safeText(me.user.name);
     document.querySelector("#userMeta").textContent = `Welcome to ${SITE_NAME}`;
+    
+    // Hide login form if we have a valid user
+    const loginForm = document.querySelector("#loginForm");
+    if (loginForm) loginForm.style.display = "none";
+    const logoutBtn = document.querySelector("#logoutBtn");
+    if (logoutBtn) logoutBtn.hidden = false;
+
     try {
       const wm = await fetchJson(endpoints.walletMe, { headers: { Authorization: `Bearer ${state.token}` } });
       const nw = normalizeWallet(wm.wallet || {});
@@ -2833,7 +2840,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Initial visibility check
-  updateProfileVisibility();
+  setTimeout(updateProfileVisibility, 500);
   
   // Monitor for login form changes
   const observer = new MutationObserver(function(mutations) {
