@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "^/admin/api/(.*)$",
+      "dest": "/api/[...route].js"
+    },
+    {
       "src": "^/api/(.*)$",
       "dest": "/api/[...route].js"
     },
