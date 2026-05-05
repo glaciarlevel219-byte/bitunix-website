@@ -1,48 +1,12 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "builds": [
-    {
-      "src": "api/[...route].js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "web/responsive-rebuild/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/admin/api/(.*)",
-      "dest": "/api/[...route].js"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/[...route].js"
-    },
-    {
-      "src": "/admin",
-      "dest": "/web/responsive-rebuild/admin/index.html"
-    },
-    {
-      "src": "/admin/",
-      "dest": "/web/responsive-rebuild/admin/index.html"
-    },
-    {
-      "src": "/admin/(.*)",
-      "dest": "/web/responsive-rebuild/admin/$1"
-    },
-    {
-      "src": "/(.*)\\.(js|css|png|jpg|jpeg|gif|ico|svg)",
-      "dest": "/web/responsive-rebuild/$1.$2"
-    },
-    {
-      "src": "/",
-      "dest": "/web/responsive-rebuild/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/web/responsive-rebuild/$1"
-    }
+  "rewrites": [
+    { "source": "/admin/api/:path*", "destination": "/api/[...route].js" },
+    { "source": "/api/:path*", "destination": "/api/[...route].js" },
+    { "source": "/admin", "destination": "/web/responsive-rebuild/admin/index.html" },
+    { "source": "/admin/:path*", "destination": "/web/responsive-rebuild/admin/:path*" },
+    { "source": "/", "destination": "/web/responsive-rebuild/index.html" },
+    { "source": "/:path*", "destination": "/web/responsive-rebuild/:path*" }
   ]
 }
