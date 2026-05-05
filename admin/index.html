@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Bitunix</title>
     <link rel="stylesheet" href="/admin/admin.css">
+    <script>
+      window.onerror = function(msg, url, line) {
+        console.error('ADMIN ERROR:', msg, 'at', url, 'line', line);
+        alert('Admin Panel Error: ' + msg);
+      };
+    </script>
 </head>
 <body>
     <div id="app">

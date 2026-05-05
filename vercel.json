@@ -1,6 +1,11 @@
 {
   "version": 2,
   "cleanUrls": true,
+  "functions": {
+    "api/[...route].js": {
+      "includeFiles": "web/**"
+    }
+  },
   "rewrites": [
     { "source": "/admin/api/:path*", "destination": "/api/[...route].js" },
     { "source": "/api/:path*", "destination": "/api/[...route].js" },

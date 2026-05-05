@@ -537,9 +537,15 @@ async function chartMarketBinance(symbol, days) {
 module.exports = async (req, res) => {
   const host = req.headers.host || "localhost";
   const url = new URL(req.url, `http://${host}`);
-  const pathname = url.pathname;
+  let pathname = url.pathname;
+  
+  // Normalize pathname to handle cases where Vercel might strip /api
+  if (!pathname.startsWith("/api") && !pathname.startsWith("/admin/api")) {
+    if (pathname.startsWith("/market/live")) pathname = "/api" + pathname;
+    else if (pathname.startsWith("/login")) pathname = "/admin/api" + pathname;
+  }
 
-  console.log(`[API Request] ${req.method} ${pathname}`);
+  console.log(`[API Request] ${req.method} ${pathname} (Original: ${url.pathname})`);
 
   try {
     if (await tryAdminRoutes(req, res, url, pathname)) {
