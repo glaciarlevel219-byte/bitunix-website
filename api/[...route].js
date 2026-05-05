@@ -847,44 +847,35 @@ module.exports = async (req, res) => {
       }
       if (cat === "fx") {
         const rows = [];
-        const bi = [
-          { label: "AUD/USD", symbol: "AUDUSDT" },
+        const pairs = [
+          { label: "INR/USD", from: "USD", to: "INR" },
           { label: "EUR/USD", symbol: "EURUSDT" },
           { label: "GBP/USD", symbol: "GBPUSDT" },
+          { label: "AUD/USD", symbol: "AUDUSDT" },
+          { label: "JPY/USD", from: "USD", to: "JPY" },
+          { label: "AED/USD", from: "USD", to: "AED" },
+          { label: "SAR/USD", from: "USD", to: "SAR" },
+          { label: "PKR/USD", from: "USD", to: "PKR" },
         ];
-        for (const p of bi) {
+        for (const p of pairs) {
           try {
-            const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.symbol}`);
-            if (r.ok) {
-              const t = await r.json();
-              rows.push(toRow(p.label, t.lastPrice, t.priceChangePercent));
+            if (p.symbol) {
+              const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.symbol}`);
+              if (r.ok) {
+                const t = await r.json();
+                rows.push(toRow(p.label, t.lastPrice, t.priceChangePercent));
+                continue;
+              }
+            }
+            // Fallback for non-binance or failed pairs
+            const fr = await fetch(`https://api.frankfurter.app/latest?from=${p.from || "USD"}&to=${p.to || "INR"}`);
+            if (fr.ok) {
+              const d = await fr.json();
+              const rate = d.rates && d.rates[p.to || "INR"];
+              if (rate) rows.push(toRow(p.label, (1/rate).toFixed(6), "0.00"));
             }
           } catch {}
         }
-        try {
-          const r0 = await fetch("https://api.frankfurter.app/latest?from=USD&to=INR");
-          const d0 = await r0.json();
-          const inr = Number(d0.rates && d0.rates.INR);
-          if (inr > 0) {
-            const usdPerInr = 1 / inr;
-            const end = new Date();
-            const st = new Date();
-            st.setDate(st.getDate() - 3);
-            const furl = `https://api.frankfurter.app/${st.toISOString().slice(0, 10)}..${end.toISOString().slice(0, 10)}?from=USD&to=INR`;
-            const r1 = await fetch(furl);
-            let chg = "0.0000";
-            if (r1.ok) {
-              const t = await r1.json();
-              const days = Object.keys(t.rates || {}).sort();
-              if (days.length >= 2) {
-                const a = 1 / t.rates[days[days.length - 2]].INR;
-                const b = 1 / t.rates[days[days.length - 1]].INR;
-                chg = (((b - a) / a) * 100).toFixed(4);
-              }
-            }
-            rows.unshift(toRow("INR/USD", usdPerInr.toFixed(6), chg));
-          }
-        } catch {}
         return sendJson(res, 200, { rows: rows.length ? rows : [toRow("EUR/USD", "0", "0")] });
       }
       if (cat === "metal") {
