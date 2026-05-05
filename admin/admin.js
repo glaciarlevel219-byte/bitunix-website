@@ -152,7 +152,7 @@ function switchTab(tabName) {
     // Load data based on tab
     switch(tabName) {
         case 'overview':
-            loadSystem();
+            loadOverview();
             break;
         case 'users':
             loadUsers();
@@ -170,7 +170,7 @@ function switchTab(tabName) {
             loadConfig();
             break;
         case 'system':
-            loadSystem();
+            loadOverview();
             break;
     }
 }

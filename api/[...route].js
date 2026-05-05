@@ -679,6 +679,11 @@ module.exports = async (req, res) => {
             return null;
           }
         }));
+        if (!rows.filter(Boolean).length) {
+            const fallback = readBackupJson("currency");
+            const fr = fallback?.data?.all || fallback?.data?.top_three || [];
+            return sendJson(res, 200, { rows: fr.map(x => toRow(`${x.legal_name}/USD`, x.now_price, x.change)) });
+        }
         return sendJson(res, 200, { rows: rows.filter(Boolean) });
       }
       if (cat === "fx") {
@@ -736,6 +741,11 @@ module.exports = async (req, res) => {
             return null;
           }
         }));
+        if (!rows.filter(Boolean).length) {
+            const fallback = readBackupJson("currency");
+            const fr = fallback?.data?.all || fallback?.data?.top_three || [];
+            return sendJson(res, 200, { rows: fr.map(x => toRow(`${x.legal_name}/USD`, x.now_price, x.change)) });
+        }
         return sendJson(res, 200, { rows: rows.filter(Boolean) });
       }
       return sendJson(res, 400, { message: "Unknown cat" });
@@ -778,6 +788,109 @@ module.exports = async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       return sendJson(res, 200, { user: decoded });
+    }
+
+    // --- NEW ENDPOINTS FOR WALLET & SUPPORT ---
+
+    if (req.method === "GET" && pathname === "/api/wallet/me") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const wallet = readWalletForUser(decoded.id);
+      return sendJson(res, 200, { wallet });
+    }
+
+    if (req.method === "POST" && pathname === "/api/deposit/create") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const w = readWalletForUser(decoded.id);
+      w.pendingDeposits = w.pendingDeposits || [];
+      const dep = {
+        id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        amount: Number(body.amount),
+        network: String(body.network || "TRC20"),
+        created: Date.now(),
+        status: "pending"
+      };
+      w.pendingDeposits.push(dep);
+      writeWalletForUser(decoded.id, w);
+      return sendJson(res, 200, { message: "Deposit request created", deposit: dep });
+    }
+
+    if (req.method === "POST" && pathname === "/api/withdraw/create") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const w = readWalletForUser(decoded.id);
+      const amt = Number(body.amount);
+      if (amt > w.balance) return sendJson(res, 400, { message: "Insufficient balance" });
+      w.balance -= amt;
+      w.withdrawals = w.withdrawals || [];
+      const wd = {
+        id: `wd_${Date.now()}`,
+        amount: amt,
+        address: body.address,
+        network: body.network || "TRC20",
+        status: "pending",
+        created: Date.now()
+      };
+      w.withdrawals.push(wd);
+      writeWalletForUser(decoded.id, w);
+      return sendJson(res, 200, { message: "Withdrawal request submitted", wallet: w });
+    }
+
+    if (req.method === "POST" && pathname === "/api/verification/submit") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const w = readWalletForUser(decoded.id);
+      w.profile = w.profile || {};
+      w.profile.kycStatus = "pending";
+      w.profile.kycSubmitted = Date.now();
+      w.profile.verification = body;
+      writeWalletForUser(decoded.id, w);
+      return sendJson(res, 200, { message: "Verification submitted" });
+    }
+
+    if (req.method === "POST" && pathname === "/api/support/message") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const userId = decoded.id;
+      const file = path.join(DATA_DIR, `support_${userId}.json`);
+      ensureDataDir();
+      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
+      const msg = {
+        id: `msg_${Date.now()}`,
+        userId,
+        type: "user",
+        message: body.message,
+        time: Date.now(),
+        status: "sent"
+      };
+      raw.messages.push(msg);
+      fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+      return sendJson(res, 200, { message: "Message sent", chat: msg });
+    }
+
+    if (req.method === "GET" && pathname === "/api/support/history") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const file = path.join(DATA_DIR, `support_${decoded.id}.json`);
+      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
+      return sendJson(res, 200, { messages: raw.messages });
     }
     return sendJson(res, 404, { message: "Not found" });
   } catch (err) {
