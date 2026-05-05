@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "cleanUrls": true,
   "builds": [
     {
       "src": "api/[...route].js",
@@ -12,19 +13,35 @@
   ],
   "routes": [
     {
-      "src": "^/admin/api/(.*)$",
+      "src": "/admin/api/(.*)",
       "dest": "/api/[...route].js"
     },
     {
-      "src": "^/api/(.*)$",
+      "src": "/api/(.*)",
       "dest": "/api/[...route].js"
     },
     {
-      "src": "^/$",
+      "src": "/admin",
+      "dest": "/web/responsive-rebuild/admin/index.html"
+    },
+    {
+      "src": "/admin/",
+      "dest": "/web/responsive-rebuild/admin/index.html"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "/web/responsive-rebuild/admin/$1"
+    },
+    {
+      "src": "/(.*)\\.(js|css|png|jpg|jpeg|gif|ico|svg)",
+      "dest": "/web/responsive-rebuild/$1.$2"
+    },
+    {
+      "src": "/",
       "dest": "/web/responsive-rebuild/index.html"
     },
     {
-      "src": "^/(.*)$",
+      "src": "/(.*)",
       "dest": "/web/responsive-rebuild/$1"
     }
   ]

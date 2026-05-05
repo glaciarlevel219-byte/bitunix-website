@@ -1,0 +1,15 @@
+{
+  "name": "bitunix-website",
+  "version": "1.0.0",
+  "description": "Bitunix trading platform deployed on Vercel",
+  "main": "api/[...route].js",
+  "scripts": {
+    "start": "node web/responsive-rebuild/server.js",
+    "dev": "node web/responsive-rebuild/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
