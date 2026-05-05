@@ -10,6 +10,9 @@
   "keywords": ["crypto", "trading", "bitunix"],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  },
   "engines": {
     "node": ">=18.0.0"
   }

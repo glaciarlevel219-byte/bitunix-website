@@ -3,6 +3,29 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
+const { MongoClient, ObjectId } = require("mongodb");
+
+const MONGODB_URI = process.env.MONGODB_URI;
+let cachedDb = null;
+
+async function connectToDatabase() {
+  if (cachedDb) return cachedDb;
+  if (!MONGODB_URI) {
+    console.log("[DB] MONGODB_URI not found, using local JSON storage.");
+    return null;
+  }
+  try {
+    console.log("[DB] Attempting to connect to MongoDB...");
+    const client = await MongoClient.connect(MONGODB_URI);
+    const db = client.db();
+    cachedDb = db;
+    console.log("[DB] Successfully connected to MongoDB.");
+    return db;
+  } catch (err) {
+    console.error("[DB] MongoDB Connection Error:", err.message);
+    return null; // Fallback to local storage
+  }
+}
 
 const BACKUP_ROOT = path.join(__dirname, "..", "web", "wwwbitbank.vip", "api.wwwbitop.cc", "api");
 const DATA_DIR = path.join(os.tmpdir(), "bitunix-data");
@@ -24,12 +47,24 @@ function ensureUsersFile() {
   if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, "[]", "utf8");
 }
 
-function readUsers() {
+async function readUsers() {
+  const db = await connectToDatabase();
+  if (db) {
+    return await db.collection("users").find({}).toArray();
+  }
   ensureUsersFile();
   return JSON.parse(fs.readFileSync(USERS_FILE, "utf8"));
 }
 
-function writeUsers(users) {
+async function writeUsers(users) {
+  const db = await connectToDatabase();
+  if (db) {
+    // For simplicity in this refactor, we sync the whole array to a collection
+    // In a real app, you'd use individual update operations.
+    await db.collection("users").deleteMany({});
+    if (users.length > 0) await db.collection("users").insertMany(users);
+    return;
+  }
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
 }
 
@@ -77,7 +112,23 @@ function ensureAdminUsersFile() {
   }
 }
 
-function readAdminUsers() {
+async function readAdminUsers() {
+  const db = await connectToDatabase();
+  if (db) {
+    const admins = await db.collection("admin_users").find({}).toArray();
+    if (admins.length === 0) {
+      const defaultAdmin = {
+        id: crypto.randomUUID(),
+        username: "admin",
+        passwordHash: hashPassword("admin123"),
+        role: "super_admin",
+        createdAt: Date.now(),
+      };
+      await db.collection("admin_users").insertOne(defaultAdmin);
+      return [defaultAdmin];
+    }
+    return admins;
+  }
   ensureAdminUsersFile();
   return JSON.parse(fs.readFileSync(ADMIN_USERS_FILE, "utf8"));
 }
@@ -101,7 +152,24 @@ function walletFileForUser(userId) {
   return path.join(DATA_DIR, `wallet_${userId}.json`);
 }
 
-function readWalletForUser(userId) {
+async function readWalletForUser(userId) {
+  const db = await connectToDatabase();
+  if (db) {
+    const wallet = await db.collection("wallets").findOne({ userId });
+    return wallet || {
+      userId,
+      balance: 0,
+      locks: [],
+      c2c: [],
+      recharges: [],
+      withdrawals: [],
+      transactions: [],
+      txLogs: [],
+      pendingDeposits: [],
+      profile: {},
+      settings: {},
+    };
+  }
   const file = walletFileForUser(userId);
   if (!fs.existsSync(file)) {
     return {
@@ -120,13 +188,19 @@ function readWalletForUser(userId) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function writeWalletForUser(userId, wallet) {
+async function writeWalletForUser(userId, wallet) {
+  const db = await connectToDatabase();
+  if (db) {
+    await db.collection("wallets").updateOne({ userId }, { $set: wallet }, { upsrert: true });
+    return;
+  }
   ensureDataDir();
   fs.writeFileSync(walletFileForUser(userId), JSON.stringify(wallet, null, 2), "utf8");
 }
 
-function getUserById(userId) {
-  return readUsers().find((u) => u.id === userId) || null;
+async function getUserById(userId) {
+  const users = await readUsers();
+  return users.find((u) => u.id === userId) || null;
 }
 
 function ensureSiteConfigFile() {
@@ -154,12 +228,43 @@ function ensureSiteConfigFile() {
   }
 }
 
-function readSiteConfig() {
+async function readSiteConfig() {
+  const db = await connectToDatabase();
+  if (db) {
+    const config = await db.collection("site_config").findOne({});
+    if (!config) {
+      const defaultConfig = {
+        site_name: "Bitunix",
+        site_description: "Crypto trading platform with live market data",
+        maintenance_mode: false,
+        registration_enabled: true,
+        trading_enabled: true,
+        deposit_enabled: true,
+        withdrawal_enabled: true,
+        support_email: "support@bitunix.com",
+        support_phone: "+1-800-BITUNIX",
+        theme_color: "#1e40af",
+        logo_url: "",
+        footer_text: "© 2024 Bitunix. All rights reserved.",
+        social_links: { twitter: "", telegram: "", discord: "" },
+        api_keys: { binance: "", coingecko: "" },
+      };
+      await db.collection("site_config").insertOne(defaultConfig);
+      return defaultConfig;
+    }
+    return config;
+  }
   ensureSiteConfigFile();
   return JSON.parse(fs.readFileSync(SITE_CONFIG_FILE, "utf8"));
 }
 
-function writeSiteConfig(config) {
+async function writeSiteConfig(config) {
+  const db = await connectToDatabase();
+  if (db) {
+    const { _id, ...rest } = config;
+    await db.collection("site_config").updateOne({}, { $set: rest }, { upsert: true });
+    return;
+  }
   ensureDataDir();
   fs.writeFileSync(SITE_CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
 }
@@ -171,18 +276,19 @@ async function tryAdminRoutes(req, res, url, pathname) {
     const body = await parseBody(req);
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
-    const admin = readAdminUsers().find((u) => u.username === username);
+    const adminUsers = await readAdminUsers();
+    const admin = adminUsers.find((u) => u.username === username);
     if (!admin || !verifyPassword(password, admin.passwordHash)) {
       sendJson(res, 401, { message: "Invalid credentials" });
       return true;
     }
-    const token = signAdminToken({ id: admin.id, username: admin.username, role: admin.role, iat: Date.now() });
-    sendJson(res, 200, { token, user: { id: admin.id, username: admin.username, role: admin.role } });
+    const token = signAdminToken({ id: admin.id || admin._id, username: admin.username, role: admin.role, iat: Date.now() });
+    sendJson(res, 200, { token, user: { id: admin.id || admin._id, username: admin.username, role: admin.role } });
     return true;
   }
 
   if (req.method === "GET" && pathname === "/admin/api/config") {
-    sendJson(res, 200, readSiteConfig());
+    sendJson(res, 200, await readSiteConfig());
     return true;
   }
 
@@ -196,9 +302,9 @@ async function tryAdminRoutes(req, res, url, pathname) {
       return true;
     }
     const body = await parseBody(req);
-    const config = readSiteConfig();
+    const config = await readSiteConfig();
     Object.assign(config, body);
-    writeSiteConfig(config);
+    await writeSiteConfig(config);
     sendJson(res, 200, { message: "Configuration updated successfully", config });
     return true;
   }
@@ -213,7 +319,7 @@ async function tryAdminRoutes(req, res, url, pathname) {
     return true;
   }
   if (req.method === "GET" && pathname === "/admin/api/stats") {
-    const users = readUsers();
+    const users = await readUsers();
     sendJson(res, 200, {
       total_users: users.length,
       system_uptime: process.uptime(),
@@ -225,12 +331,13 @@ async function tryAdminRoutes(req, res, url, pathname) {
   }
   if (req.method === "GET" && pathname === "/admin/api/users") {
     const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
-    const users = readUsers()
-      .map((u) => {
-        const w = readWalletForUser(u.id);
-        return { ...u, balance: Number(w.balance || 0), wallet: w, transactionsCount: (w.transactions || []).length };
-      })
-      .filter(
+    const usersList = await readUsers();
+    const users = [];
+    for (const u of usersList) {
+        const w = await readWalletForUser(u.id);
+        users.push({ ...u, balance: Number(w.balance || 0), wallet: w, transactionsCount: (w.transactions || []).length });
+    }
+    const filtered = users.filter(
         (u) =>
           !q ||
           u.id.toLowerCase().includes(q) ||
@@ -242,13 +349,14 @@ async function tryAdminRoutes(req, res, url, pathname) {
   }
   if (req.method === "GET" && pathname.startsWith("/admin/api/user-wallet/")) {
     const userId = decodeURIComponent(pathname.split("/").pop() || "");
-    sendJson(res, 200, { wallet: readWalletForUser(userId) });
+    sendJson(res, 200, { wallet: await readWalletForUser(userId) });
     return true;
   }
   if (req.method === "GET" && pathname === "/admin/api/deposits") {
     const out = [];
-    for (const u of readUsers()) {
-      const w = readWalletForUser(u.id);
+    const allUsers = await readUsers();
+    for (const u of allUsers) {
+      const w = await readWalletForUser(u.id);
       for (const d of w.pendingDeposits || []) out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email });
     }
     out.sort((a, b) => Number(b.created || 0) - Number(a.created || 0));
@@ -260,7 +368,7 @@ async function tryAdminRoutes(req, res, url, pathname) {
     const userId = String(body.userId || "");
     const depositId = String(body.depositId || "");
     const action = String(body.action || "approve");
-    const w = readWalletForUser(userId);
+    const w = await readWalletForUser(userId);
     const idx = (w.pendingDeposits || []).findIndex((x) => x.id === depositId);
     if (idx < 0) {
       sendJson(res, 404, { message: "Deposit not found" });
@@ -290,8 +398,9 @@ async function tryAdminRoutes(req, res, url, pathname) {
   }
   if (req.method === "GET" && pathname === "/admin/api/withdrawals") {
     const out = [];
-    for (const u of readUsers()) {
-      const w = readWalletForUser(u.id);
+    const allUsers = await readUsers();
+    for (const u of allUsers) {
+      const w = await readWalletForUser(u.id);
       for (const wd of w.withdrawals || []) {
         if (wd.status === "pending") out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email });
       }
@@ -305,7 +414,7 @@ async function tryAdminRoutes(req, res, url, pathname) {
     const userId = String(body.userId || "");
     const withdrawalId = String(body.withdrawalId || "");
     const action = String(body.action || "approve");
-    const w = readWalletForUser(userId);
+    const w = await readWalletForUser(userId);
     const idx = (w.withdrawals || []).findIndex((x) => x.id === withdrawalId);
     if (idx < 0) {
       sendJson(res, 404, { message: "Withdrawal not found" });
@@ -313,7 +422,7 @@ async function tryAdminRoutes(req, res, url, pathname) {
     }
     w.withdrawals[idx].status = action === "approve" ? "approved" : "rejected";
     w.withdrawals[idx].updatedAt = Date.now();
-    writeWalletForUser(userId, w);
+    await writeWalletForUser(userId, w);
     sendJson(res, 200, { message: `Withdrawal ${action}ed` });
     return true;
   }
@@ -323,9 +432,20 @@ async function tryAdminRoutes(req, res, url, pathname) {
       const files = fs.readdirSync(DATA_DIR).filter((f) => f.startsWith("support_") && f.endsWith(".json"));
       for (const file of files) {
         const userId = file.replace("support_", "").replace(".json", "");
-        const user = getUserById(userId) || {};
+        const user = await getUserById(userId) || {};
         const raw = JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), "utf8"));
         for (const msg of raw.messages || []) all.push({ ...msg, userId, userName: user.name || msg.userName || "Unknown", userEmail: user.email || msg.userEmail || "" });
+      }
+      
+      const db = await connectToDatabase();
+      if (db) {
+          const mongoChats = await db.collection("support_chats").find({}).toArray();
+          for (const chat of mongoChats) {
+              const user = await getUserById(chat.userId) || {};
+              for (const msg of chat.messages || []) {
+                  all.push({ ...msg, userId: chat.userId, userName: user.name || msg.userName || "Unknown", userEmail: user.email || msg.userEmail || "" });
+              }
+          }
       }
     }
     all.sort((a, b) => Number(b.time || 0) - Number(a.time || 0));
@@ -354,7 +474,7 @@ async function tryAdminRoutes(req, res, url, pathname) {
     ensureDataDir();
     const file = path.join(DATA_DIR, `support_${userId}.json`);
     const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
-    const user = getUserById(userId) || {};
+    const user = await getUserById(userId) || {};
     raw.messages.push({
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       userId,
@@ -365,21 +485,31 @@ async function tryAdminRoutes(req, res, url, pathname) {
       time: Date.now(),
       status: "sent",
     });
-    fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+
+    const db = await connectToDatabase();
+    if (db) {
+        await db.collection("support_chats").updateOne({ userId }, { $set: raw }, { upsert: true });
+    } else {
+        fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+    }
     sendJson(res, 200, { message: "Support message sent" });
     return true;
   }
   if (req.method === "GET" && pathname === "/admin/api/kyc/pending") {
-    const items = readUsers()
-      .map((u) => ({ user: u, wallet: readWalletForUser(u.id) }))
-      .filter(({ wallet }) => String(wallet.profile?.kycStatus || "") === "pending")
-      .map(({ user, wallet }) => ({
-        userId: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        verification: wallet.profile.verification || null,
-        submittedAt: wallet.profile?.kycSubmitted || 0,
-      }));
+    const allUsers = await readUsers();
+    const items = [];
+    for (const u of allUsers) {
+        const wallet = await readWalletForUser(u.id);
+        if (String(wallet.profile?.kycStatus || "") === "pending") {
+            items.push({
+                userId: u.id,
+                userName: u.name,
+                userEmail: u.email,
+                verification: wallet.profile.verification || null,
+                submittedAt: wallet.profile?.kycSubmitted || 0,
+            });
+        }
+    }
     sendJson(res, 200, { verifications: items });
     return true;
   }
@@ -388,12 +518,12 @@ async function tryAdminRoutes(req, res, url, pathname) {
     const userId = String(body.userId || "");
     const action = String(body.action || "approve");
     const note = String(body.note || "").trim();
-    const w = readWalletForUser(userId);
+    const w = await readWalletForUser(userId);
     w.profile = w.profile || {};
     w.profile.kycStatus = action === "approve" ? "approved" : "rejected";
     w.profile.kycReviewedAt = Date.now();
     w.profile.kycReviewNote = note;
-    writeWalletForUser(userId, w);
+    await writeWalletForUser(userId, w);
     sendJson(res, 200, { message: `KYC ${action}ed` });
     return true;
   }
@@ -578,21 +708,21 @@ module.exports = async (req, res) => {
       if (!name || !email || password.length < 6) {
         return sendJson(res, 400, { message: "Provide name, email and password(min 6)." });
       }
-      const users = readUsers();
+      const users = await readUsers();
       if (users.some((u) => u.email === email)) {
         return sendJson(res, 409, { message: "Email already registered." });
       }
       const user = { id: crypto.randomUUID(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       users.push(user);
-      writeUsers(users);
-      writeWalletForUser(user.id, readWalletForUser(user.id));
+      await writeUsers(users);
+      await writeWalletForUser(user.id, await readWalletForUser(user.id));
       return sendJson(res, 201, { message: "Registered successfully." });
     }
     if (req.method === "POST" && pathname === "/api/auth/login") {
       const body = await parseBody(req);
       const email = String(body.email || "").trim().toLowerCase();
       const password = String(body.password || "");
-      const users = readUsers();
+      const users = await readUsers();
       const user = users.find((u) => u.email === email);
       if (!user) {
         return sendJson(res, 404, {
@@ -797,7 +927,7 @@ module.exports = async (req, res) => {
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      const wallet = readWalletForUser(decoded.id);
+      const wallet = await readWalletForUser(decoded.id);
       return sendJson(res, 200, { wallet });
     }
 
@@ -807,7 +937,7 @@ module.exports = async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
-      const w = readWalletForUser(decoded.id);
+      const w = await readWalletForUser(decoded.id);
       w.pendingDeposits = w.pendingDeposits || [];
       const dep = {
         id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -817,7 +947,7 @@ module.exports = async (req, res) => {
         status: "pending"
       };
       w.pendingDeposits.push(dep);
-      writeWalletForUser(decoded.id, w);
+      await writeWalletForUser(decoded.id, w);
       return sendJson(res, 200, { message: "Deposit request created", deposit: dep });
     }
 
@@ -827,7 +957,7 @@ module.exports = async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
-      const w = readWalletForUser(decoded.id);
+      const w = await readWalletForUser(decoded.id);
       const amt = Number(body.amount);
       if (amt > w.balance) return sendJson(res, 400, { message: "Insufficient balance" });
       w.balance -= amt;
@@ -841,7 +971,7 @@ module.exports = async (req, res) => {
         created: Date.now()
       };
       w.withdrawals.push(wd);
-      writeWalletForUser(decoded.id, w);
+      await writeWalletForUser(decoded.id, w);
       return sendJson(res, 200, { message: "Withdrawal request submitted", wallet: w });
     }
 
@@ -851,12 +981,12 @@ module.exports = async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
-      const w = readWalletForUser(decoded.id);
+      const w = await readWalletForUser(decoded.id);
       w.profile = w.profile || {};
       w.profile.kycStatus = "pending";
       w.profile.kycSubmitted = Date.now();
       w.profile.verification = body;
-      writeWalletForUser(decoded.id, w);
+      await writeWalletForUser(decoded.id, w);
       return sendJson(res, 200, { message: "Verification submitted" });
     }
 
