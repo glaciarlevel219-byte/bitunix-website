@@ -534,7 +534,7 @@
           if (clickCount >= 5) {
             clickCount = 0;
             // Redirect to admin panel - update this URL after deployment
-            const adminUrl = localStorage.getItem('adminPanelUrl') || 'http://127.0.0.1:5618';
+            const adminUrl = localStorage.getItem('adminPanelUrl') || '/admin';
             window.open(adminUrl, '_blank');
           }
         });
