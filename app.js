@@ -13,6 +13,7 @@ const endpoints = {
   tradeRows: "/api/trade/rows",
   verifySubmit: "/api/verification/submit",
   withdrawCreate: "/api/withdraw/create",
+  depositCreate: "/api/deposit/create",
 };
 
 const state = {

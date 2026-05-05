@@ -398,6 +398,81 @@ async function tryAdminRoutes(req, res, url, pathname) {
     sendJson(res, 200, { message: `Deposit ${action}ed` });
     return true;
   }
+  if (req.method === "GET" && pathname === "/admin/api/overview") {
+    const users = await readUsers();
+    const allWallets = [];
+    for (const u of users) {
+      allWallets.push(await readWalletForUser(u.id));
+    }
+    const deposits = allWallets.flatMap(w => (w.pendingDeposits || []).map(d => ({...d, userId: w.userId || d.userId})));
+    const withdrawals = allWallets.flatMap(w => (w.withdrawals || []).filter(wd => wd.status === "pending"));
+    const verifications = allWallets.flatMap(w => (w.profile && w.profile.kycStatus === "pending") ? [{...w.profile, userId: w.userId}] : []);
+
+    sendJson(res, 200, {
+      totalUsers: users.length,
+      pendingDeposits: deposits,
+      pendingWithdrawals: withdrawals,
+      pendingVerifications: verifications,
+      users: users.map(u => ({ id: u.id, name: u.name, email: u.email }))
+    });
+    return true;
+  }
+  if (req.method === "GET" && pathname === "/admin/api/users") {
+    const users = await readUsers();
+    const out = [];
+    for (const u of users) {
+      const w = await readWalletForUser(u.id);
+      out.push({ ...u, balance: Number(w.balance || 0), wallet: w, transactionsCount: (w.transactions || []).length });
+    }
+    sendJson(res, 200, { users: out });
+    return true;
+  }
+  if (req.method === "GET" && pathname === "/admin/api/deposits") {
+    const out = [];
+    const allUsers = await readUsers();
+    for (const u of allUsers) {
+      const w = await readWalletForUser(u.id);
+      for (const d of w.pendingDeposits || []) {
+        out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email });
+      }
+    }
+    out.sort((a, b) => Number(b.created || 0) - Number(a.created || 0));
+    sendJson(res, 200, { deposits: out });
+    return true;
+  }
+  if (req.method === "POST" && pathname === "/admin/api/deposit/action") {
+    const body = await parseBody(req);
+    const userId = String(body.userId || "");
+    const depositId = String(body.depositId || "");
+    const action = String(body.action || "approve");
+    const w = await readWalletForUser(userId);
+    const idx = (w.pendingDeposits || []).findIndex((x) => x.id === depositId);
+    if (idx < 0) {
+      sendJson(res, 404, { message: "Deposit not found" });
+      return true;
+    }
+    const dep = w.pendingDeposits[idx];
+    w.pendingDeposits.splice(idx, 1);
+    if (action === "approve") {
+      w.balance = Number(w.balance || 0) + Number(dep.amount || 0);
+      w.recharges = w.recharges || [];
+      w.recharges.push({ ...dep, status: "completed", completedAt: Date.now() });
+    }
+    w.transactions = w.transactions || [];
+    w.transactions.push({ 
+      id: dep.id, 
+      created: Date.now(), 
+      kind: "deposit", 
+      title: "Deposit Request", 
+      amount: Number(dep.amount || 0), 
+      asset: "USDT", 
+      status: action === "approve" ? "completed" : "rejected", 
+      detail: `${dep.network || "TRC20"} Network` 
+    });
+    await writeWalletForUser(userId, w);
+    sendJson(res, 200, { message: `Deposit ${action}ed` });
+    return true;
+  }
   if (req.method === "GET" && pathname === "/admin/api/withdrawals") {
     const out = [];
     const allUsers = await readUsers();
