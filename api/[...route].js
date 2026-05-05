@@ -1080,8 +1080,9 @@ module.exports = async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
-      const w = await readWalletForUser(decoded.id);
-      w.pendingDeposits = w.pendingDeposits || [];
+      const userId = decoded.id;
+      const w = await readWalletForUser(userId);
+      
       const dep = {
         id: `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         amount: Number(body.amount),
@@ -1089,9 +1090,47 @@ module.exports = async (req, res) => {
         created: Date.now(),
         status: "pending"
       };
+      
+      w.pendingDeposits = w.pendingDeposits || [];
       w.pendingDeposits.push(dep);
-      await writeWalletForUser(decoded.id, w);
-      return sendJson(res, 200, { message: "Deposit request created", deposit: dep });
+      await writeWalletForUser(userId, w);
+
+      // --- AUTO CHAT NOTIFICATION ---
+      const notifyMsg = {
+        id: `sys_${Date.now()}`,
+        userId: userId,
+        type: "user", // Acts as the user sending the notification
+        message: `📢 [SYSTEM]: I have submitted a new deposit request for ${dep.amount} USDT on ${dep.network} network. Please review and approve.`,
+        time: Date.now(),
+        status: "unread",
+        userName: decoded.name || "User",
+        userEmail: decoded.email || ""
+      };
+
+      const db = await connectToDatabase();
+      if (db) {
+          // Sync to MongoDB deposits collection
+          await db.collection("deposits").insertOne({
+              userId,
+              ...dep,
+              userName: decoded.name,
+              userEmail: decoded.email
+          });
+          // Add to support chat
+          await db.collection("support_chats").updateOne(
+              { userId },
+              { $push: { messages: notifyMsg } },
+              { upsert: true }
+          );
+      } else {
+          // Fallback to local files
+          const file = path.join(DATA_DIR, `support_${userId}.json`);
+          let chat = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { userId, messages: [] };
+          chat.messages.push(notifyMsg);
+          fs.writeFileSync(file, JSON.stringify(chat, null, 2));
+      }
+
+      return sendJson(res, 200, { message: "Deposit request created and notification sent", deposit: dep });
     }
 
     if (req.method === "POST" && pathname === "/api/withdraw/create") {
