@@ -771,49 +771,76 @@ td code.clickable-user-id:hover {
     background: #f8f9fa;
 }
 
-.admin-message-item {
-    margin-bottom: 16px;
-    padding: 12px;
-    border-radius: 8px;
-    border-left: 4px solid #667eea;
+/* Inbox Styles */
+.admin-conversation-item {
     background: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
 }
 
-.admin-message-item.user-message {
-    border-left-color: #28a745;
+.admin-conversation-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-left-color: #667eea;
 }
 
-.admin-message-item.admin-message {
-    border-left-color: #dc3545;
+.admin-conversation-item.unread-conv {
+    background: #f0f4ff;
+    border-left-color: #667eea;
 }
 
-.admin-message-header {
+.conv-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
     margin-bottom: 8px;
 }
 
-.admin-message-user {
-    font-weight: bold;
-    color: #333;
+.conv-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.admin-message-time {
-    font-size: 12px;
-    color: #666;
-}
-
-.admin-message-content {
-    color: #555;
-    line-height: 1.4;
-}
-
-.admin-message-user-info {
+.conv-id {
+    color: #999;
     font-size: 11px;
-    color: #888;
-    margin-top: 4px;
+    font-family: monospace;
+}
+
+.conv-time {
+    color: #666;
+    font-size: 12px;
+}
+
+.conv-preview {
+    color: #444;
+    font-size: 14px;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.conv-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.badge-unread {
+    background: #dc3545;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 10px;
 }
 
 .admin-chat-controls {

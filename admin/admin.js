@@ -773,49 +773,49 @@ async function loadAllUserMessages() {
         
         if (response.ok) {
             const data = await response.json();
-            renderAllUserMessages(data.messages || []);
+            renderAllUserConversations(data.conversations || []);
         } else {
-            renderAllUserMessages([]);
+            renderAllUserConversations([]);
         }
     } catch (error) {
         console.error('Error loading all user messages:', error);
-        renderAllUserMessages([]);
+        renderAllUserConversations([]);
     }
 }
 
-function renderAllUserMessages(messages) {
+function renderAllUserConversations(conversations) {
     const container = document.getElementById('adminMessagesList');
     
-    if (!messages || messages.length === 0) {
-        container.innerHTML = '<p class="text-muted">No user messages found.</p>';
+    if (!conversations || conversations.length === 0) {
+        container.innerHTML = '<p class="text-muted">No messages found in your inbox.</p>';
         return;
     }
     
-    const messagesHtml = messages.map(msg => `
-        <div class="admin-message-item ${msg.type}-message">
-            <div class="admin-message-header">
-                <div class="admin-message-user">
-                    ${msg.type === 'user' ? '👤' : '👨‍💼'} ${escapeHtml(msg.userName)}
+    const html = conversations.map(conv => {
+        const last = conv.lastMessage;
+        const unreadCls = conv.unreadCount > 0 ? 'unread-conv' : '';
+        return `
+        <div class="admin-conversation-item ${unreadCls}" onclick="openSupportChat('${conv.userId}')">
+            <div class="conv-header">
+                <div class="conv-user">
+                    👤 <strong>${escapeHtml(conv.userName)}</strong>
+                    <span class="conv-id">${conv.userId.slice(0, 8)}...</span>
                 </div>
-                <div class="admin-message-time">
-                    ${new Date(msg.time).toLocaleString()}
-                </div>
+                <div class="conv-time">${last ? new Date(last.time).toLocaleString() : ''}</div>
             </div>
-            <div class="admin-message-content">
-                ${escapeHtml(msg.message)}
+            <div class="conv-preview">
+                ${last ? escapeHtml(last.message).slice(0, 60) + (last.message.length > 60 ? '...' : '') : 'No messages'}
             </div>
-            <div class="admin-message-user-info">
-                📧 ${escapeHtml(msg.userEmail)} | 🆔 ${msg.userId.slice(0, 8)}...
-                <button class="btn-small" onclick="viewUserDetails('${msg.userId}')" style="float: right;">View Profile</button>
-                <button class="btn-small" onclick="openSupportChat('${msg.userId}')" style="float: right; margin-right: 8px;">Reply</button>
+            <div class="conv-footer">
+                <span>📧 ${escapeHtml(conv.userEmail)}</span>
+                ${conv.unreadCount > 0 ? `<span class="badge-unread">${conv.unreadCount} new</span>` : ''}
+                <button class="btn-small" onclick="event.stopPropagation(); viewUserDetails('${conv.userId}')">View Profile</button>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
-    container.innerHTML = messagesHtml;
-    
-    // Auto-scroll to bottom
-    container.scrollTop = container.scrollHeight;
+    container.innerHTML = html;
 }
 
 function renderSupportTickets(tickets) {

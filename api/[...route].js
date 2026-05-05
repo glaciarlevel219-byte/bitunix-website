@@ -504,29 +504,60 @@ async function tryAdminRoutes(req, res, url, pathname) {
     return true;
   }
   if (req.method === "GET" && pathname === "/admin/api/support/all-messages") {
-    const all = [];
+    const conversations = {};
+    
+    // Load from filesystem (legacy)
     if (fs.existsSync(DATA_DIR)) {
       const files = fs.readdirSync(DATA_DIR).filter((f) => f.startsWith("support_") && f.endsWith(".json"));
       for (const file of files) {
         const userId = file.replace("support_", "").replace(".json", "");
-        const user = await getUserById(userId) || {};
         const raw = JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), "utf8"));
-        for (const msg of raw.messages || []) all.push({ ...msg, userId, userName: user.name || msg.userName || "Unknown", userEmail: user.email || msg.userEmail || "" });
-      }
-      
-      const db = await connectToDatabase();
-      if (db) {
-          const mongoChats = await db.collection("support_chats").find({}).toArray();
-          for (const chat of mongoChats) {
-              const user = await getUserById(chat.userId) || {};
-              for (const msg of chat.messages || []) {
-                  all.push({ ...msg, userId: chat.userId, userName: user.name || msg.userName || "Unknown", userEmail: user.email || msg.userEmail || "" });
-              }
-          }
+        const msgs = raw.messages || [];
+        if (msgs.length) {
+            if (!conversations[userId]) conversations[userId] = { userId, messages: [] };
+            conversations[userId].messages.push(...msgs);
+        }
       }
     }
-    all.sort((a, b) => Number(b.time || 0) - Number(a.time || 0));
-    sendJson(res, 200, { messages: all.slice(0, 200), total: all.length });
+
+    // Load from MongoDB
+    const db = await connectToDatabase();
+    if (db) {
+        const mongoChats = await db.collection("support_chats").find({}).toArray();
+        for (const chat of mongoChats) {
+            const uId = chat.userId;
+            if (!conversations[uId]) conversations[uId] = { userId: uId, messages: [] };
+            conversations[uId].messages.push(...(chat.messages || []));
+        }
+    }
+
+    const result = [];
+    for (const userId in conversations) {
+        const user = await getUserById(userId) || {};
+        const msgs = conversations[userId].messages.sort((a, b) => Number(a.time || 0) - Number(b.time || 0));
+        // Remove duplicates if any (between FS and Mongo)
+        const unique = [];
+        const seen = new Set();
+        for(const m of msgs) {
+            const key = `${m.time}_${m.message.slice(0,20)}`;
+            if(!seen.has(key)) {
+                seen.add(key);
+                unique.push(m);
+            }
+        }
+
+        result.push({
+            userId,
+            userName: user.name || "Unknown",
+            userEmail: user.email || "",
+            lastMessage: unique[unique.length - 1],
+            messages: unique,
+            unreadCount: unique.filter(m => m.type === "user" && m.status !== "read").length
+        });
+    }
+
+    result.sort((a, b) => Number(b.lastMessage?.time || 0) - Number(a.lastMessage?.time || 0));
+    sendJson(res, 200, { conversations: result });
     return true;
   }
   if (req.method === "GET" && pathname.startsWith("/admin/api/support/messages/")) {
