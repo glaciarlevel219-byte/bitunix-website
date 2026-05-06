@@ -170,6 +170,26 @@ module.exports = async (req, res) => {
 
     if (pathname === "/api/trade/klines" || pathname === "/admin/api/trade/klines") {
         const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
+        const source = String(url.searchParams.get("source") || "binance");
+        
+        if (source === "frank") {
+            try {
+                const r = await fetch(`https://api.frankfurter.app/2020-01-01..?to=${symbol.replace("USD","")}`);
+                if (!r.ok) throw new Error();
+                const data = await r.json();
+                const candles = [];
+                let prev = 1;
+                for(const date in data.rates) {
+                    const rate = 1 / data.rates[date][symbol.replace("USD","")];
+                    candles.push({ t: new Date(date).getTime(), o: String(prev), h: String(Math.max(prev, rate)), l: String(Math.min(prev, rate)), c: String(rate), v: "100" });
+                    prev = rate;
+                }
+                return sendJson(res, 200, { candles: candles.slice(-100) });
+            } catch {
+                return sendJson(res, 200, { candles: [] });
+            }
+        }
+        
         try {
             const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&limit=100`);
             if(!r.ok) throw new Error();
@@ -180,6 +200,35 @@ module.exports = async (req, res) => {
             return sendJson(res, 200, { candles });
         }
     }
+
+    if (pathname === "/api/market/live") {
+        try {
+            const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
+            const results = await Promise.all(syms.map(async s => {
+                try {
+                    const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`);
+                    if(!r.ok) return null;
+                    const t = await r.json();
+                    return { legal_name: s.replace("USDT",""), currency_name: "USD", now_price: t.lastPrice, change: t.priceChangePercent };
+                } catch { return null; }
+            }));
+            return sendJson(res, 200, results.filter(Boolean));
+        } catch { return sendJson(res, 200, []); }
+    }
+
+    if (pathname === "/api/backup/config") {
+        return sendJson(res, 200, { code: 1, data: { name: "Bitunix", short_name: "Bitunix", site_logo: "", profit: "Digital financial service platform", customer_service: "Test Customer Service Link" } });
+    }
+    if (pathname === "/api/backup/currency") {
+        return sendJson(res, 200, { code: 1, data: [] });
+    }
+    if (pathname === "/api/backup/country") {
+        return sendJson(res, 200, { code: 1, data: [{ is_default: 1, currency_name: "USDT", id: 1 }] });
+    }
+    if (pathname === "/api/backup/news") {
+        return sendJson(res, 200, { code: 1, data: { list: [] } });
+    }
+
 
     // --- USER PROTECTED ---
     if (decoded) {
@@ -199,6 +248,21 @@ module.exports = async (req, res) => {
             if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
             
             return sendJson(res, 200, { message: "Success", deposit: dep });
+        }
+
+        if (pathname === "/api/support/messages/user") {
+            const db = await connectToDatabase();
+            const chat = db ? await db.collection("support_chats").findOne({ userId: decoded.id }) : null;
+            return sendJson(res, 200, { messages: chat?.messages || [] });
+        }
+
+        if (pathname === "/api/support/messages/send" && req.method === "POST") {
+            const { message } = await parseBody(req);
+            if (!message) return sendJson(res, 400, { message: "Message is required" });
+            const msg = { type: "user", message, time: Date.now(), status: "unread", userName: decoded.name, userEmail: decoded.email };
+            const db = await connectToDatabase();
+            if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
+            return sendJson(res, 200, { message: "Message sent successfully" });
         }
     }
 
