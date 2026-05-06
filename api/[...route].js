@@ -313,6 +313,47 @@ module.exports = async (req, res) => {
             return sendJson(res, 200, { deposits: out.sort((a,b) => b.created - a.created) });
         }
 
+        if (pathname === "/admin/api/deposit/action" && req.method === "POST") {
+            const { userId, depositId, action } = await parseBody(req);
+            if (!userId || !depositId || !action) {
+                return sendJson(res, 400, { message: "Missing required fields" });
+            }
+            
+            const wallet = await readWallet(userId);
+            const depositIndex = (wallet.pendingDeposits || []).findIndex(d => d.id === depositId || d.rechargeId === depositId);
+            
+            if (depositIndex === -1) {
+                return sendJson(res, 404, { message: "Deposit not found" });
+            }
+            
+            const deposit = wallet.pendingDeposits[depositIndex];
+            
+            if (action === "approve") {
+                wallet.balance = (wallet.balance || 0) + Number(deposit.amount);
+                wallet.transactions = wallet.transactions || [];
+                wallet.transactions.push({
+                    id: crypto.randomUUID(),
+                    type: "deposit",
+                    amount: Number(deposit.amount),
+                    status: "completed",
+                    created: Date.now(),
+                    description: `Deposit approved: ${depositId}`
+                });
+            }
+            
+            // Remove from pending
+            wallet.pendingDeposits.splice(depositIndex, 1);
+            
+            // Update deposit status
+            deposit.status = action === "approve" ? "completed" : "rejected";
+            deposit.processedAt = Date.now();
+            wallet.deposits = wallet.deposits || [];
+            wallet.deposits.push(deposit);
+            
+            await writeWallet(userId, wallet);
+            return sendJson(res, 200, { message: `Deposit ${action}d successfully` });
+        }
+
         if (pathname === "/admin/api/withdrawals") {
             const db = await connectToDatabase();
             const users = db ? await db.collection("users").find({}).toArray() : [];
@@ -322,6 +363,39 @@ module.exports = async (req, res) => {
                 (w.withdrawals || []).forEach(wd => out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email }));
             }
             return sendJson(res, 200, { withdrawals: out.sort((a,b) => b.created - a.created) });
+        }
+
+        if (pathname === "/admin/api/withdrawal/action" && req.method === "POST") {
+            const { userId, withdrawalId, action } = await parseBody(req);
+            if (!userId || !withdrawalId || !action) {
+                return sendJson(res, 400, { message: "Missing required fields" });
+            }
+            
+            const wallet = await readWallet(userId);
+            const withdrawalIndex = (wallet.pendingWithdrawals || []).findIndex(w => w.id === withdrawalId);
+            
+            if (withdrawalIndex === -1) {
+                return sendJson(res, 404, { message: "Withdrawal not found" });
+            }
+            
+            const withdrawal = wallet.pendingWithdrawals[withdrawalIndex];
+            
+            if (action === "reject") {
+                // Return amount to balance
+                wallet.balance = (wallet.balance || 0) + Number(withdrawal.amount);
+            }
+            
+            // Remove from pending
+            wallet.pendingWithdrawals.splice(withdrawalIndex, 1);
+            
+            // Update withdrawal status
+            withdrawal.status = action === "approve" ? "completed" : "rejected";
+            withdrawal.processedAt = Date.now();
+            wallet.withdrawals = wallet.withdrawals || [];
+            wallet.withdrawals.push(withdrawal);
+            
+            await writeWallet(userId, wallet);
+            return sendJson(res, 200, { message: `Withdrawal ${action}d successfully` });
         }
 
         if (pathname === "/admin/api/support/all-messages") {
