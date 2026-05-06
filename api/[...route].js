@@ -84,7 +84,9 @@ async function writeWallet(userId, wallet) {
 module.exports = async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const pathname = url.pathname;
+    let pathname = url.pathname;
+    if (pathname.endsWith("/") && pathname.length > 1) pathname = pathname.slice(0, -1);
+    
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const decoded = verifyToken(token);
@@ -166,15 +168,15 @@ module.exports = async (req, res) => {
         return sendJson(res, 200, { rows });
     }
 
-    if (pathname === "/api/trade/klines") {
+    if (pathname === "/api/trade/klines" || pathname === "/admin/api/trade/klines") {
         const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
         try {
             const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&limit=100`);
             if(!r.ok) throw new Error();
             const data = await r.json();
-            return sendJson(res, 200, { candles: data.map(k => ({ t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5] })) });
+            return sendJson(res, 200, { candles: data.map(k => ({ t: k[0], o: String(k[1]), h: String(k[2]), l: String(k[3]), c: String(k[4]), v: String(k[5]) })) });
         } catch {
-            const candles = []; let p = 65000; for(let i=0; i<100; i++) { p += Math.random()*100-50; candles.push({ t: Date.now() - (100-i)*300000, o: p, h: p+10, l: p-10, c: p, v: 100 }); }
+            const candles = []; let p = 65000; for(let i=0; i<100; i++) { p += Math.random()*100-50; candles.push({ t: Date.now() - (100-i)*300000, o: String(p), h: String(p+10), l: String(p-10), c: String(p), v: "100" }); }
             return sendJson(res, 200, { candles });
         }
     }
@@ -201,7 +203,7 @@ module.exports = async (req, res) => {
     }
 
     // --- ADMIN ---
-    if (pathname === "/admin/api/login" && req.method === "POST") {
+    if ((pathname === "/admin/api/login" || pathname === "/api/admin/login") && req.method === "POST") {
         const { username, password } = await parseBody(req);
         if(username === "admin" && password === "rahi0889") {
             const token = signToken({ role: "admin", user: "admin" });
