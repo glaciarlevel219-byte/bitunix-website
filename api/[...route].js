@@ -269,7 +269,7 @@ module.exports = async (req, res) => {
     // --- ADMIN ---
     if ((pathname === "/admin/api/login" || pathname === "/api/admin/login") && req.method === "POST") {
         const { username, password } = await parseBody(req);
-        if(username === "admin" && password === "rahi0889") {
+        if(username === "admin" && password === "admin123") {
             const token = signToken({ role: "admin", user: "admin" });
             return sendJson(res, 200, { token, user: { username: "admin" } });
         }
