@@ -1,16 +1,24 @@
 {
   "version": 2,
   "name": "bitunix-admin",
-  "builds": [
-    {
-      "src": "admin-server-fixed.js",
-      "use": "@vercel/node"
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": null,
+  "devCommand": "node admin-server-fixed.js",
+  "installCommand": "npm install",
+  "functions": {
+    "admin-server-fixed.js": {
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
     {
+      "src": "/admin/api/(.*)",
+      "dest": "/admin-server-fixed.js"
+    },
+    {
       "src": "/(.*)",
-      "dest": "admin-server-fixed.js"
+      "dest": "/$1"
     }
   ]
 }

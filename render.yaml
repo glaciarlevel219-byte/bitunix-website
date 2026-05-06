@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: bitunix-website
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: bitunix-admin
+    runtime: node
+    buildCommand: npm install
+    startCommand: node admin-server-fixed.js
+    envVars:
+      - key: NODE_ENV
+        value: production

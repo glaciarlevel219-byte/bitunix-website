@@ -1,4 +1,5 @@
-const API_BASE = '/admin/api';
+// API Base URL - uses current domain (works on both localhost and Vercel)
+const API_BASE = window.location.origin.includes('localhost') ? '/admin/api' : '/admin/api';
 
 let authToken = localStorage.getItem('admin_token') || '';
 let currentAdminToken = localStorage.getItem("admin_token") || "";
