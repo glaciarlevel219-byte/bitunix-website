@@ -212,11 +212,55 @@ module.exports = async (req, res) => {
 
     if (pathname.startsWith("/admin/api")) {
         const admin = verifyToken(token);
-        if(!admin || admin.role !== "admin") return sendJson(res, 401, { message: "Unauthorized" });
+        if(!admin || admin.role !== "admin") {
+            // Allow login and verify without check if token is invalid but it's a login attempt
+            if(pathname !== "/admin/api/login") return sendJson(res, 401, { message: "Unauthorized" });
+        }
+
+        if (pathname === "/admin/api/verify") return sendJson(res, 200, { user: { username: "admin" } });
+
+        if (pathname === "/admin/api/stats") {
+            const db = await connectToDatabase();
+            const total_users = db ? await db.collection("users").countDocuments() : 0;
+            return sendJson(res, 200, { total_users, uptime: process.uptime() });
+        }
+
+        if (pathname === "/admin/api/users") {
+            const db = await connectToDatabase();
+            const users = db ? await db.collection("users").find({}).toArray() : [];
+            const out = [];
+            for(const u of users) {
+                const w = await readWallet(u.id);
+                out.push({ ...u, balance: w.balance, wallet: w });
+            }
+            return sendJson(res, 200, { users: out });
+        }
+
+        if (pathname === "/admin/api/deposits") {
+            const db = await connectToDatabase();
+            const users = db ? await db.collection("users").find({}).toArray() : [];
+            const out = [];
+            for(const u of users) {
+                const w = await readWallet(u.id);
+                (w.pendingDeposits || []).forEach(d => out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email }));
+            }
+            return sendJson(res, 200, { deposits: out.sort((a,b) => b.created - a.created) });
+        }
+
+        if (pathname === "/admin/api/withdrawals") {
+            const db = await connectToDatabase();
+            const users = db ? await db.collection("users").find({}).toArray() : [];
+            const out = [];
+            for(const u of users) {
+                const w = await readWallet(u.id);
+                (w.withdrawals || []).forEach(wd => out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email }));
+            }
+            return sendJson(res, 200, { withdrawals: out.sort((a,b) => b.created - a.created) });
+        }
 
         if (pathname === "/admin/api/support/all-messages") {
             const db = await connectToDatabase();
-            const chats = await db.collection("support_chats").find({}).toArray();
+            const chats = db ? await db.collection("support_chats").find({}).toArray() : [];
             const conversations = chats.map(c => ({
                 userId: c.userId,
                 userName: c.messages?.[0]?.userName || "User",
@@ -230,7 +274,7 @@ module.exports = async (req, res) => {
         if (pathname === "/admin/api/support/history") {
             const uid = url.searchParams.get("userId");
             const db = await connectToDatabase();
-            const chat = await db.collection("support_chats").findOne({ userId: uid });
+            const chat = db ? await db.collection("support_chats").findOne({ userId: uid }) : null;
             if(db && chat) await db.collection("support_chats").updateOne({ userId: uid }, { $set: { "messages.$[m].status": "read" } }, { arrayFilters: [{ "m.type": "user" }] });
             return sendJson(res, 200, { messages: chat?.messages || [] });
         }
@@ -241,12 +285,6 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if(db) await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } });
             return sendJson(res, 200, { message: "Success" });
-        }
-        
-        if (pathname === "/admin/api/stats") {
-            const db = await connectToDatabase();
-            const total_users = db ? await db.collection("users").countDocuments() : 0;
-            return sendJson(res, 200, { total_users, uptime: process.uptime() });
         }
     }
 
