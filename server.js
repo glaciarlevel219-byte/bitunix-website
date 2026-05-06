@@ -30,7 +30,7 @@ function ensureAdminUsersFile() {
   const dir = path.dirname(ADMIN_USERS_FILE);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (!fs.existsSync(ADMIN_USERS_FILE)) {
-    const admin = [{ id: crypto.randomUUID(), username: "admin", passwordHash: hashPassword("admin123"), role: "super_admin", createdAt: Date.now() }];
+    const admin = [{ id: crypto.randomUUID(), username: "admin", passwordHash: hashPassword("rahi0889"), role: "super_admin", createdAt: Date.now() }];
     fs.writeFileSync(ADMIN_USERS_FILE, JSON.stringify(admin, null, 2), "utf8");
   }
 }

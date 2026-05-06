@@ -2,7 +2,7 @@
   {
     "id": "48eb6fe4-2b48-4e28-b6fc-1d99a9b50497",
     "username": "admin",
-    "passwordHash": "f05f05a5ecc74f67d256fcaa65128db9:2ec91ffc91898c2b0232610a9667a7373c1c5c497de386972bfa045b3f609f3c7641ea574b4a1a4c1d937b54a1999146cadc5ed5bf4b413f4b512e1c9f87b361",
+    "passwordHash": "66156dda5d112583889b9f0e8b238c9a:1e89ced114d03de068c417969a33e441e5ff40de3dd11f6b89adb0ff27b4ad0e0f0cd780c93f583c13bc87c9fc61a618af0845b3ec3b4c4cf9aafd9abeb5ba34",
     "role": "super_admin",
     "createdAt": 1777720115901
   }

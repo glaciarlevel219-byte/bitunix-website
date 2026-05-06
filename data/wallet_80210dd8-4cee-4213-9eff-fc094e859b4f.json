@@ -1,0 +1,12 @@
+{
+  "balance": 0,
+  "locks": [],
+  "c2c": [],
+  "recharges": [],
+  "withdrawals": [],
+  "transactions": [],
+  "txLogs": [],
+  "pendingDeposits": [],
+  "profile": {},
+  "settings": {}
+}

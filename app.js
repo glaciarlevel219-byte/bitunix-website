@@ -1400,13 +1400,18 @@ async function refreshMarketTabList() {
 
 function renderMeta(configData, countryData) {
   const brand = siteBrandFromConfig(configData);
-  document.querySelector("#siteName").textContent = brand;
-  document.querySelector("#heroTitle").textContent = brand;
-  document.querySelector("#heroSub").textContent = safeText(configData.profit, "Digital financial service platform.");
+  const siteNameEl = document.querySelector("#siteName");
+  const heroTitleEl = document.querySelector("#heroTitle");
+  const heroSubEl = document.querySelector("#heroSub");
+  const countryCountEl = document.querySelector("#countryCount");
+  const defaultCurrencyEl = document.querySelector("#defaultCurrency");
+  if (siteNameEl) siteNameEl.textContent = brand;
+  if (heroTitleEl) heroTitleEl.textContent = brand;
+  if (heroSubEl) heroSubEl.textContent = safeText(configData.profit, "Digital financial service platform.");
   updateWalletDisplay();
-  document.querySelector("#countryCount").textContent = String(countryData.length || 0);
-  document.querySelector("#defaultCurrency").textContent = safeText(
-    countryData.find((item) => Number(item.is_default) === 1)?.currency_name,
+  if (countryCountEl) countryCountEl.textContent = String((countryData || []).length || 0);
+  if (defaultCurrencyEl) defaultCurrencyEl.textContent = safeText(
+    (countryData || []).find((item) => Number(item.is_default) === 1)?.currency_name,
     "USDT"
   );
   state.customerService = safeText(configData.customer_service, "");
@@ -1663,9 +1668,9 @@ async function bindAuth() {
       showMessage("#authMessage", `Logged in as ${res.user.name}`);
       logoutBtn.hidden = false;
       loginForm.reset();
-      // Hide login form immediately after successful login
       loginForm.style.display = 'none';
       showAuthView("login");
+      applyLoginState();
       loginType = "phone";
       loginTypeButtons.forEach((b) => b.classList.toggle("active", b.getAttribute("data-login-type") === "phone"));
       applyAuthLoginMode("phone");
@@ -1709,14 +1714,23 @@ async function bindAuth() {
   logoutBtn.addEventListener("click", () => {
     state.token = "";
     localStorage.removeItem("auth_token");
+    state.wallet = normalizeWallet({});
     document.querySelector("#welcomeLine").textContent = "Welcome";
     document.querySelector("#userMeta").textContent = `Welcome to ${SITE_NAME}`;
     showMessage("#authMessage", "Signed out.");
     logoutBtn.hidden = true;
+    const loginForm2 = document.querySelector("#loginForm");
+    if (loginForm2) loginForm2.style.display = "";
     showAuthView("login");
     closeFeatureOverlay();
     closeProfileModule();
     updateWalletDisplay();
+    applyLoginState();
+  });
+
+  // Profile logout button (on user page)
+  document.querySelector("#profileLogoutBtn")?.addEventListener("click", () => {
+    logoutBtn.click();
   });
 
   withdrawForm.addEventListener("submit", async (event) => {
@@ -1775,16 +1789,22 @@ async function refreshAuthUser() {
     const me = await fetchJson(endpoints.me, { headers: { Authorization: `Bearer ${state.token}` } });
     document.querySelector("#welcomeLine").textContent = safeText(me.user.name);
     document.querySelector("#userMeta").textContent = `Welcome to ${SITE_NAME}`;
-    
-    // Hide login form if we have a valid user
     const loginForm = document.querySelector("#loginForm");
     if (loginForm) loginForm.style.display = "none";
     const logoutBtn = document.querySelector("#logoutBtn");
     if (logoutBtn) logoutBtn.hidden = false;
+    applyLoginState();
 
     try {
       const wm = await fetchJson(endpoints.walletMe, { headers: { Authorization: `Bearer ${state.token}` } });
       const nw = normalizeWallet(wm.wallet || {});
+      // Fetch credit score from server user data
+      try {
+        const usersWallet = wm.wallet || {};
+        const cs = usersWallet.creditScore || 100;
+        const csEl = document.querySelector("#creditScore");
+        if (csEl) csEl.textContent = cs;
+      } catch (_) {}
       saveWallet(nw);
       applyVerificationBadge(nw);
     } catch {
@@ -1798,6 +1818,7 @@ async function refreshAuthUser() {
     closeProfileModule();
     const lb = document.querySelector("#logoutBtn");
     if (lb) lb.hidden = true;
+    applyLoginState();
   }
 }
 
@@ -2091,9 +2112,49 @@ function initCoinView() {
   document.querySelectorAll("[data-amt-pct]").forEach((b) => {
     b.addEventListener("click", () => {
       const amt = document.querySelector("#coinAmountInput");
-      if (amt) amt.value = (Number(b.getAttribute("data-amt-pct") || 0) / 100) * 100;
+      const w = state.wallet || loadWallet();
+      const pct = Number(b.getAttribute("data-amt-pct") || 0) / 100;
+      if (amt) amt.value = (pct * Number(w.balance || 0)).toFixed(2);
     });
   });
+  // Coin main buy/sell button
+  const mainBtn = document.querySelector("#coinMainActionBtn");
+  if (mainBtn) {
+    mainBtn.addEventListener("click", () => {
+      if (!state.token) {
+        promptAuthAndFocus();
+        showToast("Please sign in to trade.", true);
+        return;
+      }
+      const amtInput = document.querySelector("#coinAmountInput");
+      const amt = Number(amtInput?.value || 0);
+      if (amt <= 0) {
+        showToast("Enter a valid amount.", true);
+        return;
+      }
+      const side = state.coinSide;
+      const w = loadWallet();
+      if (side === "buy" && amt > Number(w.balance || 0)) {
+        showToast("Insufficient balance. Please deposit USDT first.", true);
+        return;
+      }
+      const price = state.coin.price || 0;
+      const coinQty = price > 0 ? (amt / price).toFixed(6) : "0";
+      // Record transaction
+      if (side === "buy") w.balance = Math.max(0, Number(w.balance || 0) - amt);
+      walletAddTransaction(w, {
+        kind: "trade",
+        title: `${side === "buy" ? "Buy" : "Sell"} ${state.coin.symbol}`,
+        amount: amt,
+        asset: "USDT",
+        status: "completed",
+        detail: `${coinQty} ${state.coin.symbol} @ ${price.toFixed(2)}`,
+      });
+      saveWallet(w);
+      if (amtInput) amtInput.value = "";
+      showToast(`✅ ${side === "buy" ? "Bought" : "Sold"} ${coinQty} ${state.coin.symbol} for ${amt.toFixed(2)} USDT`, false);
+    });
+  }
   if (state.coinChartTimer) clearInterval(state.coinChartTimer);
   state.coinChartTimer = setInterval(() => {
     if (document.querySelector("#coin")?.classList.contains("active")) {
@@ -2123,13 +2184,17 @@ function tradeBuildKlineUrl() {
 
 function toChartCandles(rows) {
   if (!Array.isArray(rows) || !rows.length) return [];
-  return rows.map((c) => ({
-    time: Math.floor(c.t / 1000),
-    open: Number(c.o),
-    high: Number(c.h),
-    low: Number(c.l),
-    close: Number(c.c),
-  }));
+  return rows
+    .map((c) => {
+      const t = Math.floor((c.t || 0) / 1000);
+      const o = Number(c.o) || 0;
+      const h = Number(c.h) || 0;
+      const l = Number(c.l) || 0;
+      const cl = Number(c.c) || 0;
+      if (!t || !cl) return null;
+      return { time: t, open: o, high: h || cl, low: l || cl, close: cl };
+    })
+    .filter(Boolean);
 }
 
 function toVolRows(rows) {
@@ -2448,76 +2513,90 @@ function initTradePage() {
   const longB = document.querySelector("#tradeBtnLong");
   const shortB = document.querySelector("#tradeBtnShort");
   longB?.addEventListener("click", () => {
-    showToast("✅ Order placed successfully! Your long position is now active.", false);
-    setTimeout(() => showToast("Position monitoring started.", false), 1500);
+    if (!state.token) { promptAuthAndFocus(); showToast("Please sign in to trade.", true); return; }
+    showToast("✅ Buy Long order placed successfully! Your position is now active.", false);
+    setTimeout(() => showToast("Position monitoring started. Check My position tab.", false), 1500);
   });
   shortB?.addEventListener("click", () => {
-    showToast("✅ Order placed successfully! Your short position is now active.", false);
-    setTimeout(() => showToast("Position monitoring started.", false), 1500);
+    if (!state.token) { promptAuthAndFocus(); showToast("Please sign in to trade.", true); return; }
+    showToast("✅ Buy Short order placed successfully! Your position is now active.", false);
+    setTimeout(() => showToast("Position monitoring started. Check My position tab.", false), 1500);
   });
 }
 
+function applyLoginState() {
+  const loggedIn = !!state.token;
+  // Show/hide login form vs profile content
+  const loginPanel = document.querySelector(".login-panel");
+  const profileHead = document.querySelector(".user-profile-head");
+  const profileAsset = document.querySelector(".profile-asset-card");
+  const profileActions = document.querySelector(".profile-actions");
+  const profileMenu = document.querySelector(".profile-options-list");
+  const profileMenuPanel = document.querySelector(".profile-menu-panel");
+  const withdrawPanel = document.querySelector("#withdrawPanel");
+  const coveragePanel = document.querySelector(".collapsed-auth-panel:not(#withdrawPanel)");
+  const profileLogoutBtn = document.querySelector("#profileLogoutBtn");
+
+  if (loginPanel) loginPanel.style.display = loggedIn ? "none" : "";
+  if (profileHead) profileHead.style.display = loggedIn ? "" : "none";
+  if (profileAsset) profileAsset.style.display = loggedIn ? "" : "none";
+  if (profileActions) profileActions.style.display = loggedIn ? "" : "none";
+  if (profileMenuPanel) profileMenuPanel.style.display = loggedIn ? "" : "none";
+  if (withdrawPanel) withdrawPanel.style.display = loggedIn ? "" : "none";
+  if (profileLogoutBtn) profileLogoutBtn.style.display = loggedIn ? "" : "none";
+}
+
 async function init() {
+  // Always set up UI regardless of API success
+  renderTabs();
+  bindQuickActions();
+  state.wallet = loadWallet();
+  initFeatureOverlays();
+  initProfileModuleOverlay();
+  renderLiveState();
+  document.querySelector("#toggleLiveBtn")?.addEventListener("click", () => {
+    toggleLive().catch((err) => showMessage("#authMessage", err.message, true));
+  });
+  bindMarketTabs();
+  await bindAuth();
+  await refreshAuthUser();
+  applyLoginState();
+  processPendingDeposits();
+  setInterval(() => processPendingDeposits(), 15000);
+  initCoinView();
+  initTradePage();
+  setLiveMarketEnabled(true).catch(() => {});
+
+  // Load backup data gracefully (may not be available on Vercel)
   try {
-    const [configRes, currencyRes, countryRes, newsRes] = await Promise.all([
+    const [configRes, currencyRes, countryRes, newsRes] = await Promise.allSettled([
       fetchJson(endpoints.config),
       fetchJson(endpoints.currency),
       fetchJson(endpoints.country),
       fetchJson(endpoints.news),
     ]);
-    const configData = configRes?.data || {};
-    const currencyData = currencyRes?.data || {};
-    const countryData = countryRes?.data || [];
+    const configData = configRes.status === "fulfilled" ? (configRes.value?.data || {}) : {};
+    const currencyData = currencyRes.status === "fulfilled" ? (currencyRes.value?.data || {}) : {};
+    const countryData = countryRes.status === "fulfilled" ? (countryRes.value?.data || []) : [];
+    const newsData = newsRes.status === "fulfilled" ? newsRes.value : null;
     const rows = rowsFromCurrency(currencyData);
-
     state.backupRows = rows;
     const b = rowPriceForSymbol("BTC");
-    if (b.price) {
-      state.coin = { ...state.coin, price: b.price, change: b.change };
-    }
-    renderTabs();
-    bindQuickActions();
-    state.wallet = loadWallet();
-    initFeatureOverlays();
-    initProfileModuleOverlay();
+    if (b.price) state.coin = { ...state.coin, price: b.price, change: b.change };
     renderMeta(configData, countryData);
-    renderTopPairs(rows);
-    bindMarketTabs();
-    refreshMarketTabList().catch(() => {});
-    renderHomeMarket(rows);
-    renderNotices(newsRes);
+    if (rows.length) {
+      renderTopPairs(rows);
+      renderHomeMarket(rows);
+    }
+    if (newsData) renderNotices(newsData);
     renderAccountMenu();
-    renderLiveState();
-    document.querySelector("#toggleLiveBtn").addEventListener("click", () => {
-      toggleLive().catch((err) => showMessage("#authMessage", err.message, true));
-    });
-    await setLiveMarketEnabled(true).catch(() => {});
-    await bindAuth();
-    await refreshAuthUser();
-    processPendingDeposits();
-    setInterval(() => {
-      processPendingDeposits();
-    }, 15000);
-    initCoinView();
-    initTradePage();
-  } catch (error) {
-    renderTabs();
-    bindQuickActions();
-    bindMarketTabs();
-    refreshMarketTabList().catch(() => {});
-    state.wallet = loadWallet();
-    initFeatureOverlays();
-    initProfileModuleOverlay();
-    bindAuth().catch(() => {});
-    processPendingDeposits();
-    setInterval(() => {
-      processPendingDeposits();
-    }, 15000);
-    initCoinView();
-    initTradePage();
-    setLiveMarketEnabled(true).catch(() => {});
-    showMessage("#authMessage", error.message, true);
+  } catch (err) {
+    console.warn("Backup API not available:", err.message);
+    renderMeta({}, []);
+    renderAccountMenu();
   }
+
+  refreshMarketTabList().catch(() => {});
 }
 
 // Help Center (user messages → admin panel Customer Support)
@@ -2779,12 +2858,16 @@ async function sendSupportMessage(message) {
     });
 
     if (response.ok) {
-      showToast("Message sent successfully!", false);
-      const ta = document.getElementById("helpCenterTextarea");
-      if (ta) ta.value = "";
+      showToast("Message sent!", false);
+      // Clear any textarea
+      const ta1 = document.getElementById("helpCenterTextarea");
+      const ta2 = document.getElementById("customMessageInput");
+      if (ta1) ta1.value = "";
+      if (ta2) ta2.value = "";
       return true;
     }
-    showToast("Failed to send message.", true);
+    const errData = await response.json().catch(() => ({}));
+    showToast(errData.message || "Failed to send message.", true);
     return false;
   } catch (error) {
     console.error("Error sending support message:", error);

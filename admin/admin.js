@@ -749,9 +749,11 @@ function formatUptime(seconds) {
 }
 
 function formatMemory(memoryUsage) {
-    const used = memoryUsage.heapUsed / 1024 / 1024;
-    const total = memoryUsage.heapTotal / 1024 / 1024;
-    return `${used.toFixed(1)}MB / ${total.toFixed(1)}MB`;
+  if (!memoryUsage || typeof memoryUsage !== 'object') return 'N/A';
+  const used = (memoryUsage.heapUsed || 0) / 1024 / 1024;
+  const total = (memoryUsage.heapTotal || 0) / 1024 / 1024;
+  if (!total) return 'N/A';
+  return `${used.toFixed(1)}MB / ${total.toFixed(1)}MB`;
 }
 
 function escapeHtml(text) {
@@ -1107,8 +1109,38 @@ function openSupportChat(userId = null) {
     currentSupportUserId = userId || window.currentModalUserId || document.getElementById('modalUserId').textContent;
     console.log('Opening support chat for user:', currentSupportUserId);
     const modal = document.getElementById('supportChatModal');
+    if (!modal) return;
     modal.hidden = false;
     loadSupportChatMessages(currentSupportUserId);
+    
+    // Bind send button for modal
+    const modalSendBtn = document.getElementById('modalSendSupportMessage');
+    const modalInput = document.getElementById('modalSupportChatInput');
+    if (modalSendBtn) {
+        modalSendBtn.onclick = () => sendModalSupportMessage();
+    }
+    if (modalInput) {
+        modalInput.onkeypress = (e) => { if (e.key === 'Enter') sendModalSupportMessage(); };
+    }
+}
+
+async function sendModalSupportMessage() {
+    const input = document.getElementById('modalSupportChatInput');
+    const message = input ? input.value.trim() : '';
+    if (!message || !currentSupportUserId) return;
+    
+    const res = await fetch('/admin/api/support/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentAdminToken}` },
+        body: JSON.stringify({ userId: currentSupportUserId, message })
+    });
+    if (res.ok) {
+        if (input) input.value = '';
+        loadSupportChatMessages(currentSupportUserId);
+        showToast('Message sent!');
+    } else {
+        showToast('Failed to send message', true);
+    }
 }
 
 function closeSupportChatModal() {
@@ -1123,22 +1155,14 @@ function viewSupportHistory(userId = null) {
 
 async function loadSupportChatMessages(userId) {
     try {
-        const response = await fetch(`${API_BASE}/support/messages/${userId}`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
+        const res = await fetch(`/admin/api/support/history?userId=${userId}`, {
+            headers: { Authorization: `Bearer ${currentAdminToken}` }
         });
-        
-        if (response.ok) {
-            const data = await response.json();
+        if (res.ok) {
+            const data = await res.json();
             renderSupportChatMessages(data.messages || []);
         } else {
-            // Load mock messages if API fails
-            const mockMessages = [
-                { type: 'user', message: 'Hello, I need help with my account', time: Date.now() - 3600000 },
-                { type: 'admin', message: 'Hello! How can I help you today?', time: Date.now() - 3000000 }
-            ];
-            renderSupportChatMessages(mockMessages);
+            renderSupportChatMessages([]);
         }
     } catch (error) {
         console.error('Error loading support messages:', error);
@@ -1147,57 +1171,63 @@ async function loadSupportChatMessages(userId) {
 }
 
 function renderSupportChatMessages(messages) {
-    const messagesContainer = document.getElementById('supportChatMessages');
+    const messagesContainer = document.getElementById('modalSupportChatMessages') || document.getElementById('supportChatMessages');
+    if (!messagesContainer) return;
     
-    if (messages.length === 0) {
+    if (!messages || messages.length === 0) {
         messagesContainer.innerHTML = '<p class="text-center text-muted">No messages yet. Start a conversation!</p>';
         return;
     }
     
     messagesContainer.innerHTML = messages.map(msg => `
         <div class="chat-message ${msg.type}">
-            <div class="sender">${msg.type === 'user' ? 'User' : 'Admin'}</div>
-            <div class="message">${escapeHtml(msg.message)}</div>
+            <div class="sender">${msg.type === 'user' ? (msg.userName || 'User') : 'Admin'}</div>
+            <div class="message">${escapeHtml(msg.message || '')}</div>
             <div class="time">${new Date(msg.time).toLocaleString()}</div>
         </div>
     `).join('');
     
-    // Scroll to bottom
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 async function sendSupportMessage() {
     const input = document.getElementById('supportChatInput');
-    const message = input.value.trim();
+    const message = input ? input.value.trim() : '';
     
-    if (!message || !currentSupportUserId) {
-        return;
-    }
+    if (!message || !currentSupportUserId) return;
     
     try {
-        const response = await fetch(`${API_BASE}/support/messages/send`, {
+        const response = await fetch(`/admin/api/support/reply`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
+                'Authorization': `Bearer ${currentAdminToken}`
             },
-            body: JSON.stringify({
-                userId: currentSupportUserId,
-                message: message,
-                type: 'admin'
-            })
+            body: JSON.stringify({ userId: currentSupportUserId, message })
         });
         
         if (response.ok) {
-            input.value = '';
+            if (input) input.value = '';
             loadSupportChatMessages(currentSupportUserId);
+            showToast('Message sent!');
         } else {
-            alert('Failed to send message');
+            showToast('Failed to send message', true);
         }
     } catch (error) {
         console.error('Error sending message:', error);
-        alert('Error sending message');
+        showToast('Error sending message', true);
     }
+}
+
+function showToast(message, isError = false) {
+    const existing = document.getElementById('adminToast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'adminToast';
+    toast.style.cssText = `position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:9999;background:${isError?'#c62828':'#1a7f5f'};box-shadow:0 4px 12px rgba(0,0,0,0.3);`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 function initEventListeners() {

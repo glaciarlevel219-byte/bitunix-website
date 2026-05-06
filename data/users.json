@@ -54,5 +54,12 @@
     "email": "123@gmail.com",
     "passwordHash": "6ce4590026c5d0184146423c52151123:fb6a7a753e75988ff111f550059736a5d8a34ffd6ad1721553edc1dfae44961faca304d009fd886ba66416396a180e20fc6b5282c126072f96c0c2b1a245adcd",
     "createdAt": 1777814733210
+  },
+  {
+    "id": "80210dd8-4cee-4213-9eff-fc094e859b4f",
+    "name": "TestUser",
+    "email": "testfix@example.com",
+    "passwordHash": "a60c44106ff632032636866257e7779b:ff5ebb60cd9a31c5d6b3ea14a2bb58d1a443ae36bbff6313d035acd9a649e8ac4b2669fcbc111aad721888d33bd6e76f05b90f69405740cd6c7ab19443188e33",
+    "createdAt": 1778092708108
   }
 ]
