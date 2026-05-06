@@ -39,6 +39,27 @@ async function parseBody(req) {
   });
 }
 
+// Sequential 6-digit ID counter storage
+const ID_COUNTER_FILE = path.join(DATA_DIR, "user_id_counter.json");
+
+function getNextUserId() {
+  let counter = 1;
+  try {
+    if (fs.existsSync(ID_COUNTER_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ID_COUNTER_FILE, "utf8"));
+      counter = data.counter || 1;
+    }
+  } catch (e) {}
+  
+  // Format as 6-digit (000001, 000002, etc.)
+  const userId = counter.toString().padStart(6, "0");
+  
+  // Increment counter
+  fs.writeFileSync(ID_COUNTER_FILE, JSON.stringify({ counter: counter + 1 }), "utf8");
+  
+  return userId;
+}
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
@@ -97,9 +118,9 @@ module.exports = async (req, res) => {
       const db = await connectToDatabase();
       const existing = await db.collection("users").findOne({ email });
       if (existing) return sendJson(res, 400, { message: "Email already registered" });
-      const newUser = { id: crypto.randomUUID(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
+      const newUser = { id: getNextUserId(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       await db.collection("users").insertOne(newUser);
-      return sendJson(res, 201, { message: "Success" });
+      return sendJson(res, 201, { message: "Success", userId: newUser.id });
     }
 
     if (pathname === "/api/auth/login" && req.method === "POST") {
@@ -407,6 +428,48 @@ module.exports = async (req, res) => {
             
             await writeWallet(userId, wallet);
             return sendJson(res, 200, { message: `Withdrawal ${action}d successfully` });
+        }
+
+        // Migrate all existing users to 6-digit sequential IDs
+        if (pathname === "/admin/api/migrate-user-ids" && req.method === "POST") {
+            const db = await connectToDatabase();
+            if (!db) return sendJson(res, 500, { message: "Database not connected" });
+            
+            const users = await db.collection("users").find({}).toArray();
+            let counter = 1;
+            const migrations = [];
+            
+            for (const user of users) {
+                // Check if ID is already 6-digit format
+                if (!/^\d{6}$/.test(user.id)) {
+                    const oldId = user.id;
+                    const newId = counter.toString().padStart(6, "0");
+                    
+                    // Update user ID
+                    await db.collection("users").updateOne({ _id: user._id }, { $set: { id: newId } });
+                    
+                    // Update wallet file if exists
+                    const oldWalletPath = path.join(DATA_DIR, `wallet_${oldId}.json`);
+                    const newWalletPath = path.join(DATA_DIR, `wallet_${newId}.json`);
+                    if (fs.existsSync(oldWalletPath)) {
+                        fs.renameSync(oldWalletPath, newWalletPath);
+                        const wallet = JSON.parse(fs.readFileSync(newWalletPath, "utf8"));
+                        wallet.userId = newId;
+                        fs.writeFileSync(newWalletPath, JSON.stringify(wallet, null, 2));
+                    }
+                    
+                    migrations.push({ oldId, newId });
+                    counter++;
+                }
+            }
+            
+            // Update counter for future registrations
+            fs.writeFileSync(ID_COUNTER_FILE, JSON.stringify({ counter: counter }), "utf8");
+            
+            return sendJson(res, 200, { 
+                message: `Migrated ${migrations.length} users to 6-digit IDs`,
+                migrations
+            });
         }
 
         if (pathname === "/admin/api/support/all-messages") {
