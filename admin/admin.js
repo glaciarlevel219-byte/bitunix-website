@@ -365,12 +365,13 @@ async function loadDeposits() {
         
         if (response.ok) {
             const data = await response.json();
+            window.currentDeposits = data.deposits || []; // Store globally for receipt viewing
             renderDepositsTable(data.deposits);
         }
     } catch (error) {
         console.error('Failed to load deposits:', error);
         document.querySelector('#depositsTable tbody').innerHTML = 
-            '<tr><td colspan="8">Failed to load deposits</td></tr>';
+            '<tr><td colspan="9">Failed to load deposits</td></tr>';
     }
 }
 
@@ -399,13 +400,19 @@ function renderDepositsTable(deposits) {
     console.log('Rendering deposits table with:', deposits);
     
     if (!deposits || deposits.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No pending deposits found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">No pending deposits found</td></tr>';
         return;
     }
     
     tbody.innerHTML = deposits.map(deposit => {
         const depositId = deposit.id || deposit.rechargeId || '';
         console.log('Creating buttons for deposit:', { userId: deposit.userId, depositId });
+        
+        // Receipt column HTML
+        let receiptHtml = '<span class="muted">No receipt</span>';
+        if (deposit.receipt) {
+            receiptHtml = `<button class="btn-small" onclick="viewReceipt('${escapeHtml(depositId)}')">View Receipt</button>`;
+        }
         
         return `
         <tr>
@@ -416,6 +423,7 @@ function renderDepositsTable(deposits) {
             <td>${escapeHtml(deposit.network || 'Unknown')}</td>
             <td>${new Date(deposit.created).toLocaleString()}</td>
             <td><span class="status-pending">Pending</span></td>
+            <td>${receiptHtml}</td>
             <td>
                 <button class="btn-small btn-approve" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'approve')">Approve</button>
                 <button class="btn-small btn-reject" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'reject')">Reject</button>
@@ -425,6 +433,40 @@ function renderDepositsTable(deposits) {
     }).join('');
     
     console.log('Deposits table rendered');
+}
+
+// Global function to view receipt
+function viewReceipt(depositId) {
+    // Find deposit in current deposits list
+    const deposits = window.currentDeposits || [];
+    const deposit = deposits.find(d => (d.id || d.rechargeId) === depositId);
+    
+    if (deposit && deposit.receipt) {
+        // Open receipt in new window
+        const receiptWindow = window.open('', '_blank', 'width=800,height=600');
+        receiptWindow.document.write(`
+            <html>
+                <head>
+                    <title>Transaction Receipt</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+                        img { max-width: 100%; max-height: 80vh; border: 1px solid #ddd; }
+                        .close-btn { margin-top: 20px; padding: 10px 20px; cursor: pointer; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Transaction Receipt</h2>
+                    <p>Deposit ID: ${escapeHtml(depositId)}</p>
+                    <p>Amount: ${Number(deposit.amount).toFixed(2)} USDT</p>
+                    <img src="${deposit.receipt}" alt="Receipt" />
+                    <br>
+                    <button class="close-btn" onclick="window.close()">Close</button>
+                </body>
+            </html>
+        `);
+    } else {
+        alert('Receipt not found');
+    }
 }
 
 function renderWithdrawalsTable(withdrawals) {

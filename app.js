@@ -715,7 +715,7 @@ function initFeatureOverlays() {
   scrim?.addEventListener("click", closeFeatureOverlay);
   root.querySelectorAll("[data-close-overlay]").forEach((b) => b.addEventListener("click", closeFeatureOverlay));
 
-  document.querySelector("#depositForm")?.addEventListener("submit", (e) => {
+  document.querySelector("#depositForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!state.token) {
       showToast("Please log in first.", true);
@@ -726,10 +726,29 @@ function initFeatureOverlays() {
     const fd = new FormData(e.target);
     const amt = Number(fd.get("amount") || 0);
     const msg = document.querySelector("#depositMsg");
+    const receiptFile = fd.get("receipt");
+    
     if (amt < 1) {
       if (msg) msg.textContent = "Enter at least 1 USDT.";
       return;
     }
+    
+    // Handle receipt file upload
+    let receiptBase64 = null;
+    let receiptFilename = null;
+    if (receiptFile && receiptFile.size > 0) {
+      try {
+        receiptBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(receiptFile);
+        });
+        receiptFilename = receiptFile.name;
+      } catch (err) {
+        console.error("Receipt upload failed:", err);
+      }
+    }
+    
     const w = loadWallet();
     const net = String(fd.get("network") || "TRC20");
     const rid = uid();
@@ -752,6 +771,8 @@ function initFeatureOverlays() {
       network: net,
       created,
       creditedAt,
+      receipt: receiptBase64,
+      receiptFilename: receiptFilename,
     });
     walletAddTxLog(w, {
       level: "INFO",
@@ -771,7 +792,9 @@ function initFeatureOverlays() {
       },
       body: JSON.stringify({
         amount: amt,
-        network: net
+        network: net,
+        receipt: receiptBase64,
+        receiptFilename: receiptFilename
       })
     }).catch(err => console.log('Server deposit sync failed:', err));
     

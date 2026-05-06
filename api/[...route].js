@@ -270,7 +270,15 @@ module.exports = async (req, res) => {
         if (pathname === "/api/deposit/create" && req.method === "POST") {
             const body = await parseBody(req);
             const w = await readWallet(decoded.id);
-            const dep = { id: `dep_${Date.now()}`, amount: Number(body.amount), network: body.network || "TRC20", created: Date.now(), status: "pending" };
+            const dep = { 
+                id: `dep_${Date.now()}`, 
+                amount: Number(body.amount), 
+                network: body.network || "TRC20", 
+                created: Date.now(), 
+                status: "pending",
+                receipt: body.receipt || null,
+                receiptFilename: body.receiptFilename || null
+            };
             w.pendingDeposits.push(dep);
             await writeWallet(decoded.id, w);
             

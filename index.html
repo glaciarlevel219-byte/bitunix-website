@@ -400,7 +400,7 @@
         <p class="deposit-addr-hdr">Deposit address <span class="muted">(invalid / test — for UI only)</span></p>
         <code id="depositAddressText" class="deposit-addr-code"></code>
       </div>
-      <form id="depositForm" class="overlay-form">
+      <form id="depositForm" class="overlay-form" enctype="multipart/form-data">
         <label>Network
           <select id="depositNetworkSelect" name="network" required>
             <option value="TRC20">TRC20 (Tron)</option>
@@ -409,6 +409,10 @@
           </select>
         </label>
         <label>Amount (USDT)<input name="amount" type="number" min="1" step="0.01" required placeholder="e.g. 100"></label>
+        <label>Transaction Receipt (Screenshot/Photo)
+          <input type="file" id="depositReceipt" name="receipt" accept="image/*,.pdf" required>
+          <small class="muted">Upload payment proof (image or PDF)</small>
+        </label>
         <label class="overlay-check"><input type="checkbox" name="confirm" required> I confirm the amount and network.</label>
         <button type="submit" class="login-submit-btn">Submit deposit request</button>
       </form>
