@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "id": "test_msg_001",
+      "userId": "403b3f00-2b1b-491d-8158-e6cab5b016fa",
+      "type": "user",
+      "message": "Test message from user",
+      "time": 1714746000000,
+      "status": "sent"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "bitunix-admin",
+  "builds": [
+    {
+      "src": "admin-server-fixed.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "admin-server-fixed.js"
+    }
+  ]
+}

@@ -1269,6 +1269,10 @@ function rowsFromCurrency(currencyData) {
 
 function renderTopPairs(rows) {
   const root = document.querySelector("#topPairs");
+  if (!rows || rows.length === 0) {
+    root.innerHTML = '<p class="muted">Loading market data...</p>';
+    return;
+  }
   root.innerHTML = rows.slice(0, 3).map((row) => {
     const change = Number(row.change || 0);
     return `
@@ -1287,8 +1291,8 @@ function renderTopPairs(rows) {
 function renderHomeMarket(rows) {
   const root = document.querySelector("#homeMarketList");
   if (!root) return;
-  if (!rows.length) {
-    root.innerHTML = `<p class="muted">No market records available.</p>`;
+  if (!rows || !rows.length) {
+    root.innerHTML = `<p class="muted">Loading market data...</p>`;
     return;
   }
   root.innerHTML = rows.slice(0, 8).map((row) => {
@@ -2565,9 +2569,8 @@ async function init() {
   setInterval(() => processPendingDeposits(), 15000);
   initCoinView();
   initTradePage();
-  setLiveMarketEnabled(true).catch(() => {});
 
-  // Load backup data gracefully (may not be available on Vercel)
+  // Load backup data first (ensures ticker always has data to display)
   try {
     const [configRes, currencyRes, countryRes, newsRes] = await Promise.allSettled([
       fetchJson(endpoints.config),
@@ -2576,25 +2579,33 @@ async function init() {
       fetchJson(endpoints.news),
     ]);
     const configData = configRes.status === "fulfilled" ? (configRes.value?.data || {}) : {};
-    const currencyData = currencyRes.status === "fulfilled" ? (currencyRes.value?.data || {}) : {};
+    const currencyResValue = currencyRes.status === "fulfilled" ? currencyRes.value : null;
+    // Handle both {data: {all: [], top_three: []}} and direct {all: [], top_three: []} formats
+    const currencyData = currencyResValue?.data || currencyResValue || {};
     const countryData = countryRes.status === "fulfilled" ? (countryRes.value?.data || []) : [];
     const newsData = newsRes.status === "fulfilled" ? newsRes.value : null;
     const rows = rowsFromCurrency(currencyData);
+    console.log("Market data loaded:", rows.length, "rows");
     state.backupRows = rows;
     const b = rowPriceForSymbol("BTC");
     if (b.price) state.coin = { ...state.coin, price: b.price, change: b.change };
     renderMeta(configData, countryData);
-    if (rows.length) {
-      renderTopPairs(rows);
-      renderHomeMarket(rows);
-    }
+    // Always render with backup data first so ticker shows immediately
+    renderTopPairs(rows);
+    renderHomeMarket(rows);
     if (newsData) renderNotices(newsData);
     renderAccountMenu();
   } catch (err) {
     console.warn("Backup API not available:", err.message);
     renderMeta({}, []);
+    // Render empty state for market sections when API fails
+    renderTopPairs([]);
+    renderHomeMarket([]);
     renderAccountMenu();
   }
+
+  // Now enable live market (will use backup if live fails)
+  setLiveMarketEnabled(true).catch(() => {});
 
   refreshMarketTabList().catch(() => {});
 }

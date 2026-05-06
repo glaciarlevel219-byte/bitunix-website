@@ -1,0 +1,90 @@
+{
+  "balance": 425.5,
+  "locks": [],
+  "c2c": [],
+  "recharges": [
+    {
+      "id": "recharge_001",
+      "amount": 100,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17762699081566,
+      "completedAt": 1776269968156
+    },
+    {
+      "id": "pending_deposit_001",
+      "amount": 50,
+      "network": "BEP20",
+      "status": "completed",
+      "created": 1776270300000,
+      "completedAt": 1777730481427
+    },
+    {
+      "id": "test_deposit_010",
+      "amount": 50,
+      "network": "BEP20",
+      "status": "completed",
+      "created": 177698910000000,
+      "completedAt": 1777798958979
+    },
+    {
+      "id": "test_deposit_016",
+      "amount": 80,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769906000000,
+      "completedAt": 1777799806070
+    },
+    {
+      "id": "test_deposit_017",
+      "amount": 120,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769907000000,
+      "completedAt": 1777799833973
+    }
+  ],
+  "withdrawals": [
+    {
+      "id": "withdraw_001",
+      "amount": 25,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 1776270100000,
+      "completedAt": 1777885322175
+    }
+  ],
+  "transactions": [
+    {
+      "id": "txn_001",
+      "created": 1776269908156,
+      "kind": "deposit",
+      "title": "Initial Deposit",
+      "amount": 100,
+      "asset": "USDT",
+      "status": "success",
+      "detail": "TRC20 Network"
+    },
+    {
+      "id": "txn_002",
+      "created": 1776270100000,
+      "kind": "withdrawal",
+      "title": "Withdrawal to External Wallet",
+      "amount": 25,
+      "asset": "USDT",
+      "status": "success",
+      "detail": "ERC20 Network"
+    }
+  ],
+  "txLogs": [],
+  "profile": {
+    "verified": true,
+    "kycStatus": "completed",
+    "level": 2
+  },
+  "settings": {
+    "notifications": true,
+    "twoFactorEnabled": false
+  },
+  "pendingDeposits": []
+}

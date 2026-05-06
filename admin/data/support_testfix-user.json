@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "id": "msg_1778092837787_93zcstt",
+      "userId": "testfix-user",
+      "userName": "Unknown",
+      "userEmail": "",
+      "type": "admin",
+      "message": "Hello! How can I help you?",
+      "time": 1778092837787,
+      "status": "sent"
+    }
+  ]
+}

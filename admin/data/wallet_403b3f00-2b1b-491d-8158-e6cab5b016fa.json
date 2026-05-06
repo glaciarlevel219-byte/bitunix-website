@@ -1,0 +1,227 @@
+{
+  "balance": 2130.5,
+  "locks": [],
+  "c2c": [],
+  "recharges": [
+    {
+      "id": "deposit_abc123_002",
+      "amount": 120,
+      "network": "BEP20",
+      "status": "completed",
+      "created": 1776989100000,
+      "completedAt": 1777730490217
+    },
+    {
+      "id": "deposit_abc123_001",
+      "amount": 75.5,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 1776989000000,
+      "completedAt": 1777733808783
+    },
+    {
+      "id": "test_deposit_001",
+      "amount": 50,
+      "network": "TRC20",
+      "status": "rejected",
+      "created": 17769891000000,
+      "completedAt": 1777798246043
+    },
+    {
+      "id": "test_deposit_002",
+      "amount": 100,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769892000000,
+      "completedAt": 1777798247764
+    },
+    {
+      "id": "test_deposit_003",
+      "amount": 75,
+      "network": "BEP20",
+      "status": "rejected",
+      "created": 17769893000000,
+      "completedAt": 1777798249218
+    },
+    {
+      "id": "test_deposit_005",
+      "amount": 150,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769895000000,
+      "completedAt": 1777798477279
+    },
+    {
+      "id": "test_deposit_004",
+      "amount": 25,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769894000000,
+      "completedAt": 1777798479146
+    },
+    {
+      "id": "test_deposit_006",
+      "amount": 50,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769896000000,
+      "completedAt": 1777798842920
+    },
+    {
+      "id": "test_deposit_007",
+      "amount": 100,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769897000000,
+      "completedAt": 1777798843711
+    },
+    {
+      "id": "test_deposit_011",
+      "amount": 100,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769901000000,
+      "completedAt": 1777799052504
+    },
+    {
+      "id": "test_deposit_009",
+      "amount": 125,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769899000000,
+      "completedAt": 1777799075651
+    },
+    {
+      "id": "test_deposit_013",
+      "amount": 50,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769903000000,
+      "completedAt": 1777799181230
+    },
+    {
+      "id": "test_deposit_014",
+      "amount": 75,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769904000000,
+      "completedAt": 1777799308180
+    },
+    {
+      "id": "test_deposit_015",
+      "amount": 60,
+      "network": "BEP20",
+      "status": "completed",
+      "created": 17769905000000,
+      "completedAt": 1777799500566
+    },
+    {
+      "id": "test_deposit_018",
+      "amount": 50,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769908000000,
+      "completedAt": 1777800476151
+    },
+    {
+      "id": "test_deposit_019",
+      "amount": 75,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769909000000,
+      "completedAt": 1777800726908
+    },
+    {
+      "id": "test_deposit_020",
+      "amount": 100,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769910000000,
+      "completedAt": 1777803995332
+    },
+    {
+      "id": "test_deposit_021",
+      "amount": 150,
+      "network": "ERC20",
+      "status": "rejected",
+      "created": 17769911000000,
+      "completedAt": 1777804003410
+    },
+    {
+      "id": "test_deposit_022",
+      "amount": 200,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 17769915000000,
+      "completedAt": 1777887677517
+    },
+    {
+      "id": "test_deposit_023",
+      "amount": 300,
+      "network": "ERC20",
+      "status": "completed",
+      "created": 17769916000000,
+      "completedAt": 1777897689215
+    },
+    {
+      "id": "deposit_test_024",
+      "amount": 500,
+      "network": "TRC20",
+      "status": "completed",
+      "created": 1777898000000,
+      "completedAt": 1777899226844
+    }
+  ],
+  "withdrawals": [
+    {
+      "id": "test_withdrawal_001",
+      "amount": 50,
+      "network": "TRC20",
+      "address": "TTestAddress123456789",
+      "status": "completed",
+      "created": 17769912000000,
+      "completedAt": 1777899236802
+    },
+    {
+      "id": "test_withdrawal_002",
+      "amount": 75,
+      "network": "ERC20",
+      "address": "0xTestAddress123456789",
+      "status": "rejected",
+      "created": 17769913000000,
+      "completedAt": 1777885339045
+    },
+    {
+      "id": "test_withdrawal_003",
+      "amount": 100,
+      "network": "BEP20",
+      "address": "0xTestAddressBEP20123456789",
+      "status": "completed",
+      "created": 17769914000000,
+      "completedAt": 1777903992077
+    }
+  ],
+  "transactions": [],
+  "txLogs": [],
+  "profile": {
+    "verified": false,
+    "kycStatus": "rejected",
+    "level": 1,
+    "kycReviewedAt": 1777814555968,
+    "kycReviewNote": ""
+  },
+  "settings": {
+    "notifications": true,
+    "twoFactorEnabled": false
+  },
+  "pendingDeposits": [
+    {
+      "id": "deposit_user_025",
+      "amount": 100,
+      "network": "TRC20",
+      "status": "pending",
+      "created": 1777900000000,
+      "creditedAt": null
+    }
+  ]
+}
