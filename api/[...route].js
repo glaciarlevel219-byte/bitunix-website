@@ -828,185 +828,45 @@ module.exports = async (req, res) => {
     if (req.method === "GET" && pathname === "/api/backup/country") {
       return sendJson(res, 200, readBackupJson("country"));
     }
-    if (req.method === "GET" && pathname === "/api/backup/news") {
-      return sendJson(res, 200, readBackupJson("news"));
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const { pathname } = url;
+    const adminUser = await getAdminUserFromReq(req);
+
+    // --- PUBLIC/CORE ROUTES ---
+    if (req.method === "GET" && pathname === "/api/config") {
+      return sendJson(res, 200, await readSiteConfig());
     }
-    if (req.method === "GET" && pathname === "/api/market/live") {
-      const data = await liveMarket();
-      return sendJson(res, 200, { code: 0, message: "success", data });
-    }
+
     if (req.method === "POST" && pathname === "/api/auth/register") {
       const body = await parseBody(req);
-      const name = String(body.name || "").trim();
-      const email = String(body.email || "").trim().toLowerCase();
-      const password = String(body.password || "");
-      if (!name || !email || password.length < 6) {
-        return sendJson(res, 400, { message: "Provide name, email and password(min 6)." });
-      }
+      const { name, email, password } = body;
+      if (!name || !email || !password) return sendJson(res, 400, { message: "Name, email and password are required." });
       const users = await readUsers();
-      if (users.some((u) => u.email === email)) {
-        return sendJson(res, 409, { message: "Email already registered." });
-      }
+      if (users.find((u) => u.email === email)) return sendJson(res, 400, { message: "User already exists." });
       const user = { id: crypto.randomUUID(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       users.push(user);
       await writeUsers(users);
       await writeWalletForUser(user.id, await readWalletForUser(user.id));
       return sendJson(res, 201, { message: "Registered successfully." });
     }
+
     if (req.method === "POST" && pathname === "/api/auth/login") {
       const body = await parseBody(req);
       const email = String(body.email || "").trim().toLowerCase();
       const password = String(body.password || "");
       const users = await readUsers();
       const user = users.find((u) => u.email === email);
-      if (!user) {
-        return sendJson(res, 404, {
-          code: "USER_NOT_FOUND",
-          message: "No account found with this email or phone. Please register first.",
-        });
-      }
-      if (!verifyPassword(password, user.passwordHash)) {
-        return sendJson(res, 401, { code: "INVALID_PASSWORD", message: "Invalid password." });
-      }
+      if (!user) return sendJson(res, 404, { code: "USER_NOT_FOUND", message: "No account found." });
+      if (!verifyPassword(password, user.passwordHash)) return sendJson(res, 401, { code: "INVALID_PASSWORD", message: "Invalid password." });
       const token = signToken({ id: user.id, email: user.email, name: user.name, iat: Date.now() });
       return sendJson(res, 200, { token, user: { id: user.id, name: user.name, email: user.email } });
     }
-    if (req.method === "GET" && pathname === "/api/trade/klines") {
-      const source = String(url.searchParams.get("source") || "binance");
-      if (source === "binance") {
-        const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const interval = String(url.searchParams.get("interval") || "5m");
-        const limit = Math.min(1000, Math.max(10, Number(url.searchParams.get("limit")) || 200));
-        const burl = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
-        const r = await fetch(burl);
-        if (!r.ok) return sendJson(res, 502, { message: "Binance klines unavailable (region or symbol)." });
-        const raw = await r.json();
-        const candles = raw.map((k) => ({
-          t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5],
-        }));
-        return sendJson(res, 200, { source: "binance", candles });
-      }
-      if (source === "frank") {
-        const fromC = String(url.searchParams.get("from") || "USD");
-        const toC = String(url.searchParams.get("to") || "INR");
-        
-        // Simulating candles for FX as Frankfurter is limited for history
-        const days = 60;
-        const now = Date.now();
-        const candles = [];
-        let lastPrice = 1;
-        
-        try {
-            const fr = await fetch(`https://open.er-api.com/v6/latest/${fromC}`);
-            if (fr.ok) {
-                const d = await fr.json();
-                lastPrice = 1 / (d.rates[toC] || 1);
-            }
-        } catch(e) {}
 
-        for (let i = days; i >= 0; i--) {
-            const t = now - (i * 86400000);
-            const varp = 1 + (Math.random() * 0.02 - 0.01);
-            const p = lastPrice * varp;
-            candles.push({ t, o: p, h: p * 1.005, l: p * 0.995, c: p, v: 1 });
-        }
-        return sendJson(res, 200, { source: "simulated_fx", candles });
-      }
-
-      if (source === "gecko_ohlc") {
-        const id = String(url.searchParams.get("id") || "bitcoin").toLowerCase().replace(/[^a-z0-9-]/g, "");
-        const days = Math.min(30, Math.max(1, Number(url.searchParams.get("days")) || 7));
-        const gurl = `https://api.coingecko.com/api/v3/coins/${id}/ohlc?vs_currency=usd&days=${days}`;
-        const r = await fetch(gurl);
-        if (!r.ok) return sendJson(res, 502, { message: "CoinGecko OHLC failed." });
-        const ohlc = await r.json();
-        const list = Array.isArray(ohlc) ? ohlc : [];
-        const candles = list.map((row) => {
-          const [ts, o, h, l, c] = row;
-          return { t: ts, o: String(o), h: String(h), l: String(l), c: String(c), v: 0 };
-        });
-        return sendJson(res, 200, { source: "gecko_ohlc", candles });
-      }
-      return sendJson(res, 400, { message: "Unknown klines source." });
-    }
+    // --- MARKET DATA ROUTES ---
     if (req.method === "GET" && pathname === "/api/trade/rows") {
       const cat = String(url.searchParams.get("cat") || "crypto");
-      const toRow = (label, last, chg) => ({ label, last, chg: String(chg) });
-      if (cat === "crypto") {
-        const syms = [
-          "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT",
-          "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT", "XMRUSDT", "YFIUSDT", "MKRUSDT", "CVCUSDT", "SUSHIUSDT", "GALAUSDT",
-        ];
-        const rows = await Promise.all(syms.map(async (symbol) => {
-          try {
-            const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
-            if (!r.ok) return null;
-            const t = await r.json();
-            const base = symbol.replace("USDT", "");
-            return toRow(`${base}/USD`, t.lastPrice, t.priceChangePercent);
-          } catch {
-            return null;
-          }
-        }));
-        if (!rows.filter(Boolean).length) {
-            const fallback = readBackupJson("currency");
-            const fr = fallback?.data?.all || fallback?.data?.top_three || [];
-            return sendJson(res, 200, { rows: fr.map(x => toRow(`${x.legal_name}/USD`, x.now_price, x.change)) });
-        }
-        return sendJson(res, 200, { rows: rows.filter(Boolean) });
-      }
-      if (cat === "fx") {
-        const rows = [];
-        const pairs = [
-          { label: "INR/USD", from: "USD", to: "INR" },
-          { label: "EUR/USD", symbol: "EURUSDT" },
-          { label: "GBP/USD", symbol: "GBPUSDT" },
-          { label: "AUD/USD", symbol: "AUDUSDT" },
-          { label: "JPY/USD", from: "USD", to: "JPY" },
-          { label: "AED/USD", from: "USD", to: "AED" },
-          { label: "SAR/USD", from: "USD", to: "SAR" },
-          { label: "PKR/USD", from: "USD", to: "PKR" },
-          { label: "TRY/USD", from: "USD", to: "TRY" },
-          { label: "CAD/USD", from: "USD", to: "CAD" },
-        ];
-        
-        let fxData = null;
-        try {
-          const fxRes = await fetch("https://open.er-api.com/v6/latest/USD");
-          if (fxRes.ok) fxData = await fxRes.json();
-        } catch(e) {}
-
-        for (const p of pairs) {
-          try {
-            if (p.symbol) {
-              const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.symbol}`);
-              if (r.ok) {
-                const t = await r.json();
-                rows.push(toRow(p.label, t.lastPrice, t.priceChangePercent));
-                continue;
-              }
-            }
-            
-            const rate = fxData?.rates?.[p.to || "INR"];
-            if (rate) {
-                const price = (1 / rate).toFixed(6);
-                rows.push(toRow(p.label, price, (Math.random() * 0.4 - 0.2).toFixed(2)));
-            } else {
-                // Fallback hardcoded logic for missing API pairs
-                const fallbacks = { AED: 3.67, SAR: 3.75, PKR: 278.50, TRY: 32.20, CAD: 1.36, INR: 83.40 };
-                const fRate = fallbacks[p.to] || 1;
-                rows.push(toRow(p.label, (1/fRate).toFixed(6), "0.00"));
-            }
-          } catch {}
-        }
-        return sendJson(res, 200, { rows: rows.length ? rows : [toRow("EUR/USD", "0", "0")] });
-      }
-      return sendJson(res, 400, { message: "Unknown cat" });
-    }
-
-    if (req.method === "GET" && pathname === "/api/trade/rows") {
-      const cat = url.searchParams.get("cat") || "crypto";
-      const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: Number(chg || 0), vol: 0 });
+      const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: String(chg || "0.00") });
 
       if (cat === "crypto") {
         const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
@@ -1016,7 +876,7 @@ module.exports = async (req, res) => {
               const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
               if (!r.ok) return null;
               const t = await r.json();
-              return toRow(symbol.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent);
+              return toRow(`${symbol.replace("USDT", "")}/USD`, t.lastPrice, t.priceChangePercent);
             } catch { return null; }
           }));
           const filtered = rows.filter(Boolean);
@@ -1026,17 +886,14 @@ module.exports = async (req, res) => {
           // Coingecko Fallback
           try {
             const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true");
-            const data = await r.json();
-            const map = {
-                bitcoin: "BTC/USD", ethereum: "ETH/USD", binancecoin: "BNB/USD", solana: "SOL/USD",
-                ripple: "XRP/USD", dogecoin: "DOGE/USD", cardano: "ADA/USD", polkadot: "DOT/USD",
-                litecoin: "LTC/USD", "bitcoin-cash": "BCH/USD", "ethereum-classic": "ETC/USD", filecoin: "FIL/USD", eos: "EOS/USD"
-            };
-            const rows = Object.keys(data).map(id => toRow(map[id], data[id].usd, data[id].usd_24h_change));
+            const d = await r.json();
+            const map = { bitcoin:"BTC/USD", ethereum:"ETH/USD", binancecoin:"BNB/USD", solana:"SOL/USD", ripple:"XRP/USD", dogecoin:"DOGE/USD", cardano:"ADA/USD", polkadot:"DOT/USD", litecoin:"LTC/USD", "bitcoin-cash":"BCH/USD", "ethereum-classic":"ETC/USD", filecoin:"FIL/USD", eos:"EOS/USD" };
+            const rows = Object.keys(d).map(id => toRow(map[id], d[id].usd, d[id].usd_24h_change));
             return sendJson(res, 200, { rows });
           } catch { return sendJson(res, 200, { rows: [] }); }
         }
       }
+
       if (cat === "metal") {
         try {
           const syms = ["PAXGUSDT", "XAUTUSDT"];
@@ -1050,173 +907,64 @@ module.exports = async (req, res) => {
           }));
           const filtered = rows.filter(Boolean);
           if (filtered.length > 0) return sendJson(res, 200, { rows: filtered });
-          throw new Error("Metals failed");
-        } catch {
           return sendJson(res, 200, { rows: [toRow("PAXG/USD", 2320.50, 0.45), toRow("XAU/USD", 2325.10, -0.12)] });
+        } catch { return sendJson(res, 200, { rows: [toRow("PAXG/USD", 2320.50, 0.45), toRow("XAU/USD", 2325.10, -0.12)] }); }
+      }
+
+      if (cat === "fx") {
+        const pairs = [{l:"INR/USD",t:"INR"},{l:"EUR/USD",s:"EURUSDT"},{l:"GBP/USD",s:"GBPUSDT"},{l:"AUD/USD",s:"AUDUSDT"},{l:"JPY/USD",t:"JPY"},{l:"AED/USD",t:"AED"},{l:"SAR/USD",t:"SAR"},{l:"PKR/USD",t:"PKR"},{l:"TRY/USD",t:"TRY"},{l:"CAD/USD",t:"CAD"}];
+        let fxData = null; try { const fr = await fetch("https://open.er-api.com/v6/latest/USD"); if(fr.ok) fxData = await fr.json(); } catch(e){}
+        const rows = [];
+        for(const p of pairs) {
+          if(p.s) {
+            try { const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.s}`); if(r.ok) { const t=await r.json(); rows.push(toRow(p.l, t.lastPrice, t.priceChangePercent)); continue; } } catch(e){}
+          }
+          const rate = fxData?.rates?.[p.t];
+          if(rate) rows.push(toRow(p.l, (1/rate).toFixed(6), (Math.random()*0.2-0.1).toFixed(2)));
+          else rows.push(toRow(p.l, "0.00", "0.00"));
         }
+        return sendJson(res, 200, { rows });
       }
       return sendJson(res, 400, { message: "Unknown cat" });
     }
 
-    if (req.method === "GET" && pathname === "/api/trade/quote") {
-      const fromC = String(url.searchParams.get("from") || "USD");
-      const toC = String(url.searchParams.get("to") || "INR");
-      const r = await fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(fromC)}&to=${encodeURIComponent(toC)}`);
-      if (!r.ok) return sendJson(res, 502, { message: "Quote failed" });
-      const d = await r.json();
-      const m = d.rates && d.rates[toC];
-      if (m == null) return sendJson(res, 404, { message: "Pair not found" });
-      return sendJson(res, 200, { rate: Number(m) });
+    if (req.method === "GET" && pathname === "/api/trade/klines") {
+        const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
+        try {
+            const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&limit=100`);
+            if(!r.ok) throw new Error("Binance fail");
+            const raw = await r.json();
+            return sendJson(res, 200, { candles: raw.map(k => ({ t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5] })) });
+        } catch {
+            // Simulated fallback to prevent chart error
+            const candles = []; let p = 50000; for(let i=0; i<100; i++) { p += Math.random()*100-50; candles.push({ t: Date.now() - (100-i)*300000, o: p, h: p+10, l: p-10, c: p, v: 100 }); }
+            return sendJson(res, 200, { candles });
+        }
     }
+
     if (req.method === "GET" && pathname === "/api/chart/market") {
-      const id = String(url.searchParams.get("id") || "bitcoin").toLowerCase().replace(/[^a-z0-9-]/g, "");
-      const days = Math.min(90, Math.max(1, Number(url.searchParams.get("days")) || 1));
-      const symbol = String(url.searchParams.get("symbol") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      try {
-        if (symbol) {
-          const b = await chartMarketBinance(symbol, days);
-          if (b?.prices?.length) {
-            return sendJson(res, 200, { code: 0, data: { prices: b.prices, source: b.source } });
-          }
+        const id = String(url.searchParams.get("id") || "bitcoin");
+        try {
+            const r = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=1`);
+            if(!r.ok) throw new Error("Gecko fail");
+            const d = await r.json();
+            return sendJson(res, 200, { code: 0, data: { prices: d.prices || [], source: "coingecko" } });
+        } catch {
+            return sendJson(res, 200, { code: 0, data: { prices: [], source: "none" } });
         }
-        const gurl = `https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`;
-        const chartRes = await fetch(gurl);
-        if (!chartRes.ok) {
-          return sendJson(res, 502, { message: "Price feed unavailable." });
-        }
-        const data = await chartRes.json();
-        return sendJson(res, 200, { code: 0, data: { prices: data.prices || [], source: "coingecko" } });
-      } catch {
-        return sendJson(res, 502, { message: "Chart data error." });
-      }
-    }
-    if (req.method === "GET" && pathname === "/api/auth/me") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      return sendJson(res, 200, { user: decoded });
     }
 
-    // --- ADMIN SUPPORT ENDPOINTS ---
-    if (req.method === "GET" && pathname === "/admin/api/support/all-messages") {
-        if (!adminUser) return sendJson(res, 401, { message: "Unauthorized admin" });
-        const db = await connectToDatabase();
-        let chats = [];
-        if (db) {
-            chats = await db.collection("support_chats").find({}).toArray();
-        } else {
-            const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith("support_") && f.endsWith(".json"));
-            chats = files.map(f => JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf8")));
-        }
+    // --- PROTECTED USER ROUTES ---
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const decoded = verifyToken(token);
 
-        const conversations = chats.map(c => {
-            const msgs = c.messages || [];
-            const last = msgs[msgs.length - 1];
-            const unread = msgs.filter(m => m.type === "user" && m.status === "unread").length;
-            return {
-                userId: c.userId,
-                userName: last?.userName || "User",
-                userEmail: last?.userEmail || "",
-                lastMessage: last,
-                unreadCount: unread
-            };
-        }).sort((a, b) => (b.lastMessage?.time || 0) - (a.lastMessage?.time || 0));
-
-        return sendJson(res, 200, { conversations });
-    }
-
-    if (req.method === "GET" && pathname === "/admin/api/support/history") {
-        if (!adminUser) return sendJson(res, 401, { message: "Unauthorized admin" });
-        const userId = url.searchParams.get("userId");
-        const db = await connectToDatabase();
-        let chat;
-        if (db) {
-            chat = await db.collection("support_chats").findOne({ userId });
-            // Mark as read
-            if (chat) {
-                await db.collection("support_chats").updateOne(
-                    { userId },
-                    { $set: { "messages.$[m].status": "read" } },
-                    { arrayFilters: [{ "m.type": "user" }] }
-                );
-            }
-        } else {
-            const file = path.join(DATA_DIR, `support_${userId}.json`);
-            chat = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
-        }
-        return sendJson(res, 200, { messages: chat ? chat.messages : [] });
-    }
-
-    if (req.method === "POST" && pathname === "/admin/api/support/reply") {
-        if (!adminUser) return sendJson(res, 401, { message: "Unauthorized admin" });
+    if (decoded) {
+      if (req.method === "GET" && pathname === "/api/auth/me") return sendJson(res, 200, { user: decoded });
+      if (req.method === "GET" && pathname === "/api/wallet/me") return sendJson(res, 200, { wallet: await readWalletForUser(decoded.id) });
+      
+      if (req.method === "POST" && pathname === "/api/deposit/create") {
         const body = await parseBody(req);
-        const { userId, message } = body;
-        const msg = {
-            id: `admin_${Date.now()}`,
-            type: "admin",
-            message,
-            time: Date.now(),
-            status: "sent"
-        };
-        const db = await connectToDatabase();
-        if (db) {
-            await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } }, { upsert: true });
-        } else {
-            const file = path.join(DATA_DIR, `support_${userId}.json`);
-            let raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { userId, messages: [] };
-            raw.messages.push(msg);
-            fs.writeFileSync(file, JSON.stringify(raw, null, 2));
-        }
-        return sendJson(res, 200, { message: "Reply sent", chat: msg });
-    }
-
-    if (req.method === "POST" && pathname === "/api/withdraw/create") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      const body = await parseBody(req);
-      const w = await readWalletForUser(decoded.id);
-      const amt = Number(body.amount);
-      if (amt > w.balance) return sendJson(res, 400, { message: "Insufficient balance" });
-      w.balance -= amt;
-      w.withdrawals = w.withdrawals || [];
-      const wd = {
-        id: `wd_${Date.now()}`,
-        amount: amt,
-        address: body.address,
-        network: body.network || "TRC20",
-        status: "pending",
-        created: Date.now()
-      };
-      w.withdrawals.push(wd);
-      await writeWalletForUser(decoded.id, w);
-      return sendJson(res, 200, { message: "Withdrawal request submitted", wallet: w });
-    }
-
-    if (req.method === "POST" && pathname === "/api/verification/submit") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      const body = await parseBody(req);
-      const w = await readWalletForUser(decoded.id);
-      w.profile = w.profile || {};
-      w.profile.kycStatus = "pending";
-      w.profile.kycSubmitted = Date.now();
-      w.profile.verification = body;
-      await writeWalletForUser(decoded.id, w);
-      return sendJson(res, 200, { message: "Verification submitted" });
-    }
-
-    if (req.method === "POST" && pathname === "/api/support/messages/send") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      const body = await parseBody(req);
-      const userId = decoded.id;
       
       const db = await connectToDatabase();
       let raw;
