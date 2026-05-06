@@ -290,6 +290,29 @@ module.exports = async (req, res) => {
             return sendJson(res, 200, { message: "Success", deposit: dep });
         }
 
+        if (pathname === "/api/withdraw/create" && req.method === "POST") {
+            const body = await parseBody(req);
+            const w = await readWallet(decoded.id);
+            const withdrawal = { 
+                id: `wd_${Date.now()}`, 
+                amount: Number(body.amount), 
+                address: body.address || "",
+                network: body.network || "TRC20",
+                created: Date.now(), 
+                status: "pending"
+            };
+            w.withdrawals = w.withdrawals || [];
+            w.withdrawals.push(withdrawal);
+            await writeWallet(decoded.id, w);
+            
+            // Notification logic
+            const msg = { type: "user", message: `📢 [SYSTEM]: Withdrawal request for ${withdrawal.amount} USDT.`, time: Date.now(), status: "unread", userName: decoded.name, userEmail: decoded.email };
+            const db = await connectToDatabase();
+            if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
+            
+            return sendJson(res, 200, { message: "Success", withdrawal });
+        }
+
         if (pathname === "/api/support/messages/user") {
             const db = await connectToDatabase();
             const chat = db ? await db.collection("support_chats").findOne({ userId: decoded.id }) : null;
