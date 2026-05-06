@@ -233,7 +233,18 @@ module.exports = async (req, res) => {
     // --- USER PROTECTED ---
     if (decoded) {
         if (pathname === "/api/auth/me") return sendJson(res, 200, { user: decoded });
-        if (pathname === "/api/wallet/me") return sendJson(res, 200, { wallet: await readWallet(decoded.id) });
+        if (pathname === "/api/wallet/me") {
+            const wallet = await readWallet(decoded.id);
+            // Get credit score from user profile
+            const db = await connectToDatabase();
+            if (db) {
+                const user = await db.collection("users").findOne({ id: decoded.id });
+                if (user && user.creditScore !== undefined) {
+                    wallet.creditScore = user.creditScore;
+                }
+            }
+            return sendJson(res, 200, { wallet });
+        }
         
         if (pathname === "/api/deposit/create" && req.method === "POST") {
             const body = await parseBody(req);
