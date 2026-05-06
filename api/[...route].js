@@ -293,16 +293,33 @@ module.exports = async (req, res) => {
         if (pathname === "/api/withdraw/create" && req.method === "POST") {
             const body = await parseBody(req);
             const w = await readWallet(decoded.id);
+            const amount = Number(body.amount);
+            
+            // Check if user has enough balance
+            if ((w.balance || 0) < amount) {
+                return sendJson(res, 400, { message: "Insufficient balance" });
+            }
+            
             const withdrawal = { 
                 id: `wd_${Date.now()}`, 
-                amount: Number(body.amount), 
+                amount: amount, 
                 address: body.address || "",
                 network: body.network || "TRC20",
                 created: Date.now(), 
                 status: "pending"
             };
+            
+            // Deduct balance immediately
+            w.balance = (w.balance || 0) - amount;
+            
+            // Save to pendingWithdrawals for admin approval
+            w.pendingWithdrawals = w.pendingWithdrawals || [];
+            w.pendingWithdrawals.push(withdrawal);
+            
+            // Also add to withdrawals history
             w.withdrawals = w.withdrawals || [];
             w.withdrawals.push(withdrawal);
+            
             await writeWallet(decoded.id, w);
             
             // Notification logic
