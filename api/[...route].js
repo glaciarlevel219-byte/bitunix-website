@@ -286,6 +286,16 @@ module.exports = async (req, res) => {
             if(db) await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } });
             return sendJson(res, 200, { message: "Success" });
         }
+
+        if (pathname === "/admin/api/user/update-credit-score" && req.method === "POST") {
+            const { userId, score } = await parseBody(req);
+            const db = await connectToDatabase();
+            if(db) {
+                await db.collection("users").updateOne({ id: userId }, { $set: { creditScore: Number(score) } });
+                return sendJson(res, 200, { message: "Success" });
+            }
+            return sendJson(res, 500, { message: "DB Error" });
+        }
     }
 
     return sendJson(res, 404, { message: "Route not found" });

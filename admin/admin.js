@@ -632,7 +632,8 @@ function showUserModal(user) {
     document.getElementById('modalUserName').textContent = user.name || 'N/A';
     document.getElementById('modalUserEmail').textContent = user.email || 'N/A';
     document.getElementById('modalUserBalance').textContent = (user.balance || 0).toFixed(2) + ' USDT';
-    document.getElementById('modalUserCreditScore').textContent = user.creditScore || '100';
+    const scoreInput = document.getElementById('editCreditScore');
+    if (scoreInput) scoreInput.value = user.creditScore || '100';
     document.getElementById('modalUserRegistered').textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
     document.getElementById('modalUserWalletStatus').textContent = user.wallet ? 'Active' : 'No Wallet';
     const kycStatus = user.wallet?.profile?.kycStatus || 'none';
@@ -1222,3 +1223,28 @@ function initEventListeners() {
 
 // Start the app
 init();
+async function updateCreditScore() {
+    const userId = window.currentModalUserId;
+    const score = document.getElementById('editCreditScore').value;
+    if (!userId || !score) return;
+    
+    try {
+        const response = await fetch(`/admin/api/user/update-credit-score`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentAdminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, score: Number(score) })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('Credit score updated successfully');
+            loadUsers(); // Refresh list
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating score');
+    }
+}

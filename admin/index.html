@@ -349,7 +349,10 @@
                     </div>
                     <div class="detail-group">
                         <label>Credit Score:</label>
-                        <span id="modalUserCreditScore"></span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="editCreditScore" style="width: 80px; padding: 4px;" placeholder="100">
+                            <button class="btn-small" onclick="updateCreditScore()">Update</button>
+                        </div>
                     </div>
                     <div class="detail-group">
                         <label>Registered:</label>
