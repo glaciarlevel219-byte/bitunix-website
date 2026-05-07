@@ -39,25 +39,54 @@ async function parseBody(req) {
   });
 }
 
-// Sequential 6-digit ID counter storage
-const ID_COUNTER_FILE = path.join(DATA_DIR, "user_id_counter.json");
-
-function getNextUserId() {
-  let counter = 1;
-  try {
-    if (fs.existsSync(ID_COUNTER_FILE)) {
-      const data = JSON.parse(fs.readFileSync(ID_COUNTER_FILE, "utf8"));
-      counter = data.counter || 1;
+// Sequential 6-digit ID counter - uses database for atomic operations
+async function getNextUserId() {
+  const db = await connectToDatabase();
+  
+  // Use database counters collection for atomic increment
+  if (db) {
+    try {
+      const result = await db.collection("counters").findOneAndUpdate(
+        { _id: "userId" },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: "after" }
+      );
+      const counter = result.seq || result.value?.seq || 1;
+      return counter.toString().padStart(6, "0");
+    } catch (e) {
+      console.error("Counter error:", e);
     }
-  } catch (e) {}
+  }
   
-  // Format as 6-digit (000001, 000002, etc.)
-  const userId = counter.toString().padStart(6, "0");
-  
-  // Increment counter
-  fs.writeFileSync(ID_COUNTER_FILE, JSON.stringify({ counter: counter + 1 }), "utf8");
-  
-  return userId;
+  // Fallback: Find highest existing ID and increment
+  try {
+    const users = await db.collection("users").find({}).toArray();
+    let maxId = 0;
+    for (const user of users) {
+      if (/^\d{6}$/.test(user.id)) {
+        const num = parseInt(user.id, 10);
+        if (num > maxId) maxId = num;
+      }
+    }
+    const newId = (maxId + 1).toString().padStart(6, "0");
+    
+    // Double-check this ID doesn't exist
+    const exists = await db.collection("users").findOne({ id: newId });
+    if (exists) {
+      // Find next available
+      let checkId = maxId + 2;
+      while (await db.collection("users").findOne({ id: checkId.toString().padStart(6, "0") })) {
+        checkId++;
+      }
+      return checkId.toString().padStart(6, "0");
+    }
+    
+    return newId;
+  } catch (e) {
+    console.error("Fallback ID error:", e);
+    // Last resort: timestamp-based with random
+    return Date.now().toString().slice(-6).padStart(6, "0");
+  }
 }
 
 function hashPassword(password) {
@@ -118,7 +147,8 @@ module.exports = async (req, res) => {
       const db = await connectToDatabase();
       const existing = await db.collection("users").findOne({ email });
       if (existing) return sendJson(res, 400, { message: "Email already registered" });
-      const newUser = { id: getNextUserId(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
+      const userId = await getNextUserId();
+      const newUser = { id: userId, name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       await db.collection("users").insertOne(newUser);
       return sendJson(res, 201, { message: "Success", userId: newUser.id });
     }
@@ -511,8 +541,14 @@ module.exports = async (req, res) => {
                 }
             }
             
-            // Update counter for future registrations
-            fs.writeFileSync(ID_COUNTER_FILE, JSON.stringify({ counter: counter }), "utf8");
+            // Update counter for future registrations in database
+            if (db) {
+                await db.collection("counters").updateOne(
+                    { _id: "userId" },
+                    { $set: { seq: counter } },
+                    { upsert: true }
+                );
+            }
             
             return sendJson(res, 200, { 
                 message: `Migrated ${migrations.length} users to 6-digit IDs`,
