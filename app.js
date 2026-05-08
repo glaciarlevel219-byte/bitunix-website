@@ -1648,6 +1648,10 @@ async function bindAuth() {
         email: formData.get("email"),
         password: formData.get("password"),
       });
+      localStorage.removeItem(WALLET_KEY);
+      localStorage.removeItem(WALLET_KEY_LEGACY);
+      state.wallet = normalizeWallet({});
+      updateWalletDisplay();
       registerForm.reset();
       showAuthView("login");
       showMessage("#authMessage", "");
@@ -1686,6 +1690,10 @@ async function bindAuth() {
       });
       state.token = res.token;
       localStorage.setItem("auth_token", res.token);
+      localStorage.removeItem(WALLET_KEY);
+      localStorage.removeItem(WALLET_KEY_LEGACY);
+      state.wallet = normalizeWallet({});
+      updateWalletDisplay();
       if (state.marketLoginPromptTimer) {
         clearTimeout(state.marketLoginPromptTimer);
         state.marketLoginPromptTimer = null;
@@ -1741,6 +1749,8 @@ async function bindAuth() {
   logoutBtn.addEventListener("click", () => {
     state.token = "";
     localStorage.removeItem("auth_token");
+    localStorage.removeItem(WALLET_KEY);
+    localStorage.removeItem(WALLET_KEY_LEGACY);
     state.wallet = normalizeWallet({});
     document.querySelector("#welcomeLine").textContent = "Welcome";
     document.querySelector("#userMeta").textContent = `Welcome to ${SITE_NAME}`;
