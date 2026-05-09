@@ -2707,17 +2707,29 @@ select {
 }
 
 /* Countdown Trade System */
+/* Countdown Trade System Overlay Enhancements */
 .trade-countdown-overlay {
   position: fixed;
   inset: 0;
   background: rgba(10, 15, 25, 0.98);
-  z-index: 2000;
+  z-index: 2500;
   display: flex;
   flex-direction: column;
   padding: 20px;
   overflow-y: auto;
   color: #fff;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  backdrop-filter: blur(10px);
+}
+
+.overlay-close {
+  background: transparent;
+  border: none;
+  color: #718096;
+  font-size: 32px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
 }
 
 .trade-countdown-header {
@@ -2734,21 +2746,52 @@ select {
   letter-spacing: 1px;
 }
 
-.trade-countdown-title.profit { color: #51cf66; }
-.trade-countdown-title.loss { color: #ff6b6b; }
-
 .trade-countdown-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
-  flex: 1;
+  max-width: 1000px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
   .trade-countdown-grid {
     grid-template-columns: 1fr;
+    padding-bottom: 50px;
   }
 }
+
+.duration-btn span {
+  display: block;
+  font-size: 11px;
+  color: #1a7f5f; /* Default profit color */
+}
+
+.duration-btn:hover {
+  border-color: #4a5568;
+}
+
+.trade-submit-btn.buy {
+  background: #1a7f5f;
+  color: white;
+}
+
+.trade-submit-btn.sell {
+  background: #c62828;
+  color: white;
+}
+
+.trade-amount-input-wrap input:focus {
+  outline: none;
+  border-color: #4a5568;
+}
+
+/* Ensure price and balance look sharp */
+#setupOverlayPrice, #setupOverlayBalance {
+  font-family: 'Courier New', Courier, monospace;
+}
+
 
 .trade-panel-card {
   background: #141a26;
@@ -3047,6 +3090,13 @@ select {
   font-size: 48px;
   font-weight: 900;
   color: #fff;
+  background: #2563eb; /* Blue box like image */
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
 }
 
 .running-trade-info {

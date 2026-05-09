@@ -504,6 +504,63 @@
           <tbody id="lockPositionsBody"></tbody>
         </table>
       </div>
+
+  <!-- Countdown Trade Setup Overlay -->
+  <div id="tradeSetupOverlay" class="trade-countdown-overlay" hidden>
+    <div class="trade-countdown-header">
+      <div class="trade-countdown-title">SETUP TRADE</div>
+      <button type="button" class="overlay-close" onclick="closeTradeSetup()">&times;</button>
+    </div>
+    
+    <div class="trade-countdown-grid" style="display: block; max-width: 500px; margin: 0 auto;">
+      <div class="trade-panel-card">
+        <div class="trade-panel-title"><span>1</span> CONFIGURE YOUR TRADE</div>
+        
+        <div style="font-size: 12px; color: #a0aec0; margin-bottom: 10px; font-weight: 600;">Business hours/profit margin</div>
+        <div class="duration-grid" id="overlayDurationGrid">
+          <button type="button" class="duration-btn active" data-duration="30"><strong>30S</strong><span>30% Profit</span></button>
+          <button type="button" class="duration-btn" data-duration="60"><strong>60S</strong><span>40% Profit</span></button>
+          <button type="button" class="duration-btn" data-duration="90"><strong>90S</strong><span>50% Profit</span></button>
+          <button type="button" class="duration-btn" data-duration="120"><strong>120S</strong><span>60% Profit</span></button>
+          <button type="button" class="duration-btn" data-duration="180"><strong>180S</strong><span>70% Profit</span></button>
+          <button type="button" class="duration-btn" data-duration="300"><strong>300S</strong><span>80% Profit</span></button>
+        </div>
+
+        <div class="trade-info-row">
+          <div class="trade-info-item"><label>Currency</label><div id="setupOverlayCurrency">--</div></div>
+          <div class="trade-info-item"><label>Direction</label>
+            <div style="display: flex; gap: 5px;">
+              <button type="button" id="setupDirBuy" class="btn-small active" onclick="setSetupDirection('buy')" style="background: #e53e3e; border:none; color:white; padding: 2px 8px; border-radius: 4px;">Buy</button>
+              <button type="button" id="setupDirSell" class="btn-small" onclick="setSetupDirection('sell')" style="background: #2d3748; border:none; color:white; padding: 2px 8px; border-radius: 4px;">Sell</button>
+            </div>
+          </div>
+          <div class="trade-info-item"><label>Current price</label><div id="setupOverlayPrice" class="price-live">--</div></div>
+        </div>
+
+        <div class="trade-amount-section">
+          <label>Number of openings</label>
+          <div class="trade-amount-input-wrap">
+            <input type="number" id="overlayTradeAmount" value="500">
+            <span class="suffix">USDT</span>
+          </div>
+        </div>
+
+        <div class="quick-amounts" id="overlayQuickAmounts">
+          <button type="button" class="quick-amount-btn" data-val="50">50</button>
+          <button type="button" class="quick-amount-btn active" data-val="500">500</button>
+          <button type="button" class="quick-amount-btn" data-val="2000">2000</button>
+          <button type="button" class="quick-amount-btn" data-val="5000">5000</button>
+          <button type="button" class="quick-amount-btn" data-val="10000">10000</button>
+          <button type="button" class="quick-amount-btn" data-val="20000">20000</button>
+        </div>
+
+        <div class="trade-balance-line">Available balance: <span id="setupOverlayBalance">0 USDT</span></div>
+
+        <button type="button" class="trade-submit-btn buy" id="overlayTradeSubmitBtn" onclick="executeOverlayTrade()">CONFIRM TRADE</button>
+      </div>
+    </div>
+  </div>
+
     </div>
     <div class="overlay-sheet overlay-sheet-wide help-center-sheet" id="overlayService" role="dialog" aria-modal="true" aria-labelledby="serviceTitle" hidden>
       <header class="overlay-hdr">

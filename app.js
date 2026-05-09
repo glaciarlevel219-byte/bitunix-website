@@ -1589,11 +1589,8 @@ function openTradeFromMarketList(cat, label) {
   state.tradeCat = cat;
   state.tradePairIndex = idx;
   state.tradePairFilter = "";
-  const s = document.querySelector("#tradePairSearch");
-  if (s) s.value = "";
-  syncTradeCategoryButtons();
-  switchToTab("trade");
-  onTradeTabShown();
+  
+  openTradeSetup(cat, label);
 }
 
 async function refreshMarketTabList() {
@@ -3603,3 +3600,206 @@ window.onTradeTabShown = function() {
   initTradeCountdownUI();
   updateWalletDisplay();
 };
+
+// --- Trade Setup Overlay System ---
+let setupDirection = 'buy';
+
+window.openTradeSetup = function(cat, label) {
+  const overlay = document.getElementById("tradeSetupOverlay");
+  if (!overlay) return;
+
+  const list = TRADE_CATALOGS[cat] || [];
+  const item = list.find(x => x.label === label);
+  if (!item) return;
+
+  document.getElementById("setupOverlayCurrency").textContent = label;
+  const price = item.last ? Number(item.last).toFixed(6) : "--";
+  document.getElementById("setupOverlayPrice").textContent = price;
+  
+  const w = loadWallet();
+  document.getElementById("setupOverlayBalance").textContent = `${w.balance.toFixed(2)} USDT`;
+
+  overlay.hidden = false;
+  initTradeOverlayUI();
+  
+  // Start price update interval for the overlay
+  state.setupOverlayInterval = setInterval(() => {
+    const fresh = tradeLastRowMap.get(label);
+    if (fresh) {
+      document.getElementById("setupOverlayPrice").textContent = Number(fresh.last).toFixed(6);
+    }
+  }, 3000);
+};
+
+window.closeTradeSetup = function() {
+  const overlay = document.getElementById("tradeSetupOverlay");
+  if (overlay) overlay.hidden = true;
+  if (state.setupOverlayInterval) clearInterval(state.setupOverlayInterval);
+};
+
+window.setSetupDirection = function(dir) {
+  setupDirection = dir;
+  const buyBtn = document.getElementById("setupDirBuy");
+  const sellBtn = document.getElementById("setupDirSell");
+  const submitBtn = document.getElementById("overlayTradeSubmitBtn");
+
+  if (dir === 'buy') {
+    buyBtn.classList.add("active");
+    buyBtn.style.background = "#e53e3e";
+    sellBtn.classList.remove("active");
+    sellBtn.style.background = "#2d3748";
+    submitBtn.textContent = "CONFIRM BUY LONG";
+    submitBtn.style.background = "#e53e3e";
+  } else {
+    sellBtn.classList.add("active");
+    sellBtn.style.background = "#2d3748";
+    buyBtn.classList.remove("active");
+    buyBtn.style.background = "#2d3748"; // reset both to dark then highlight one
+    sellBtn.style.background = "#e53e3e"; // loss/sell usually red too in these high-fi apps or green/red
+    // Actually looking at pics, BUY is GREEN, SELL is RED usually.
+    // Wait, the button in my HTML says "buy" class and red-ish background.
+    // Let's match the standard: Buy = Green, Sell = Red.
+  }
+};
+
+// Override setSetupDirection to be more professional
+window.setSetupDirection = function(dir) {
+  setupDirection = dir;
+  const buyBtn = document.getElementById("setupDirBuy");
+  const sellBtn = document.getElementById("setupDirSell");
+  const submitBtn = document.getElementById("overlayTradeSubmitBtn");
+
+  if (dir === 'buy') {
+    buyBtn.classList.add("active");
+    buyBtn.style.background = "#1a7f5f"; // Green
+    sellBtn.classList.remove("active");
+    sellBtn.style.background = "#2d3748";
+    submitBtn.textContent = "CONFIRM BUY LONG";
+    submitBtn.style.background = "#1a7f5f";
+    submitBtn.className = "trade-submit-btn buy";
+  } else {
+    sellBtn.classList.add("active");
+    sellBtn.style.background = "#c62828"; // Red
+    buyBtn.classList.remove("active");
+    buyBtn.style.background = "#2d3748";
+    submitBtn.textContent = "CONFIRM BUY SHORT";
+    submitBtn.style.background = "#c62828";
+    submitBtn.className = "trade-submit-btn sell";
+  }
+};
+
+window.executeOverlayTrade = function() {
+  const amount = Number(document.getElementById("overlayTradeAmount").value);
+  const durationBtn = document.querySelector("#overlayDurationGrid .duration-btn.active");
+  const duration = durationBtn ? durationBtn.getAttribute("data-duration") : "30";
+  
+  if (amount <= 0) {
+    showToast("Please enter a valid amount.", true);
+    return;
+  }
+
+  // Close setup overlay and call the existing placeCountdownTrade logic
+  // We need to inject the values since placeCountdownTrade usually reads from the Trade tab
+  const w = loadWallet();
+  if (amount > w.balance) {
+    showToast("Insufficient balance.", true);
+    return;
+  }
+
+  closeTradeSetup();
+  
+  // Create a temporary object to hold our specific overlay values
+  // Or better, just call the API directly here or modify placeCountdownTrade
+  
+  // Let's modify placeCountdownTrade to take parameters
+  window.placeCountdownTradeWithParams(setupDirection, duration, amount);
+};
+
+window.placeCountdownTradeWithParams = async function(direction, duration, amount) {
+  if (!state.token) {
+    promptAuthAndFocus();
+    return;
+  }
+
+  const list = TRADE_CATALOGS[state.tradeCat] || [];
+  const item = list[state.tradePairIndex];
+  const symbol = item ? item.label : "BTC/USDT";
+  const entryPrice = item && item.last ? Number(item.last) : 0;
+
+  try {
+    const runOverlay = document.getElementById("tradeRunningOverlay");
+    const runType = document.getElementById("runningTradeType");
+    const runDetail = document.getElementById("runningTradeDetail");
+    const timerVal = document.getElementById("timerValue");
+    const timerProg = document.getElementById("timerProgress");
+
+    if (runOverlay) {
+      runOverlay.hidden = false;
+      runType.textContent = direction === 'buy' ? "BUY LONG IN PROGRESS" : "BUY SHORT IN PROGRESS";
+      runType.style.color = direction === 'buy' ? "#1a7f5f" : "#c62828";
+      runDetail.textContent = `${symbol} · ${amount.toFixed(2)} USDT`;
+    }
+
+    const res = await postJson("/api/trade/execute", {
+      amount,
+      symbol,
+      direction,
+      duration,
+      entryPrice
+    }, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+
+    let timeLeft = parseInt(duration);
+    const totalTime = timeLeft;
+    
+    const tick = () => {
+      if (timerVal) timerVal.textContent = timeLeft;
+      if (timerProg) {
+        const offset = 282.7 * (1 - timeLeft / totalTime);
+        timerProg.style.strokeDashoffset = offset;
+      }
+      
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        if (runOverlay) runOverlay.hidden = true;
+        showTradeResult(res.result, symbol);
+        if (res.wallet) {
+          saveWallet(normalizeWallet(res.wallet));
+          updateWalletDisplay();
+        }
+      }
+      timeLeft--;
+    };
+
+    tick();
+    const timerInterval = setInterval(tick, 1000);
+
+  } catch (err) {
+    console.error("Trade execution error:", err);
+    showToast(err.message || "Trade failed.", true);
+    const runOverlay = document.getElementById("tradeRunningOverlay");
+    if (runOverlay) runOverlay.hidden = true;
+  }
+};
+
+function initTradeOverlayUI() {
+  // Duration buttons
+  document.querySelectorAll("#overlayDurationGrid .duration-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#overlayDurationGrid .duration-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // Quick amount buttons
+  document.querySelectorAll("#overlayQuickAmounts .quick-amount-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#overlayQuickAmounts .quick-amount-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const val = btn.getAttribute("data-val");
+      const input = document.getElementById("overlayTradeAmount");
+      if (input) input.value = val;
+    });
+  });
+}
