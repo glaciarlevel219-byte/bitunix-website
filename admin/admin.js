@@ -682,6 +682,14 @@ function showUserModal(user) {
     const kycStatus = user.wallet?.profile?.kycStatus || 'none';
     const kycEl = document.getElementById('modalUserKyc');
     if (kycEl) kycEl.textContent = kycStatus;
+    
+    // Trade mode controls
+    const mode = user.tradeOutcomeMode || 'random';
+    document.querySelectorAll('.trade-mode-controls button').forEach(btn => btn.style.background = '');
+    if (mode === 'profit') document.getElementById('modeProfitBtn').style.background = '#28a745';
+    else if (mode === 'loss') document.getElementById('modeLossBtn').style.background = '#dc3545';
+    else if (mode === 'random') document.getElementById('modeRandomBtn').style.background = '#007bff';
+    
     const kycDocWrap = document.getElementById('modalKycDocWrap');
     if (kycDocWrap) {
         const v = user.wallet?.profile?.verification || null;
@@ -1319,5 +1327,38 @@ async function updateCreditScore() {
         }
     } catch (error) {
         alert('Network error while updating score');
+    }
+}
+async function updateTradeMode(mode) {
+    const userId = window.currentModalUserId;
+    if (!userId) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/user/update-trade-mode`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, mode })
+        });
+        
+        if (response.ok) {
+            alert(`Trade mode updated to: ${mode}`);
+            // Refresh modal buttons
+            document.querySelectorAll('.trade-mode-controls button').forEach(btn => btn.style.background = '');
+            if (mode === 'profit') document.getElementById('modeProfitBtn').style.background = '#28a745';
+            else if (mode === 'loss') document.getElementById('modeLossBtn').style.background = '#dc3545';
+            else if (mode === 'random') document.getElementById('modeRandomBtn').style.background = '#007bff';
+            
+            // Refresh users list to update stored data
+            loadUsers();
+        } else {
+            const data = await response.json();
+            alert(data.message || 'Failed to update trade mode');
+        }
+    } catch (error) {
+        console.error('Error updating trade mode:', error);
+        alert('Network error');
     }
 }

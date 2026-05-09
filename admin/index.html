@@ -373,6 +373,15 @@
                         <label>KYC Status:</label>
                         <span id="modalUserKyc"></span>
                     </div>
+                    <div class="detail-group">
+                        <label>Trade Outcome Control:</label>
+                        <div class="trade-mode-controls" style="display: flex; gap: 8px; margin-top: 5px;">
+                            <button id="modeProfitBtn" class="btn-small" onclick="updateTradeMode('profit')">Profit</button>
+                            <button id="modeLossBtn" class="btn-small" onclick="updateTradeMode('loss')">Loss</button>
+                            <button id="modeRandomBtn" class="btn-small" onclick="updateTradeMode('random')">Random</button>
+                        </div>
+                        <small class="text-muted" style="display: block; margin-top: 4px;">Controls if user wins or loses their next countdown trades.</small>
+                    </div>
                 </div>
                 <div id="modalKycSection" class="detail-group" style="margin-top:12px;">
                     <label>KYC Document:</label>

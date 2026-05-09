@@ -592,6 +592,8 @@ function updateWalletDisplay() {
   if (ca) ca.textContent = Number(w.balance).toFixed(6);
   const wa = document.querySelector("#withdrawAvailableBalance");
   if (wa) wa.textContent = `${w.balance.toFixed(2)} USDT`;
+  const ta = document.querySelector("#tradeAvailableBalance");
+  if (ta) ta.textContent = `${w.balance.toFixed(2)} USDT`;
 }
 
 function applyVerificationBadge(wallet) {
@@ -3424,3 +3426,180 @@ document.addEventListener('DOMContentLoaded', function() {
 setInterval(updateSliderDots, 100);
 
 init();
+
+// --- Countdown Trade System ---
+window.placeCountdownTrade = async function(direction) {
+  if (!state.token) {
+    promptAuthAndFocus();
+    return;
+  }
+
+  const durationBtn = document.querySelector("#mainTradeDurationGrid .duration-btn.active");
+  const duration = durationBtn ? durationBtn.getAttribute("data-duration") : "30";
+  const amountInput = document.querySelector("#tradeAmountInput");
+  const amount = Number(amountInput?.value || 0);
+
+  if (amount <= 0) {
+    showToast("Please enter a valid amount.", true);
+    return;
+  }
+
+  const w = loadWallet();
+  if (amount > w.balance) {
+    showToast("Insufficient balance.", true);
+    return;
+  }
+
+  const list = TRADE_CATALOGS[state.tradeCat] || [];
+  const item = list[state.tradePairIndex];
+  const symbol = item ? item.label : "BTC/USDT";
+  const entryPrice = item && item.last ? Number(item.last) : 0;
+
+  try {
+    // Show running overlay immediately
+    const runOverlay = document.getElementById("tradeRunningOverlay");
+    const runType = document.getElementById("runningTradeType");
+    const runDetail = document.getElementById("runningTradeDetail");
+    const timerVal = document.getElementById("timerValue");
+    const timerProg = document.getElementById("timerProgress");
+
+    if (runOverlay) {
+      runOverlay.hidden = false;
+      runType.textContent = direction === 'buy' ? "BUY LONG IN PROGRESS" : "BUY SHORT IN PROGRESS";
+      runDetail.textContent = `${symbol} · ${amount.toFixed(2)} USDT`;
+    }
+
+    // Call API to pre-determine result
+    const res = await postJson("/api/trade/execute", {
+      amount,
+      symbol,
+      direction,
+      duration,
+      entryPrice
+    }, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+
+    // Start timer animation
+    let timeLeft = parseInt(duration);
+    const totalTime = timeLeft;
+    
+    const tick = () => {
+      if (timerVal) timerVal.textContent = timeLeft;
+      if (timerProg) {
+        const offset = 282.7 * (1 - timeLeft / totalTime);
+        timerProg.style.strokeDashoffset = offset;
+      }
+      
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        if (runOverlay) runOverlay.hidden = true;
+        showTradeResult(res.result, symbol);
+        // Update local wallet
+        if (res.wallet) {
+          saveWallet(normalizeWallet(res.wallet));
+          updateWalletDisplay();
+        }
+      }
+      timeLeft--;
+    };
+
+    tick();
+    const timerInterval = setInterval(tick, 1000);
+
+  } catch (err) {
+    console.error("Trade execution error:", err);
+    showToast(err.message || "Trade failed.", true);
+    const runOverlay = document.getElementById("tradeRunningOverlay");
+    if (runOverlay) runOverlay.hidden = true;
+  }
+};
+
+function showTradeResult(result, symbol) {
+  const overlay = document.getElementById("tradeResultOverlay");
+  if (!overlay) return;
+
+  const isWin = result.isWin;
+  const title = document.getElementById("resultMainTitle");
+  const statusTitle = document.getElementById("resultStatusTitle");
+  const statusDetail = document.getElementById("resultStatusDetail");
+
+  title.textContent = `${result.duration}S TRADE EXECUTED`;
+  title.className = `trade-countdown-title ${isWin ? 'profit' : 'loss'}`;
+  
+  statusTitle.textContent = isWin ? "PROFIT BOOKED ✅" : "TRADE LOSS ❌";
+  statusTitle.className = `result-title ${isWin ? 'profit' : 'loss'}`;
+  
+  statusDetail.textContent = isWin ? `+${result.profitPct}% PROFIT ACHIEVED` : `-${result.profitPct}% LOSS INCURRED`;
+
+  // Stats
+  document.getElementById("statCurrency").textContent = symbol;
+  document.getElementById("statDir").textContent = result.direction === 'buy' ? "Buy Long" : "Buy Short";
+  document.getElementById("statTime").textContent = result.duration + "S";
+  document.getElementById("statInvested").textContent = result.amount.toFixed(2) + " USDT";
+  document.getElementById("statEntry").textContent = result.entryPrice.toFixed(6);
+  document.getElementById("statExit").textContent = result.exitPrice.toFixed(6);
+  document.getElementById("statProfitPct").textContent = (isWin ? "+" : "-") + result.profitPct + ".00%";
+  document.getElementById("statProfitAmt").textContent = (isWin ? "+" : "-") + Math.abs(result.profitAmount).toFixed(2) + " USDT";
+  
+  const totalReturn = isWin ? (result.amount + result.profitAmount) : (result.amount - Math.abs(result.profitAmount));
+  document.getElementById("statTotalReturn").textContent = totalReturn.toFixed(2) + " USDT";
+
+  // Context Panel (Panel 1)
+  document.getElementById("resInfoCurrency").textContent = symbol;
+  document.getElementById("resInfoDir").textContent = result.direction === 'buy' ? "Buy" : "Sell";
+  document.getElementById("resInfoDir").className = result.direction === 'buy' ? "direction-buy" : "direction-sell";
+  document.getElementById("resInfoPrice").textContent = result.entryPrice.toFixed(6);
+  document.getElementById("resInfoAmount").value = result.amount.toFixed(2);
+
+  // Setup Duration Grid in Modal (disabled/active)
+  const grid = document.getElementById("setupDurationGrid");
+  const durations = [30, 60, 90, 120, 180, 300];
+  const pcts = [30, 40, 50, 60, 70, 80];
+  grid.innerHTML = durations.map((d, i) => `
+    <button type="button" class="duration-btn ${result.duration == d ? 'active' : ''}" style="pointer-events:none">
+      <strong>${d}S</strong><span>${pcts[i]}% Profit</span>
+    </button>
+  `).join("");
+
+  overlay.hidden = false;
+}
+
+window.closeTradeResult = function() {
+  const overlay = document.getElementById("tradeResultOverlay");
+  if (overlay) overlay.hidden = true;
+};
+
+function initTradeCountdownUI() {
+  // Duration buttons
+  document.querySelectorAll("#mainTradeDurationGrid .duration-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#mainTradeDurationGrid .duration-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // Quick amount buttons
+  document.querySelectorAll("#tradeQuickAmounts .quick-amount-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#tradeQuickAmounts .quick-amount-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const val = btn.getAttribute("data-val");
+      const input = document.getElementById("tradeAmountInput");
+      if (input) input.value = val;
+    });
+  });
+}
+
+// Ensure UI initialized
+document.addEventListener("DOMContentLoaded", () => {
+  initTradeCountdownUI();
+});
+
+// Re-init when trade tab shown
+const originalOnTradeTabShown = window.onTradeTabShown;
+window.onTradeTabShown = function() {
+  if (typeof originalOnTradeTabShown === 'function') originalOnTradeTabShown();
+  initTradeCountdownUI();
+  updateWalletDisplay();
+};

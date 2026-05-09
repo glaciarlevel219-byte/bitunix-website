@@ -133,9 +133,39 @@
             <div class="trade-vol-wrap" id="tradeVolChart"></div>
           </div>
           <p class="trade-vol-cap" id="tradeVolCaption">VOLUME: --</p>
-          <div class="trade-bottom-actions">
-            <button type="button" class="trade-btn-long" id="tradeBtnLong">Buy Long</button>
-            <button type="button" class="trade-btn-short" id="tradeBtnShort">Buy Short</button>
+          <!-- Countdown Trade Setup -->
+          <div class="trade-setup-panel" style="padding: 15px; background: #141a26; border-top: 1px solid #2d3748;">
+            <div style="font-size: 12px; color: #a0aec0; margin-bottom: 10px; font-weight: 600;">Business hours/profit margin</div>
+            <div class="duration-grid" id="mainTradeDurationGrid">
+              <button type="button" class="duration-btn active" data-duration="30"><strong>30S</strong><span>30% Profit</span></button>
+              <button type="button" class="duration-btn" data-duration="60"><strong>60S</strong><span>40% Profit</span></button>
+              <button type="button" class="duration-btn" data-duration="90"><strong>90S</strong><span>50% Profit</span></button>
+              <button type="button" class="duration-btn" data-duration="120"><strong>120S</strong><span>60% Profit</span></button>
+              <button type="button" class="duration-btn" data-duration="180"><strong>180S</strong><span>70% Profit</span></button>
+              <button type="button" class="duration-btn" data-duration="300"><strong>300S</strong><span>80% Profit</span></button>
+            </div>
+
+            <div style="font-size: 12px; color: #a0aec0; margin-bottom: 8px;">Number of openings</div>
+            <div class="trade-amount-input-wrap">
+              <input type="number" id="tradeAmountInput" placeholder="Enter amount" value="500">
+              <span class="suffix">USDT</span>
+            </div>
+
+            <div class="quick-amounts" id="tradeQuickAmounts">
+              <button type="button" class="quick-amount-btn" data-val="50">50</button>
+              <button type="button" class="quick-amount-btn active" data-val="500">500</button>
+              <button type="button" class="quick-amount-btn" data-val="2000">2000</button>
+              <button type="button" class="quick-amount-btn" data-val="5000">5000</button>
+              <button type="button" class="quick-amount-btn" data-val="10000">10000</button>
+              <button type="button" class="quick-amount-btn" data-val="20000">20000</button>
+            </div>
+
+            <div class="trade-balance-line">Available balance: <span id="tradeAvailableBalance">0 USDT</span></div>
+
+            <div class="trade-bottom-actions">
+              <button type="button" class="trade-btn-long" id="tradeBtnLong" onclick="placeCountdownTrade('buy')">BUY LONG</button>
+              <button type="button" class="trade-btn-short" id="tradeBtnShort" onclick="placeCountdownTrade('sell')">BUY SHORT</button>
+            </div>
           </div>
         </div>
       </div>
@@ -564,5 +594,80 @@
       }
     })();
   </script>
+
+  <!-- Countdown Trade Running Overlay -->
+  <div id="tradeRunningOverlay" class="trade-running-overlay" hidden>
+    <div class="timer-circle-wrap">
+      <svg class="timer-svg" viewBox="0 0 100 100">
+        <circle class="timer-bg" cx="50" cy="50" r="45"></circle>
+        <circle id="timerProgress" class="timer-progress" cx="50" cy="50" r="45" stroke-dasharray="282.7" stroke-dashoffset="0"></circle>
+      </svg>
+      <div id="timerValue" class="timer-text">30</div>
+    </div>
+    <div class="running-trade-info">
+      <h3 id="runningTradeType">TRADING IN PROGRESS</h3>
+      <p id="runningTradeDetail">ETH/USDT · 100.00 USDT</p>
+    </div>
+  </div>
+
+  <!-- Countdown Trade Result Overlay -->
+  <div id="tradeResultOverlay" class="trade-countdown-overlay" hidden>
+    <div class="trade-countdown-header">
+      <div id="resultMainTitle" class="trade-countdown-title">30S TRADE EXECUTED</div>
+      <button type="button" class="overlay-close" onclick="closeTradeResult()">&times;</button>
+    </div>
+    
+    <div class="trade-countdown-grid">
+      <!-- Setup Column (Showed for context) -->
+      <div class="trade-panel-card">
+        <div class="trade-panel-title"><span>1</span> SETUP TRADE</div>
+        <div class="duration-grid" id="setupDurationGrid">
+          <!-- Populated by JS -->
+        </div>
+        <div class="trade-info-row">
+          <div class="trade-info-item"><label>Currency</label><div id="resInfoCurrency">--</div></div>
+          <div class="trade-info-item"><label>Direction</label><div id="resInfoDir" class="direction-buy">Buy</div></div>
+          <div class="trade-info-item"><label>Current price</label><div id="resInfoPrice" class="price-live">--</div></div>
+        </div>
+        <div class="trade-amount-section">
+          <label>Number of openings</label>
+          <div class="trade-amount-input-wrap">
+            <input type="text" id="resInfoAmount" readonly value="0">
+            <span class="suffix">USDT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result Column -->
+      <div class="trade-panel-card trade-result-card">
+        <div class="trade-panel-title"><span>2</span> TRADE CLOSED</div>
+        
+        <div class="trade-result-header">
+          <div class="result-subtitle">RESULT</div>
+          <div id="resultStatusTitle" class="result-title">TRADE PROFIT ✅</div>
+          <div id="resultStatusDetail" class="result-subtitle">+30% PROFIT ACHIEVED</div>
+        </div>
+
+        <table class="trade-stats-table">
+          <tr><td class="label">Currency</td><td id="statCurrency">--</td></tr>
+          <tr><td class="label">Direction</td><td id="statDir">Buy Long</td></tr>
+          <tr><td class="label">Time</td><td id="statTime">30S</td></tr>
+          <tr><td class="label">Invested Amount</td><td id="statInvested">--</td></tr>
+          <tr><td class="label">Entry Price</td><td id="statEntry">--</td></tr>
+          <tr><td class="label">Exit Price</td><td id="statExit">--</td></tr>
+          <tr><td class="label">Profit %</td><td id="statProfitPct">--</td></tr>
+          <tr><td class="label">Profit Amount</td><td id="statProfitAmt">--</td></tr>
+          <tr><td class="label">Status</td><td>Closed</td></tr>
+        </table>
+
+        <div class="total-return-block">
+          <div class="label">TOTAL RETURN</div>
+          <div id="statTotalReturn" class="return-val">0.00 USDT</div>
+        </div>
+
+        <button type="button" class="trade-close-overlay-btn" onclick="closeTradeResult()">CLOSE REPORT</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
