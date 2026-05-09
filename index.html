@@ -327,7 +327,7 @@
             <input name="password" type="password" placeholder="Enter password" minlength="6" required>
           </label>
           <div style="text-align: right; margin-bottom: 15px;">
-            <a href="mailto:support@bitunixpk.com?subject=Password%20Reset%20Request&body=Please%20reset%20my%20password.%20My%20registered%20email/phone%20is:%20" style="color: #f6b53b; font-size: 13px; text-decoration: none;" onclick="alert('To reset your password, please email support@bitunixpk.com from your registered email address.');">Forgot Password?</a>
+            <button id="showForgotBtn" type="button" class="link-register" style="color: #f6b53b; font-size: 13px; font-weight: normal; border: none; background: transparent; padding: 0; cursor: pointer;">Forgot Password?</button>
           </div>
 
           <button type="submit" class="login-submit-btn">Login</button>
@@ -343,6 +343,23 @@
           <label>Password<input name="password" type="password" minlength="6" required></label>
           <button type="submit" class="login-submit-btn">Register</button>
           <p class="auth-switch">Already have an account? <button id="showLoginBtn" type="button" class="link-register-inline">Back to login</button></p>
+        </form>
+
+        <form id="forgotPasswordForm" class="auth-form" style="display: none;">
+          <h3 class="register-title">Reset Password</h3>
+          <p style="color: #8c9cad; font-size: 14px; margin-bottom: 20px;">Enter your registered email address to receive a 6-digit verification code.</p>
+          <label>Email Address<input id="forgotEmail" name="email" type="email" placeholder="example@gmail.com" required></label>
+          <button type="submit" class="login-submit-btn">Send Code</button>
+          <p class="auth-switch"><button id="backToLoginFromForgot" type="button" class="link-register-inline">Back to login</button></p>
+        </form>
+
+        <form id="resetPasswordForm" class="auth-form" style="display: none;">
+          <h3 class="register-title">Set New Password</h3>
+          <p style="color: #8c9cad; font-size: 14px; margin-bottom: 20px;">We've sent a code to your email. Enter it below along with your new password.</p>
+          <label>Verification Code<input name="code" type="text" placeholder="6-digit code" required minlength="6" maxlength="6"></label>
+          <label>New Password<input name="password" type="password" placeholder="Min 6 characters" minlength="6" required></label>
+          <button type="submit" class="login-submit-btn">Update Password</button>
+          <p class="auth-switch"><button id="backToLoginFromReset" type="button" class="link-register-inline">Back to login</button></p>
         </form>
       </article>
 

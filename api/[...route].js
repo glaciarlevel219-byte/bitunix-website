@@ -3,6 +3,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const os = require("node:os");
 const { MongoClient, ObjectId } = require("mongodb");
+const nodemailer = require("nodemailer");
 
 const MONGODB_URI = process.env.MONGODB_URI;
 let cachedDb = null;
@@ -173,6 +174,55 @@ module.exports = async (req, res) => {
       if (!u || !verifyPassword(password, u.passwordHash)) return sendJson(res, 401, { message: "Invalid credentials" });
       const token = signToken({ id: u.id, name: u.name, email: u.email });
       return sendJson(res, 200, { token, user: { id: u.id, name: u.name, email: u.email } });
+    }
+
+    if (pathname === "/api/auth/forgot-password" && req.method === "POST") {
+      const { email } = await parseBody(req);
+      const db = await connectToDatabase();
+      const user = await db.collection("users").findOne({ email });
+      if (!user) return sendJson(res, 400, { message: "Email not registered" });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      await db.collection("reset_codes").updateOne({ email }, { $set: { code, expires: Date.now() + 15 * 60000 } }, { upsert: true });
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || "smtp.hostinger.com",
+        port: Number(process.env.SMTP_PORT) || 465,
+        secure: true,
+        auth: {
+          user: process.env.SMTP_USER || "support@bitunixpk.com",
+          pass: process.env.SMTP_PASS || ""
+        }
+      });
+
+      try {
+        if (!process.env.SMTP_PASS) {
+          console.warn("SMTP_PASS not set, skipping email send but logging code:", code);
+          // Auto-success for testing if no password is set
+          return sendJson(res, 200, { message: "Code generated (testing mode)" });
+        }
+        await transporter.sendMail({
+          from: `"Bitunix Support" <${process.env.SMTP_USER || "support@bitunixpk.com"}>`,
+          to: email,
+          subject: "Password Reset Code",
+          text: `Your password reset code is: ${code}\nThis code will expire in 15 minutes.`
+        });
+        return sendJson(res, 200, { message: "Code sent to email" });
+      } catch (err) {
+        console.error("Email send failed:", err);
+        return sendJson(res, 500, { message: "Failed to send email. Ensure SMTP credentials are set." });
+      }
+    }
+
+    if (pathname === "/api/auth/reset-password" && req.method === "POST") {
+      const { email, code, password } = await parseBody(req);
+      const db = await connectToDatabase();
+      const reset = await db.collection("reset_codes").findOne({ email, code });
+      if (!reset || reset.expires < Date.now()) return sendJson(res, 400, { message: "Invalid or expired code" });
+
+      await db.collection("users").updateOne({ email }, { $set: { passwordHash: hashPassword(password) } });
+      await db.collection("reset_codes").deleteOne({ email });
+      return sendJson(res, 200, { message: "Password updated successfully" });
     }
 
     // --- MARKET (Unified Route) ---

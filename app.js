@@ -6,6 +6,8 @@ const endpoints = {
   liveMarket: "/api/market/live",
   register: "/api/auth/register",
   login: "/api/auth/login",
+  forgot: "/api/auth/forgot-password",
+  reset: "/api/auth/reset-password",
   me: "/api/auth/me",
   walletMe: "/api/wallet/me",
   chartMarket: "/api/chart/market",
@@ -1796,9 +1798,19 @@ function bindQuickActions() {
 function showAuthView(mode) {
   const panel = document.querySelector(".login-panel");
   if (!panel) return;
-  const isRegister = mode === "register";
-  panel.classList.toggle("auth-view-register", isRegister);
-  panel.classList.toggle("auth-view-login", !isRegister);
+  
+  const loginForm = document.querySelector("#loginForm");
+  const registerForm = document.querySelector("#registerForm");
+  const forgotForm = document.querySelector("#forgotPasswordForm");
+  const resetForm = document.querySelector("#resetPasswordForm");
+  
+  if(loginForm) loginForm.style.display = mode === "login" ? "block" : "none";
+  if(registerForm) registerForm.style.display = mode === "register" ? "block" : "none";
+  if(forgotForm) forgotForm.style.display = mode === "forgot" ? "block" : "none";
+  if(resetForm) resetForm.style.display = mode === "reset" ? "block" : "none";
+  
+  panel.classList.toggle("auth-view-register", mode === "register");
+  panel.classList.toggle("auth-view-login", mode === "login");
 }
 
 async function bindAuth() {
@@ -1823,6 +1835,12 @@ async function bindAuth() {
 
   if (!registerForm || !loginForm || !logoutBtn) return;
 
+  const showForgotBtn = document.querySelector("#showForgotBtn");
+  const backToLoginFromForgot = document.querySelector("#backToLoginFromForgot");
+  const backToLoginFromReset = document.querySelector("#backToLoginFromReset");
+  const forgotPasswordForm = document.querySelector("#forgotPasswordForm");
+  const resetPasswordForm = document.querySelector("#resetPasswordForm");
+
   showRegisterLink?.addEventListener("click", () => {
     showAuthView("register");
     showMessage("#authMessage", "");
@@ -1830,6 +1848,48 @@ async function bindAuth() {
   showLoginBtn?.addEventListener("click", () => {
     showAuthView("login");
     showMessage("#authMessage", "");
+  });
+  showForgotBtn?.addEventListener("click", () => {
+    showAuthView("forgot");
+    showMessage("#authMessage", "");
+  });
+  backToLoginFromForgot?.addEventListener("click", () => {
+    showAuthView("login");
+  });
+  backToLoginFromReset?.addEventListener("click", () => {
+    showAuthView("login");
+  });
+
+  forgotPasswordForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = String(document.querySelector("#forgotEmail").value).trim();
+    if (!email) return showToast("Please enter an email", true);
+    try {
+      await postJson(endpoints.forgot, { email });
+      showToast("Code sent to your email", false);
+      showAuthView("reset");
+    } catch(err) {
+      showToast(err.message || "Failed to send code", true);
+    }
+  });
+
+  resetPasswordForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(resetPasswordForm);
+    const email = String(document.querySelector("#forgotEmail").value).trim();
+    try {
+      await postJson(endpoints.reset, { 
+        email, 
+        code: fd.get("code"), 
+        password: fd.get("password") 
+      });
+      showToast("Password updated successfully! Please login.", false);
+      resetPasswordForm.reset();
+      forgotPasswordForm.reset();
+      showAuthView("login");
+    } catch(err) {
+      showToast(err.message || "Failed to reset password", true);
+    }
   });
 
   registerForm.addEventListener("submit", async (event) => {
