@@ -197,9 +197,8 @@ module.exports = async (req, res) => {
 
       try {
         if (!process.env.SMTP_PASS) {
-          console.warn("SMTP_PASS not set, skipping email send but logging code:", code);
-          // Auto-success for testing if no password is set
-          return sendJson(res, 200, { message: "Code generated (testing mode)" });
+          console.warn("SMTP_PASS not set, skipping email send. Code:", code);
+          return sendJson(res, 400, { message: "SMTP Password not configured in Vercel. Please set SMTP_PASS." });
         }
         await transporter.sendMail({
           from: `"Bitunix Support" <${process.env.SMTP_USER || "support@bitunixpk.com"}>`,
