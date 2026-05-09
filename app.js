@@ -956,6 +956,7 @@ const PROFILE_MODULE_TITLES = {
   funding: "Funding account",
   intro: "Platform introduction",
   msb: "MSB certification",
+  withdraw: "Withdrawal Channel",
 };
 
 function fmtTs(ts) {
@@ -1013,6 +1014,8 @@ function buildProfileModuleHtml(action) {
       return renderSettingsModule(w);
     case "funding":
       return renderFundingModule(w);
+    case "withdraw":
+      return renderWithdrawFormModule(w);
     case "intro":
       return renderIntroModule();
     case "msb":
@@ -1161,6 +1164,86 @@ function renderSettingsModule(w) {
       <button type="submit" class="profile-mod-btn">Save settings</button>
     </form>`;
 }
+
+function renderWithdrawFormModule(w) {
+  return `
+    <div style="font-family: Arial, sans-serif; text-align: left;">
+      <p style="margin-top: 0; color: #fff; font-weight: bold; margin-bottom: 15px;">Withdraw coins <span style="color: #26a69a;">USDT</span></p>
+      
+      <div style="display: flex; border-bottom: 1px solid #d49f3c; margin-bottom: 20px;">
+        <button type="button" class="c2c-tab is-on" data-withdraw-method="usdt" onclick="window.setWithdrawMethod('usdt')" style="background-color: #f6b53b; color: white; border-radius: 4px 4px 0 0; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer;">USDT Withdrawal</button>
+        <button type="button" class="c2c-tab" data-withdraw-method="bank" onclick="window.setWithdrawMethod('bank')" style="background-color: transparent; color: white; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer;">Bank Withdrawal</button>
+      </div>
+      
+      <form id="withdrawForm" class="coin-form" style="display: block;" onsubmit="window.submitWithdrawal(event)">
+        <input type="hidden" name="method" id="withdrawMethodField" value="usdt">
+        
+        <div id="withdrawUsdtFields" style="margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <span style="color: #fff; font-size: 0.9rem;">Available Balance</span>
+            <span style="color: #26a69a; font-size: 0.9rem;" id="withdrawAvailableBalance">${Number(w.balance || 0).toFixed(2)} USDT</span>
+          </div>
+          <label style="color: #fff; display: block; margin-bottom: 5px;">USDT Address</label>
+          <input name="address" type="text" placeholder="Enter USDT address" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+        </div>
+        
+        <div id="withdrawBankFields" style="display: none; margin-bottom: 15px;">
+          <label style="color: #fff; display: block; margin-bottom: 5px;">Bank Name</label>
+          <input name="bankName" type="text" placeholder="Enter bank name" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px;">Account Holder</label>
+          <input name="accountHolder" type="text" placeholder="Enter full name" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px;">Account Number</label>
+          <input name="accountNumber" type="text" placeholder="Enter Account Number or IBAN" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px;">IFSC / SWIFT Code</label>
+          <input name="swiftCode" type="text" placeholder="Enter SWIFT (optional)" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+        </div>
+
+        <label style="color: #fff; display: block; margin-bottom: 5px;">Withdrawal amount USDT</label>
+        <input name="amount" type="number" min="1" placeholder="Enter the withdrawal amount" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+        
+        <label style="color: #fff; display: block; margin-bottom: 5px;">Transaction password</label>
+        <input name="password" type="password" minlength="4" placeholder="Enter transaction password" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 20px;" required>
+        
+        <button type="submit" style="width: 100%; background: #96a1a8; color: #fff; border: none; border-radius: 4px; padding: 12px; font-weight: bold; cursor: pointer; font-size: 1rem;">Withdrawal</button>
+      </form>
+      <p id="withdrawMessage" class="muted" style="margin-top: 10px;"></p>
+    </div>
+  `;
+}
+
+window.setWithdrawMethod = function(method) {
+  document.querySelectorAll('[data-withdraw-method]').forEach(b => {
+    b.style.backgroundColor = 'transparent';
+    b.classList.remove('is-on');
+  });
+  const activeBtn = document.querySelector('[data-withdraw-method="' + method + '"]');
+  if (activeBtn) {
+    activeBtn.style.backgroundColor = '#f6b53b';
+    activeBtn.classList.add('is-on');
+  }
+  document.getElementById('withdrawMethodField').value = method;
+  
+  if (method === 'usdt') {
+    document.getElementById('withdrawUsdtFields').style.display = 'block';
+    document.getElementById('withdrawUsdtFields').querySelector('input').required = true;
+    
+    const bankFields = document.getElementById('withdrawBankFields');
+    bankFields.style.display = 'none';
+    bankFields.querySelectorAll('input').forEach(i => i.required = false);
+  } else {
+    document.getElementById('withdrawUsdtFields').style.display = 'none';
+    document.getElementById('withdrawUsdtFields').querySelector('input').required = false;
+    
+    const bankFields = document.getElementById('withdrawBankFields');
+    bankFields.style.display = 'block';
+    bankFields.querySelectorAll('input').forEach(i => {
+      if (i.name !== 'swiftCode') i.required = true;
+    });
+  }
+};
 
 function renderFundingModule(w) {
   return `
@@ -1670,8 +1753,7 @@ function bindQuickActions() {
           showToast("Insufficient USDT balance. Deposit first.", true);
           return;
         }
-        switchToTab("user");
-        document.querySelector("#withdrawPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        openProfileModule("withdraw");
         return;
       }
       if (action === "service") {
@@ -1855,69 +1937,79 @@ async function bindAuth() {
     logoutBtn.click();
   });
 
-  withdrawForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!state.token) {
-      showMessage("#withdrawMessage", "Please login first.", true);
-      return;
-    }
-    const formData = new FormData(withdrawForm);
-    const amount = Number(formData.get("amount") || 0);
-    if (amount <= 0) {
-      showMessage("#withdrawMessage", "Enter valid amount.", true);
-      return;
-    }
-    
-    // Verify transaction password
-    const enteredTransactionPassword = formData.get("password");
-    const storedTransactionPassword = localStorage.getItem('transaction_password');
-    
-    if (!storedTransactionPassword) {
-      showMessage("#withdrawMessage", "Please set a transaction password first.", true);
-      return;
-    }
-    
-    if (enteredTransactionPassword !== storedTransactionPassword) {
-      showMessage("#withdrawMessage", "Invalid transaction password. Please try again. If you haven't set it yet, please set your transaction password first in profile settings.", true);
-      return;
-    }
-    
-    const w = loadWallet();
-    if (amount > w.balance) {
-      showMessage("#withdrawMessage", "Amount exceeds available USDT balance.", true);
-      return;
-    }
-    const addr = String(formData.get("address") || "").trim();
-    const method = String(formData.get("method") || "usdt").trim();
-    const bankName = String(formData.get("bankName") || "").trim();
-    const accountHolder = String(formData.get("accountHolder") || "").trim();
-    const accountNumber = String(formData.get("accountNumber") || "").trim();
-    const swiftCode = String(formData.get("swiftCode") || "").trim();
-
-    try {
-      const res = await postJson(endpoints.withdrawCreate, { 
-        amount, 
-        address: addr,
-        method,
-        bankName,
-        accountHolder,
-        accountNumber,
-        swiftCode
-      }, {
-        headers: { Authorization: `Bearer ${state.token}` },
-      });
-      if (res.wallet) {
-        const nw = normalizeWallet(res.wallet);
-        saveWallet(nw);
-        applyVerificationBadge(nw);
-      }
-      showMessage("#withdrawMessage", `Withdrawal request submitted (${amount.toFixed(2)} USDT). Waiting for admin approval.`);
-      withdrawForm.reset();
-    } catch (err) {
-      showMessage("#withdrawMessage", err.message || "Withdrawal request failed.", true);
-    }
-  });
+  // Withdrawal form logic moved to window.submitWithdrawal
 }
+
+window.submitWithdrawal = async function(event) {
+  event.preventDefault();
+  if (!state.token) {
+    document.getElementById("withdrawMessage").textContent = "Please login first.";
+    document.getElementById("withdrawMessage").style.color = "red";
+    return;
+  }
+  const form = event.target;
+  const formData = new FormData(form);
+  const amount = Number(formData.get("amount") || 0);
+  if (amount <= 0) {
+    document.getElementById("withdrawMessage").textContent = "Enter valid amount.";
+    document.getElementById("withdrawMessage").style.color = "red";
+    return;
+  }
+  
+  // Verify transaction password
+  const enteredTransactionPassword = formData.get("password");
+  const storedTransactionPassword = localStorage.getItem('transaction_password');
+  
+  if (!storedTransactionPassword) {
+    document.getElementById("withdrawMessage").textContent = "Please set a transaction password first.";
+    document.getElementById("withdrawMessage").style.color = "red";
+    return;
+  }
+  
+  if (enteredTransactionPassword !== storedTransactionPassword) {
+    document.getElementById("withdrawMessage").textContent = "Invalid transaction password.";
+    document.getElementById("withdrawMessage").style.color = "red";
+    return;
+  }
+  
+  const w = loadWallet();
+  if (amount > w.balance) {
+    document.getElementById("withdrawMessage").textContent = "Amount exceeds available USDT balance.";
+    document.getElementById("withdrawMessage").style.color = "red";
+    return;
+  }
+  const addr = String(formData.get("address") || "").trim();
+  const method = String(formData.get("method") || "usdt").trim();
+  const bankName = String(formData.get("bankName") || "").trim();
+  const accountHolder = String(formData.get("accountHolder") || "").trim();
+  const accountNumber = String(formData.get("accountNumber") || "").trim();
+  const swiftCode = String(formData.get("swiftCode") || "").trim();
+
+  try {
+    const res = await postJson(endpoints.withdrawCreate, { 
+      amount, 
+      address: addr,
+      method,
+      bankName,
+      accountHolder,
+      accountNumber,
+      swiftCode
+    }, {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    if (res.wallet) {
+      const nw = normalizeWallet(res.wallet);
+      saveWallet(nw);
+      applyVerificationBadge(nw);
+    }
+    document.getElementById("withdrawMessage").textContent = `Withdrawal request submitted (${amount.toFixed(2)} USDT). Waiting for admin approval.`;
+    document.getElementById("withdrawMessage").style.color = "green";
+    form.reset();
+  } catch (err) {
+    document.getElementById("withdrawMessage").textContent = err.message || "Withdrawal request failed.";
+    document.getElementById("withdrawMessage").style.color = "red";
+  }
+};
 
 async function refreshAuthUser() {
   if (!state.token) return;
