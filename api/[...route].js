@@ -39,9 +39,10 @@ async function parseBody(req) {
   });
 }
 
-// Sequential 6-digit ID counter - uses database for atomic operations
+// Sequential ID counter - uses database for atomic operations
 async function getNextUserId() {
   const db = await connectToDatabase();
+  const START_ID = 854694;
   
   // Use database counters collection for atomic increment
   if (db) {
@@ -49,10 +50,22 @@ async function getNextUserId() {
       const result = await db.collection("counters").findOneAndUpdate(
         { _id: "userId" },
         { $inc: { seq: 1 } },
-        { upsert: true, returnDocument: "after" }
+        { upsert: false, returnDocument: "after" }
       );
-      const counter = result.seq || result.value?.seq || 1;
-      return counter.toString().padStart(6, "0");
+      
+      if (!result) {
+        // Initialize counter
+        await db.collection("counters").insertOne({ _id: "userId", seq: START_ID });
+        return START_ID.toString();
+      }
+      
+      const counter = result.seq || result.value?.seq;
+      if (counter < START_ID) {
+         // Force start at START_ID
+         await db.collection("counters").updateOne({ _id: "userId" }, { $set: { seq: START_ID } });
+         return START_ID.toString();
+      }
+      return counter.toString();
     } catch (e) {
       console.error("Counter error:", e);
     }
@@ -61,31 +74,31 @@ async function getNextUserId() {
   // Fallback: Find highest existing ID and increment
   try {
     const users = await db.collection("users").find({}).toArray();
-    let maxId = 0;
+    let maxId = START_ID - 1;
     for (const user of users) {
-      if (/^\d{6}$/.test(user.id)) {
+      if (/^\d+$/.test(user.id)) {
         const num = parseInt(user.id, 10);
         if (num > maxId) maxId = num;
       }
     }
-    const newId = (maxId + 1).toString().padStart(6, "0");
+    const newId = (maxId + 1).toString();
     
     // Double-check this ID doesn't exist
     const exists = await db.collection("users").findOne({ id: newId });
     if (exists) {
       // Find next available
       let checkId = maxId + 2;
-      while (await db.collection("users").findOne({ id: checkId.toString().padStart(6, "0") })) {
+      while (await db.collection("users").findOne({ id: checkId.toString() })) {
         checkId++;
       }
-      return checkId.toString().padStart(6, "0");
+      return checkId.toString();
     }
     
     return newId;
   } catch (e) {
     console.error("Fallback ID error:", e);
-    // Last resort: timestamp-based with random
-    return Date.now().toString().slice(-6).padStart(6, "0");
+    // Last resort
+    return Date.now().toString();
   }
 }
 
@@ -324,6 +337,13 @@ module.exports = async (req, res) => {
             const body = await parseBody(req);
             const w = await readWallet(decoded.id);
             const amount = Number(body.amount);
+            const method = String(body.method || "usdt");
+            let address = "";
+            if (method === "bank") {
+              address = `Bank: ${body.bankName || ''}, Acc: ${body.accountNumber || ''}, Holder: ${body.accountHolder || ''}, SWIFT/IFSC: ${body.swiftCode || ''}`;
+            } else {
+              address = String(body.address || "").trim();
+            }
             
             // Check if user has enough balance
             if ((w.balance || 0) < amount) {
@@ -333,7 +353,7 @@ module.exports = async (req, res) => {
             const withdrawal = { 
                 id: `wd_${Date.now()}`, 
                 amount: amount, 
-                address: body.address || "",
+                address: address,
                 network: body.network || "TRC20",
                 created: Date.now(), 
                 status: "pending"

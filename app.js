@@ -560,6 +560,8 @@ function updateWalletDisplay() {
   if (el) el.textContent = `${w.balance.toFixed(2)} USDT`;
   const ca = document.querySelector("#coinAvailDisplay");
   if (ca) ca.textContent = Number(w.balance).toFixed(6);
+  const wa = document.querySelector("#withdrawAvailableBalance");
+  if (wa) wa.textContent = `${w.balance.toFixed(2)} USDT`;
 }
 
 function applyVerificationBadge(wallet) {
@@ -1161,17 +1163,100 @@ function renderSettingsModule(w) {
 }
 
 function renderFundingModule(w) {
-  const locked = (w.locks || []).reduce((s, x) => s + (Number(x.principal) || 0), 0);
-  const avail = Number(w.balance) || 0;
-  const total = avail + locked;
-  const c2cOpen = (w.c2c || []).filter((o) => o.status === "open").length;
   return `
-    <p class="profile-mod-muted">Spot wallet breakdown (typical exchange layout).</p>
-    <div class="profile-mod-card"><strong>Available</strong><div style="font-size:1.35rem;margin-top:0.2rem">${avail.toFixed(2)} USDT</div></div>
-    <div class="profile-mod-card"><strong>In lock-up mining</strong><div style="font-size:1.2rem;margin-top:0.2rem">${locked.toFixed(2)} USDT</div></div>
-    <div class="profile-mod-card"><strong>Total equity</strong><div style="font-size:1.2rem;margin-top:0.2rem">${total.toFixed(2)} USDT</div><p class="profile-mod-muted" style="margin:0.35rem 0 0">Available + locked principal.</p></div>
-    <div class="profile-mod-card"><strong>Open C2C ads</strong><div style="font-size:1.1rem;margin-top:0.2rem">${c2cOpen}</div></div>`;
+    <div style="font-family: Arial, sans-serif; text-align: left;">
+      <div style="display: flex; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; flex-grow: 1; text-align: center; color: #fff; font-size: 1.1rem; font-weight: bold;">Funding Account</h3>
+      </div>
+      <h3 style="margin-top: 0; color: #fff; font-size: 1rem; font-weight: bold; margin-bottom: 15px;">Currency <span style="color: #26a69a;">USDT</span></h3>
+      
+      <div style="display: flex; border-bottom: 1px solid #d49f3c; margin-bottom: 20px;">
+        <button type="button" class="funding-tab is-on" data-funding-method="bank" onclick="window.setFundingMethod('bank')" style="background-color: #f6b53b; color: white; border-radius: 4px 4px 0 0; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer;">Bank</button>
+        <button type="button" class="funding-tab" data-funding-method="usdt" onclick="window.setFundingMethod('usdt')" style="background-color: transparent; color: white; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer;">USDT</button>
+      </div>
+      
+      <form id="fundingForm" class="coin-form" onsubmit="window.saveFundingAccount(event)" style="display: block;">
+        <input type="hidden" name="method" id="fundingMethodField" value="bank">
+        
+        <div id="fundingBankFields">
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Full name</label>
+          <input name="fullName" type="text" placeholder="Enter full name" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Bank</label>
+          <input name="bankName" type="text" placeholder="Enter bank name" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Account</label>
+          <input name="accountNumber" type="text" placeholder="Enter Account Number or IBAN" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Transaction password</label>
+          <input name="password" id="fundingBankPassword" type="password" placeholder="Enter transaction password" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;" required>
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Code</label>
+          <input name="code" type="text" placeholder="Enter Code (optional)" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">SWIFT</label>
+          <input name="swiftCode" type="text" placeholder="Enter SWIFT (optional)" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 20px;">
+        </div>
+        
+        <div id="fundingUsdtFields" style="display: none;">
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">USDT Address</label>
+          <input name="usdtAddress" id="fundingUsdtAddress" type="text" placeholder="Enter USDT address" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+          
+          <label style="color: #fff; display: block; margin-bottom: 5px; font-size: 0.9rem;">Transaction password</label>
+          <input name="usdtPassword" id="fundingUsdtPassword" type="password" placeholder="Enter transaction password" style="width: 100%; background: #1f2229; border: 1px solid #5c5c5c; color: #fff; border-radius: 4px; padding: 10px; margin-bottom: 20px;">
+        </div>
+        
+        <button type="submit" style="width: 100%; background: #96a1a8; color: #fff; border: none; border-radius: 4px; padding: 12px; font-weight: bold; cursor: pointer; font-size: 1rem;">Confirm & Save</button>
+        <p id="fundingMessage" class="muted" style="margin-top: 10px;"></p>
+      </form>
+      
+      <div style="margin-top: 25px; font-size: 0.85rem; color: #92a2c3;">
+        <p style="margin: 0; font-weight: bold;">Notes:</p>
+        <p style="margin: 5px 0 0;">Ensure the security of your account. Please do not provide personal information to others. To avoid the risk of information leakage. Thank you</p>
+      </div>
+    </div>
+  `;
 }
+
+window.setFundingMethod = function(method) {
+  document.querySelectorAll('[data-funding-method]').forEach(b => {
+    b.style.backgroundColor = 'transparent';
+  });
+  document.querySelector('[data-funding-method="' + method + '"]').style.backgroundColor = '#f6b53b';
+  document.getElementById('fundingMethodField').value = method;
+  
+  if (method === 'bank') {
+    document.getElementById('fundingBankFields').style.display = 'block';
+    document.getElementById('fundingUsdtFields').style.display = 'none';
+    document.getElementById('fundingBankPassword').required = true;
+    document.getElementById('fundingUsdtAddress').required = false;
+    document.getElementById('fundingUsdtPassword').required = false;
+  } else {
+    document.getElementById('fundingBankFields').style.display = 'none';
+    document.getElementById('fundingUsdtFields').style.display = 'block';
+    document.getElementById('fundingBankPassword').required = false;
+    document.getElementById('fundingUsdtAddress').required = true;
+    document.getElementById('fundingUsdtPassword').required = true;
+  }
+};
+
+window.saveFundingAccount = function(event) {
+  event.preventDefault();
+  const method = document.getElementById('fundingMethodField').value;
+  const pwd = method === 'bank' ? document.getElementById('fundingBankPassword').value : document.getElementById('fundingUsdtPassword').value;
+  const storedPwd = localStorage.getItem('transaction_password');
+  
+  const msgEl = document.getElementById('fundingMessage');
+  if (!storedPwd || pwd !== storedPwd) {
+    msgEl.textContent = "Invalid transaction password. Please verify or set it in Profile Settings.";
+    msgEl.style.color = "#ff6b6b";
+    return;
+  }
+  
+  // Here we would typically save to backend. For now mock success.
+  msgEl.textContent = "Funding account details saved successfully.";
+  msgEl.style.color = "#51cf66";
+};
 
 function renderIntroModule() {
   return `
@@ -1803,8 +1888,22 @@ async function bindAuth() {
       return;
     }
     const addr = String(formData.get("address") || "").trim();
+    const method = String(formData.get("method") || "usdt").trim();
+    const bankName = String(formData.get("bankName") || "").trim();
+    const accountHolder = String(formData.get("accountHolder") || "").trim();
+    const accountNumber = String(formData.get("accountNumber") || "").trim();
+    const swiftCode = String(formData.get("swiftCode") || "").trim();
+
     try {
-      const res = await postJson(endpoints.withdrawCreate, { amount, address: addr }, {
+      const res = await postJson(endpoints.withdrawCreate, { 
+        amount, 
+        address: addr,
+        method,
+        bankName,
+        accountHolder,
+        accountNumber,
+        swiftCode
+      }, {
         headers: { Authorization: `Bearer ${state.token}` },
       });
       if (res.wallet) {

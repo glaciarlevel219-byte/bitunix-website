@@ -442,7 +442,18 @@ const server = http.createServer(async (req, res) => {
       if (users.some((u) => u.email === email)) {
         return sendJson(res, 409, { message: "Email already registered." });
       }
-      const user = { id: crypto.randomUUID(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
+      
+      let nextId = 854694;
+      for (const u of users) {
+        if (/^\d+$/.test(u.id)) {
+          const num = parseInt(u.id, 10);
+          if (num >= nextId) {
+            nextId = num + 1;
+          }
+        }
+      }
+      
+      const user = { id: nextId.toString(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       users.push(user);
       writeUsers(users);
       writeWalletForUser(user.id, readWalletForUser(user.id));
@@ -702,7 +713,13 @@ const server = http.createServer(async (req, res) => {
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
       const amount = Number(body.amount || 0);
-      const address = String(body.address || "").trim();
+      const method = String(body.method || "usdt").trim();
+      let address = "";
+      if (method === "bank") {
+        address = `Bank: ${body.bankName || ''}, Acc: ${body.accountNumber || ''}, Holder: ${body.accountHolder || ''}, SWIFT/IFSC: ${body.swiftCode || ''}`;
+      } else {
+        address = String(body.address || "").trim();
+      }
       if (!(amount > 0) || !address) return sendJson(res, 400, { message: "Invalid withdraw request." });
       const w = readWalletForUser(decoded.id);
       if (amount > Number(w.balance || 0)) return sendJson(res, 400, { message: "Amount exceeds balance." });
