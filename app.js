@@ -63,9 +63,9 @@ const DIAL_CACHE_KEY_LEGACY = "bitbank_dial_codes_v1";
 
 const DEPOSIT_PENDING_MS = 30 * 60 * 1000;
 const DEPOSIT_ADDR_BY_NETWORK = {
-  TRC20: "TWrongBitunixDep9sitAddrInvalid999",
-  ERC20: "0xINVALID0_BITUNIX_WALLET_DO_NOT_SEND_REAL",
-  BEP20: "0xBEP20WR0NG_BITUNIX_TEST_DEP0SIT_ADDR",
+  TRC20: "TE4t2G2XjM2RokYutrDfC556pBpXV6T796",
+  ERC20: "",
+  BEP20: "",
 };
 
 const LOCK_PRODUCTS = [
@@ -427,13 +427,22 @@ function setupDepositAddressUI() {
   const sel = document.querySelector("#depositNetworkSelect");
   const codeEl = document.querySelector("#depositAddressText");
   const img = document.querySelector("#depositQrImg");
-  if (!sel || !codeEl || !img) return;
+  const block = document.querySelector("#depositAddrBlock");
+  const warning = document.querySelector("#depositNetworkWarning");
+  if (!sel || !codeEl || !img || !block || !warning) return;
   const apply = () => {
     const net = sel.value || "TRC20";
-    const addr = DEPOSIT_ADDR_BY_NETWORK[net] || DEPOSIT_ADDR_BY_NETWORK.TRC20;
-    codeEl.textContent = addr;
-    img.src = depositQrDataUrl(addr);
-    img.alt = `Deposit address QR (${net})`;
+    if (net !== "TRC20") {
+      block.style.display = "none";
+      warning.style.display = "block";
+    } else {
+      block.style.display = "block";
+      warning.style.display = "none";
+      const addr = DEPOSIT_ADDR_BY_NETWORK.TRC20;
+      codeEl.textContent = addr;
+      img.src = depositQrDataUrl(addr);
+      img.alt = `Deposit address QR (${net})`;
+    }
   };
   apply();
   if (!sel._depositNetBound) {
@@ -441,6 +450,24 @@ function setupDepositAddressUI() {
     sel.addEventListener("change", apply);
   }
 }
+
+window.copyDepositAddr = function() {
+  const codeEl = document.querySelector("#depositAddressText");
+  const btn = document.querySelector("#copyDepositAddrBtn");
+  if (!codeEl || !btn) return;
+  
+  navigator.clipboard.writeText(codeEl.textContent).then(() => {
+    const originalText = btn.textContent;
+    btn.textContent = "Copied!";
+    btn.style.opacity = "0.8";
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.opacity = "1";
+    }, 2000);
+  }).catch(() => {
+    showToast("Failed to copy address", true);
+  });
+};
 
 function clearDepositCountdown() {
   if (state.depositCountdownTimer) {
