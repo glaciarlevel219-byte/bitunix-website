@@ -380,6 +380,35 @@ module.exports = async (req, res) => {
             return sendJson(res, 200, { message: "Success", withdrawal });
         }
 
+        if (pathname === "/api/verification/submit" && req.method === "POST") {
+            const body = await parseBody(req);
+            const fullName = String(body.fullName || "").trim();
+            const idType = String(body.idType || "").trim();
+            const idNumber = String(body.idNumber || "").trim();
+            const idImageData = String(body.idImageData || "");
+            
+            if (!fullName || !idType || !idNumber || !idImageData) {
+                return sendJson(res, 400, { message: "Verification fields missing." });
+            }
+            
+            const w = await readWallet(decoded.id);
+            w.profile = w.profile || {};
+            w.profile.kycStatus = "pending";
+            w.profile.kycSubmitted = Date.now();
+            w.profile.verification = {
+                fullName,
+                idType,
+                idNumber,
+                notes: String(body.notes || "").trim(),
+                idImageName: String(body.idImageName || "id-image"),
+                idImageData,
+                mimeType: String(body.mimeType || "image/jpeg"),
+            };
+            
+            await writeWallet(decoded.id, w);
+            return sendJson(res, 200, { message: "Verification submitted." });
+        }
+
         if (pathname === "/api/support/messages/user") {
             const db = await connectToDatabase();
             const chat = db ? await db.collection("support_chats").findOne({ userId: decoded.id }) : null;
@@ -526,6 +555,41 @@ module.exports = async (req, res) => {
             
             await writeWallet(userId, wallet);
             return sendJson(res, 200, { message: `Withdrawal ${action}d successfully` });
+        }
+
+        if (pathname === "/admin/api/kyc/pending") {
+            const db = await connectToDatabase();
+            const users = db ? await db.collection("users").find({}).toArray() : [];
+            const items = [];
+            for(const u of users) {
+                const w = await readWallet(u.id);
+                if(String(w.profile?.kycStatus || "") === "pending") {
+                    items.push({ 
+                        userId: u.id, 
+                        userName: u.name, 
+                        userEmail: u.email, 
+                        verification: w.profile.verification || null, 
+                        submittedAt: w.profile?.kycSubmitted || 0 
+                    });
+                }
+            }
+            return sendJson(res, 200, { verifications: items });
+        }
+
+        if (pathname === "/admin/api/kyc/action" && req.method === "POST") {
+            const body = await parseBody(req);
+            const userId = String(body.userId || "");
+            const action = String(body.action || "approve");
+            const note = String(body.note || "").trim();
+            if (!userId) return sendJson(res, 400, { message: "User ID missing" });
+            
+            const w = await readWallet(userId);
+            w.profile = w.profile || {};
+            w.profile.kycStatus = action === "approve" ? "approved" : "rejected";
+            w.profile.kycReviewedAt = Date.now();
+            w.profile.kycReviewNote = note;
+            await writeWallet(userId, w);
+            return sendJson(res, 200, { message: `KYC ${action}ed` });
         }
 
         // Migrate all existing users to 6-digit sequential IDs
