@@ -24,6 +24,7 @@ const state = {
   liveTimer: null,
   customerService: "",
   backupRows: [],
+  pendingResetEmail: "",
   /** Binance-backed rows (same shape as backup); used first for spot prices. */
   liveTickerRows: [],
   marketLoginPromptTimer: null,
@@ -1866,6 +1867,7 @@ async function bindAuth() {
     if (!email) return showToast("Please enter an email", true);
     try {
       await postJson(endpoints.forgot, { email });
+      state.pendingResetEmail = email;
       showToast("Code sent to your email", false);
       showAuthView("reset");
     } catch(err) {
@@ -1876,7 +1878,8 @@ async function bindAuth() {
   resetPasswordForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(resetPasswordForm);
-    const email = String(document.querySelector("#forgotEmail").value).trim();
+    const email = state.pendingResetEmail;
+    if (!email) return showToast("Session expired. Please start over.", true);
     try {
       await postJson(endpoints.reset, { 
         email, 
@@ -1886,6 +1889,7 @@ async function bindAuth() {
       showToast("Password updated successfully! Please login.", false);
       resetPasswordForm.reset();
       forgotPasswordForm.reset();
+      state.pendingResetEmail = "";
       showAuthView("login");
     } catch(err) {
       showToast(err.message || "Failed to reset password", true);
