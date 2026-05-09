@@ -1516,17 +1516,28 @@ function renderHomeMarket(rows) {
     root.innerHTML = `<p class="muted">Loading market data...</p>`;
     return;
   }
-  root.innerHTML = rows.slice(0, 8).map((row) => {
+  root.innerHTML = rows.map((row) => {
     const change = Number(row.change || 0);
     const cls = change >= 0 ? "positive" : "negative";
+    const label = row.label || `${row.legal_name}/${row.currency_name}`;
+    const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    const displayLabel = label;
     return `
-      <div class="market-row">
-        <div class="pair">${safeText(row.legal_name)}/${safeText(row.currency_name)}</div>
-        <div>${Number(row.now_price || 0).toFixed(6)}</div>
+      <div class="market-row market-row-clickable" role="button" tabindex="0" data-mk-label="${esc}">
+        <div class="pair">${safeText(displayLabel)}</div>
+        <div>${Number(row.now_price || row.last || 0).toFixed(6)}</div>
         <div class="badge ${cls}">${change.toFixed(2)}%</div>
       </div>
     `;
   }).join("");
+
+  root.querySelectorAll(".market-row-clickable").forEach((el) => {
+    el.addEventListener("click", () => {
+      const label = el.getAttribute("data-mk-label");
+      const cat = findCategoryForLabel(label) || "crypto";
+      openTradeFromMarketList(cat, label);
+    });
+  });
 }
 
 function bindMarketTabs() {
@@ -1552,6 +1563,13 @@ function syncTradeCategoryButtons() {
 function findTradeCatalogIndex(cat, label) {
   const list = TRADE_CATALOGS[cat] || [];
   return list.findIndex((x) => x.label === label);
+}
+
+function findCategoryForLabel(label) {
+  for (const cat in TRADE_CATALOGS) {
+    if (TRADE_CATALOGS[cat].some((x) => x.label === label)) return cat;
+  }
+  return null;
 }
 
 function openTradeFromMarketList(cat, label) {
