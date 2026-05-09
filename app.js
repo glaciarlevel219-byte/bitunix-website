@@ -1778,7 +1778,6 @@ async function bindAuth() {
   const registerForm = document.querySelector("#registerForm");
   const loginForm = document.querySelector("#loginForm");
   const logoutBtn = document.querySelector("#logoutBtn");
-  const withdrawForm = document.querySelector("#withdrawForm");
   const showRegisterLink = document.querySelector("#showRegisterLink");
   const showLoginBtn = document.querySelector("#showLoginBtn");
   const loginTypeButtons = Array.from(document.querySelectorAll(".login-type-btn"));
@@ -1795,7 +1794,7 @@ async function bindAuth() {
     });
   });
 
-  if (!registerForm || !loginForm || !logoutBtn || !withdrawForm) return;
+  if (!registerForm || !loginForm || !logoutBtn) return;
 
   showRegisterLink?.addEventListener("click", () => {
     showAuthView("register");
