@@ -2583,22 +2583,26 @@ select {
 }
 
 .poster1 {
-  animation: sliderFade 12s linear infinite;
+  animation: sliderFade 16s linear infinite;
 }
 
 .poster2 {
-  animation: sliderFade 12s linear infinite 4s;
+  animation: sliderFade 16s linear infinite 4s;
 }
 
 .poster3 {
-  animation: sliderFade 12s linear infinite 8s;
+  animation: sliderFade 16s linear infinite 8s;
+}
+
+.poster4 {
+  animation: sliderFade 16s linear infinite 12s;
 }
 
 @keyframes sliderFade {
   0% { opacity: 0; transform: scale(1.08); }
-  4% { opacity: 1; transform: scale(1.03); }
-  16% { opacity: 1; transform: scale(1.0); }
-  20% { opacity: 0; transform: scale(1.06); }
+  3% { opacity: 1; transform: scale(1.03); }
+  22% { opacity: 1; transform: scale(1.0); }
+  25% { opacity: 0; transform: scale(1.06); }
   100% { opacity: 0; transform: scale(1.08); }
 }
 
