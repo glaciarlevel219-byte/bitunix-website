@@ -592,6 +592,12 @@ module.exports = async (req, res) => {
             return sendJson(res, 200, { message: `KYC ${action}ed` });
         }
 
+        if (pathname.startsWith("/admin/api/user-wallet/")) {
+            const userId = pathname.split("/").pop();
+            const wallet = await readWallet(userId);
+            return sendJson(res, 200, { wallet });
+        }
+
         // Migrate all existing users to 6-digit sequential IDs
         if (pathname === "/admin/api/migrate-user-ids" && req.method === "POST") {
             const db = await connectToDatabase();
