@@ -917,18 +917,19 @@ function renderAllUserConversations(conversations) {
   root.innerHTML = conversations.map(conv => {
     const lastMsg = conv.lastMessage;
     const name = conv.userName || "User";
+    const userId = conv.userId || "Unknown";
     const preview = lastMsg ? lastMsg.message : "No messages";
     const time = lastMsg ? new Date(lastMsg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
     const isActive = activeChatUserId === conv.userId ? "active" : "";
-    const initials = name.slice(0, 2).toUpperCase();
+    const initials = userId.slice(0, 2).toUpperCase();
     const isUnread = conv.unreadCount > 0;
     
     return `
-      <div class="conv-item ${isActive}" onclick="selectChatUser('${conv.userId}', '${name}', '${conv.userEmail}')">
+      <div class="conv-item ${isActive}" onclick="selectChatUser('${conv.userId}', '${name}', '${conv.userEmail}')" data-user-id="${userId}">
         <div class="conv-avatar" style="background: ${isUnread ? '#e7f3ff' : '#eee'}">${initials}</div>
         <div class="conv-info">
           <div style="display:flex; justify-content:space-between">
-            <span class="conv-name" style="font-weight: ${isUnread ? '700' : '600'}">${name}</span>
+            <span class="conv-name" style="font-weight: ${isUnread ? '700' : '600'}" title="${name}">${userId}</span>
             <span class="conv-time">${time}</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center">
@@ -949,8 +950,8 @@ async function selectChatUser(userId, name, email) {
     const selectedItem = document.querySelector(`.conv-item[onclick*="${userId}"]`);
     if (selectedItem) selectedItem.classList.add("active");
     
-    document.getElementById("activeUserName").textContent = name;
-    document.getElementById("activeUserEmail").textContent = email;
+    document.getElementById("activeUserName").textContent = "User ID: " + userId;
+    document.getElementById("activeUserEmail").textContent = email + " (" + name + ")";
     
     const input = document.getElementById("supportChatInput");
     const sendBtn = document.getElementById("sendSupportMessage");
