@@ -2334,10 +2334,12 @@ function updateCoinOrderBook() {
 
 async function pullCoinMarketOnce() {
   const sym = (state.coin.usdt || "BTCUSDT").toUpperCase();
+  let updated = false;
   try {
     const t = await fetchJson(`/api/coin/ticker?symbol=${encodeURIComponent(sym)}`);
     if (t && Number(t.lastPrice) > 0) {
       state.coin = { ...state.coin, price: Number(t.lastPrice), change: Number(t.priceChangePercent || 0) };
+      updated = true;
     }
   } catch (_) {}
 
@@ -2345,6 +2347,21 @@ async function pullCoinMarketOnce() {
     const d = await fetchJson(`/api/coin/depth?symbol=${encodeURIComponent(sym)}&limit=20`);
     if (d) state.coinDepth = d;
   } catch (_) {}
+
+  // Fallback: derive price/change from the existing live market endpoint
+  if (!updated) {
+    try {
+      const r = await fetchJson(`/api/market/live`);
+      const rows = r?.data || r;
+      const base = sym.replace(/USDT$/i, "");
+      const hit = Array.isArray(rows) ? rows.find((x) => String(x.legal_name || "").toUpperCase() === base) : null;
+      const p = Number(hit?.now_price || 0);
+      if (p > 0) {
+        state.coin = { ...state.coin, price: p, change: Number(hit?.change || 0) };
+        updated = true;
+      }
+    } catch (_) {}
+  }
 
   applyCoinToUi();
   updateCoinOrderBook();
@@ -3132,6 +3149,11 @@ async function init() {
   setInterval(() => processPendingDeposits(), 15000);
   initCoinView();
   initTradePage();
+
+  // If the Coin tab is already active (deep link / cached state), ensure we start the live loop.
+  if (document.querySelector("#coin")?.classList.contains("active")) {
+    onCoinTabShown();
+  }
 
   // Load backup data first (ensures ticker always has data to display)
   try {
