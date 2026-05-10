@@ -602,7 +602,14 @@ function applyVerificationBadge(wallet) {
   const status = String(wallet?.profile?.kycStatus || "none");
   const wl = document.querySelector("#welcomeLine");
   const meta = document.querySelector("#userMeta");
-  if (wl && status === "approved" && !/✅/.test(wl.textContent)) wl.textContent = `${wl.textContent} ✅`;
+  if (wl) {
+    const base = String(wl.textContent || "").replace(/[✅✔]/g, "").trim();
+    if (status === "approved") {
+      wl.innerHTML = `${safeText(base)} <span style="font-size:0.85em;color:#3b82f6;">✔</span>`;
+    } else {
+      wl.textContent = base;
+    }
+  }
   if (meta) {
     if (status === "approved") meta.textContent = `Welcome to ${SITE_NAME} · Verified account`;
     else if (status === "pending") meta.textContent = `Welcome to ${SITE_NAME} · Verification pending`;
