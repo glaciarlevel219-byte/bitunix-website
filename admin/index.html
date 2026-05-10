@@ -227,6 +227,21 @@
                 <!-- Deposits Tab -->
                 <div id="depositsTab" class="tab-content">
                     <h2>Deposit Approval</h2>
+
+                    <!-- Search Bar -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;">
+                        <input
+                            type="text"
+                            id="depositSearchInput"
+                            placeholder="Search by User, Email, or Deposit ID..."
+                            oninput="filterDepositsTable()"
+                            style="flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #374151; border-radius: 6px; background: #1f2937; color: #fff; font-size: 14px; outline: none;"
+                        />
+                        <button onclick="filterDepositsTable()" class="btn-primary" style="padding: 8px 18px; white-space: nowrap;">🔍 Search</button>
+                        <button onclick="clearDepositSearch()" class="btn-secondary" style="padding: 8px 14px; white-space: nowrap;">✕ Clear</button>
+                        <span id="depositSearchCount" style="font-size: 13px; color: #9ca3af;"></span>
+                    </div>
+
                     <div class="table-container">
                         <table id="depositsTable">
                             <thead>
@@ -254,6 +269,21 @@
                 <!-- Withdrawals Tab -->
                 <div id="withdrawalsTab" class="tab-content">
                     <h2>Withdrawal Approval</h2>
+
+                    <!-- Search Bar -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;">
+                        <input
+                            type="text"
+                            id="withdrawalSearchInput"
+                            placeholder="Search by User, Email, or Withdrawal ID..."
+                            oninput="filterWithdrawalsTable()"
+                            style="flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #374151; border-radius: 6px; background: #1f2937; color: #fff; font-size: 14px; outline: none;"
+                        />
+                        <button onclick="filterWithdrawalsTable()" class="btn-primary" style="padding: 8px 18px; white-space: nowrap;">🔍 Search</button>
+                        <button onclick="clearWithdrawalSearch()" class="btn-secondary" style="padding: 8px 14px; white-space: nowrap;">✕ Clear</button>
+                        <span id="withdrawalSearchCount" style="font-size: 13px; color: #9ca3af;"></span>
+                    </div>
+
                     <div class="table-container">
                         <table id="withdrawalsTable">
                             <thead>
@@ -286,6 +316,16 @@
                             <div class="inbox-header">
                                 <h3>Inbox</h3>
                                 <button id="refreshMessagesBtn" class="btn-icon">🔄</button>
+                            </div>
+                            <!-- Support Search Bar -->
+                            <div style="padding: 8px 10px; border-bottom: 1px solid #374151;">
+                                <input
+                                    type="text"
+                                    id="supportSearchInput"
+                                    placeholder="🔍 Search by name or email..."
+                                    oninput="filterSupportList()"
+                                    style="width: 100%; padding: 7px 10px; border: 1px solid #374151; border-radius: 6px; background: #1f2937; color: #fff; font-size: 13px; outline: none; box-sizing: border-box;"
+                                />
                             </div>
                             <div id="adminMessagesList" class="conversation-list">
                                 <!-- Conversations will load here -->

@@ -6,7 +6,10 @@ let currentAdminToken = localStorage.getItem("admin_token") || "";
 let activeChatUserId = null;
 let chatRefreshInterval = null;
 let currentUser = null;
-let allUsers = []; // global store for client-side user search
+let allUsers = [];       // global store for client-side user search
+let allDeposits = [];    // global store for deposit search
+let allWithdrawals = []; // global store for withdrawal search
+let allSupportItems = []; // global store for support list search
 
 // DOM Elements
 const loginScreen = document.getElementById('loginScreen');
@@ -436,6 +439,7 @@ async function loadWithdrawals() {
 }
 
 function renderDepositsTable(deposits) {
+    allDeposits = deposits ? deposits : [];
     const tbody = document.querySelector('#depositsTable tbody');
     
     console.log('Rendering deposits table with:', deposits);
@@ -474,6 +478,8 @@ function renderDepositsTable(deposits) {
     }).join('');
     
     console.log('Deposits table rendered');
+    var dc = document.getElementById('depositSearchCount');
+    if (dc) dc.textContent = allDeposits.length + ' deposit(s)';
 }
 
 // Global function to view receipt
@@ -511,6 +517,7 @@ function viewReceipt(depositId) {
 }
 
 function renderWithdrawalsTable(withdrawals) {
+    allWithdrawals = withdrawals ? withdrawals : [];
     const tbody = document.querySelector('#withdrawalsTable tbody');
     
     console.log('Rendering withdrawals table with:', withdrawals);
@@ -543,6 +550,8 @@ function renderWithdrawalsTable(withdrawals) {
     }).join('');
     
     console.log('Withdrawals table rendered');
+    var wc = document.getElementById('withdrawalSearchCount');
+    if (wc) wc.textContent = allWithdrawals.length + ' withdrawal(s)';
 }
 
 async function approveDeposit(userId, depositId, action) {
@@ -1402,4 +1411,65 @@ async function updateTradeMode(mode) {
         console.error('Error updating trade mode:', error);
         alert('Network error');
     }
+}
+
+// ── DEPOSIT SEARCH ────────────────────────────────────────────────────────────
+function filterDepositsTable() {
+    var query = (document.getElementById('depositSearchInput') ? document.getElementById('depositSearchInput').value : '').trim().toLowerCase();
+    var tbody = document.querySelector('#depositsTable tbody');
+    if (!query) { renderDepositsTable(allDeposits); return; }
+    var filtered = allDeposits.filter(function(d) {
+        return (d.userName || '').toLowerCase().indexOf(query) >= 0 ||
+               (d.userEmail || '').toLowerCase().indexOf(query) >= 0 ||
+               (d.id || d.rechargeId || '').toLowerCase().indexOf(query) >= 0;
+    });
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#f87171;">No deposits match your search.</td></tr>';
+        var c = document.getElementById('depositSearchCount'); if (c) c.textContent = '0 found';
+        return;
+    }
+    var saved = allDeposits; allDeposits = filtered;
+    renderDepositsTable(filtered);
+    allDeposits = saved;
+}
+function clearDepositSearch() {
+    var input = document.getElementById('depositSearchInput');
+    if (input) input.value = '';
+    renderDepositsTable(allDeposits);
+}
+
+// ── WITHDRAWAL SEARCH ─────────────────────────────────────────────────────────
+function filterWithdrawalsTable() {
+    var query = (document.getElementById('withdrawalSearchInput') ? document.getElementById('withdrawalSearchInput').value : '').trim().toLowerCase();
+    var tbody = document.querySelector('#withdrawalsTable tbody');
+    if (!query) { renderWithdrawalsTable(allWithdrawals); return; }
+    var filtered = allWithdrawals.filter(function(w) {
+        return (w.userName || '').toLowerCase().indexOf(query) >= 0 ||
+               (w.userEmail || '').toLowerCase().indexOf(query) >= 0 ||
+               (w.id || '').toLowerCase().indexOf(query) >= 0;
+    });
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#f87171;">No withdrawals match your search.</td></tr>';
+        var c = document.getElementById('withdrawalSearchCount'); if (c) c.textContent = '0 found';
+        return;
+    }
+    var saved = allWithdrawals; allWithdrawals = filtered;
+    renderWithdrawalsTable(filtered);
+    allWithdrawals = saved;
+}
+function clearWithdrawalSearch() {
+    var input = document.getElementById('withdrawalSearchInput');
+    if (input) input.value = '';
+    renderWithdrawalsTable(allWithdrawals);
+}
+
+// ── SUPPORT INBOX SEARCH ──────────────────────────────────────────────────────
+function filterSupportList() {
+    var query = (document.getElementById('supportSearchInput') ? document.getElementById('supportSearchInput').value : '').trim().toLowerCase();
+    var list = document.getElementById('adminMessagesList');
+    if (!list) return;
+    list.querySelectorAll('[data-user-id], .conversation-item, .inbox-item, li').forEach(function(item) {
+        var text = (item.textContent || '').toLowerCase();
+        item.style.display = (!query || text.indexOf(query) >= 0) ? '' : 'none';
+    });
 }
