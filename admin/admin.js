@@ -6,6 +6,7 @@ let currentAdminToken = localStorage.getItem("admin_token") || "";
 let activeChatUserId = null;
 let chatRefreshInterval = null;
 let currentUser = null;
+let allUsers = []; // global store for client-side user search
 
 // DOM Elements
 const loginScreen = document.getElementById('loginScreen');
@@ -332,10 +333,13 @@ async function loadUsers() {
 }
 
 function renderUsersTable(users) {
+    allUsers = users || []; // store globally for search
     const tbody = document.querySelector('#usersTable tbody');
     
     if (!users || users.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8">No users found</td></tr>';
+        const countEl = document.getElementById('userSearchCount');
+        if (countEl) countEl.textContent = '';
         return;
     }
     
@@ -353,6 +357,43 @@ function renderUsersTable(users) {
             </td>
         </tr>
     `).join('');
+    
+    const countEl = document.getElementById('userSearchCount');
+    if (countEl) countEl.textContent = `${users.length} user(s)`;
+}
+
+// Client-side user search/filter
+function filterUsersTable() {
+    const query = (document.getElementById('userSearchInput')?.value || '').trim().toLowerCase();
+    if (!query) {
+        renderUsersTable(allUsers);
+        return;
+    }
+    const filtered = allUsers.filter(user => {
+        return (
+            (user.id || '').toLowerCase().includes(query) ||
+            (user.name || '').toLowerCase().includes(query) ||
+            (user.email || '').toLowerCase().includes(query)
+        );
+    });
+    const tbody = document.querySelector('#usersTable tbody');
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#f87171;">No users match your search.</td></tr>';
+        const countEl = document.getElementById('userSearchCount');
+        if (countEl) countEl.textContent = '0 users found';
+        return;
+    }
+    // Temporarily render only filtered (without overwriting allUsers)
+    const saved = allUsers;
+    allUsers = filtered;
+    renderUsersTable(filtered);
+    allUsers = saved;
+}
+
+function clearUserSearch() {
+    const input = document.getElementById('userSearchInput');
+    if (input) input.value = '';
+    renderUsersTable(allUsers);
 }
 
 async function loadDeposits() {

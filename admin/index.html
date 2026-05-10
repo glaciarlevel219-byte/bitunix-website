@@ -186,6 +186,21 @@
                 <!-- Users Tab -->
                 <div id="usersTab" class="tab-content">
                     <h2>User Management</h2>
+
+                    <!-- Search Bar -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;">
+                        <input
+                            type="text"
+                            id="userSearchInput"
+                            placeholder="Search by Name, Email, or User ID..."
+                            oninput="filterUsersTable()"
+                            style="flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #374151; border-radius: 6px; background: #1f2937; color: #fff; font-size: 14px; outline: none;"
+                        />
+                        <button onclick="filterUsersTable()" class="btn-primary" style="padding: 8px 18px; white-space: nowrap;">🔍 Search</button>
+                        <button onclick="clearUserSearch()" class="btn-secondary" style="padding: 8px 14px; white-space: nowrap;">✕ Clear</button>
+                        <span id="userSearchCount" style="font-size: 13px; color: #9ca3af;"></span>
+                    </div>
+
                     <div class="table-container">
                         <table id="usersTable">
                             <thead>
