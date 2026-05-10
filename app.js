@@ -360,6 +360,8 @@ function normalizeWallet(o) {
     profile: o.profile && typeof o.profile === "object" ? o.profile : {},
     settings: o.settings && typeof o.settings === "object" ? o.settings : {},
     pendingDeposits: Array.isArray(o.pendingDeposits) ? o.pendingDeposits : [],
+    creditScore: o.creditScore !== undefined ? o.creditScore : (o.wallet?.creditScore || 100),
+    manualVipLevel: o.manualVipLevel !== undefined ? o.manualVipLevel : (o.wallet?.manualVipLevel || -1),
   };
 }
 
