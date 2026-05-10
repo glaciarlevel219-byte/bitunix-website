@@ -674,7 +674,6 @@ module.exports = async (req, res) => {
             
             // Notification logic
             const msg = { type: "user", message: `📢 [SYSTEM]: Withdrawal request for ${withdrawal.amount} USDT.`, time: Date.now(), status: "unread", userName: decoded.name, userEmail: decoded.email };
-            const db = await connectToDatabase();
             if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
             
             return sendJson(res, 200, { message: "Success", withdrawal });
