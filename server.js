@@ -430,6 +430,68 @@ const server = http.createServer(async (req, res) => {
       const data = await liveMarket();
       return sendJson(res, 200, { code: 0, message: "success", data });
     }
+
+    if (req.method === "GET" && url.pathname === "/api/coin/ticker") {
+      const symbol = String(url.searchParams.get("symbol") || "BTCUSDT")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+      try {
+        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+        if (!r.ok) throw new Error("binance ticker failed");
+        const t = await r.json();
+        return sendJson(res, 200, {
+          symbol,
+          lastPrice: Number(t.lastPrice || 0),
+          priceChangePercent: Number(t.priceChangePercent || 0),
+          highPrice: Number(t.highPrice || 0),
+          lowPrice: Number(t.lowPrice || 0),
+          volume: Number(t.volume || 0),
+          bidPrice: Number(t.bidPrice || 0),
+          askPrice: Number(t.askPrice || 0),
+          source: "binance",
+        });
+      } catch {
+        const mock = 65000 + (Math.random() * 1000 - 500);
+        return sendJson(res, 200, {
+          symbol,
+          lastPrice: mock,
+          priceChangePercent: Math.random() * 2 - 1,
+          source: "simulated",
+        });
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/coin/depth") {
+      const symbol = String(url.searchParams.get("symbol") || "BTCUSDT")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+      const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit") || 20)));
+      try {
+        const r = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`);
+        if (!r.ok) throw new Error("binance depth failed");
+        const d = await r.json();
+        const asks = Array.isArray(d.asks) ? d.asks.map((x) => ({ price: Number(x[0]), qty: Number(x[1]) })) : [];
+        const bids = Array.isArray(d.bids) ? d.bids.map((x) => ({ price: Number(x[0]), qty: Number(x[1]) })) : [];
+        return sendJson(res, 200, { symbol, asks, bids, source: "binance" });
+      } catch {
+        let mid = 65000;
+        try {
+          const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+          if (r.ok) {
+            const t = await r.json();
+            mid = Number(t.price || mid);
+          }
+        } catch { /* ignore */ }
+        const asks = [];
+        const bids = [];
+        for (let i = 0; i < limit; i++) {
+          asks.push({ price: mid * (1 + (i + 1) * 0.0002), qty: Math.random() * 2 + 0.05 });
+          bids.push({ price: mid * (1 - (i + 1) * 0.0002), qty: Math.random() * 2 + 0.05 });
+        }
+        return sendJson(res, 200, { symbol, asks, bids, source: "simulated" });
+      }
+    }
+
     if (req.method === "POST" && url.pathname === "/api/auth/register") {
       const body = await parseBody(req);
       const name = String(body.name || "").trim();
@@ -799,61 +861,141 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { pendingDeposits: wallet.pendingDeposits || [] });
     }
     
-    // Support message endpoints
-    if (req.method === "GET" && url.pathname === "/api/support/messages/user") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      
-      const supportFile = path.join(ROOT, "data", `support_${decoded.id}.json`);
-      if (!fs.existsSync(supportFile)) {
-        return sendJson(res, 200, { messages: [] });
+    // --- SPOT TRADING & CHART APIs ---
+    if (url.pathname === "/api/chart/market" && req.method === "GET") {
+      const id = url.searchParams.get("id") || "bitcoin";
+      const days = url.searchParams.get("days") || "1";
+      try {
+        const r = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`);
+        if (!r.ok) throw new Error("CoinGecko error");
+        const data = await r.json();
+        return sendJson(res, 200, { data });
+      } catch (err) {
+        console.error("Chart API error:", err);
+        // Fallback to Binance if CoinGecko fails
+        const map = { bitcoin: "BTCUSDT", ethereum: "ETHUSDT", binancecoin: "BNBUSDT", solana: "SOLUSDT", ripple: "XRPUSDT" };
+        const sym = map[id] || "BTCUSDT";
+        const b = await chartMarketBinance(sym, days);
+        if (b) return sendJson(res, 200, { data: b });
+        // Return dummy data if both fail
+        const prices = []; let p = 60000; const now = Date.now();
+        for(let i=0; i<100; i++) { p += (Math.random()-0.5)*500; prices.push([now - (100-i)*3600000, p]); }
+        return sendJson(res, 200, { data: { prices } });
       }
-      
-      const supportData = JSON.parse(fs.readFileSync(supportFile, "utf8"));
-      return sendJson(res, 200, { messages: supportData.messages || [] });
     }
-    
-    if (req.method === "POST" && url.pathname === "/api/support/messages/send") {
+
+    if (url.pathname === "/api/trade/spot/execute" && req.method === "POST") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      
+
       const body = await parseBody(req);
-      const message = String(body.message || "").trim();
-      const type = String(body.type || "user").trim();
+      const { amount, symbol, side, type, limitPrice, currentPrice } = body;
+      const amt = Number(amount);
+      if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
+
+      const wallet = readWalletForUser(decoded.id);
+      const cp = Number(currentPrice) || 0;
+      const price = type === "limit" ? Number(limitPrice) : cp;
+      if (price <= 0) return sendJson(res, 400, { message: "Invalid price" });
+
+      const qty = amt / price;
+      const order = { id: `spo_${Date.now()}`, symbol, side, type, amount: amt, qty, limitPrice: price, entryPrice: cp, status: type === "market" ? "filled" : "open", created: Date.now() };
+
+      wallet.spot_orders = wallet.spot_orders || [];
+      wallet.spot_positions = wallet.spot_positions || [];
       
-      if (!message) {
-        return sendJson(res, 400, { message: "Message is required" });
+      if (type === "market") {
+        if (side === "buy") {
+          if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+          wallet.balance -= amt;
+          const posIdx = wallet.spot_positions.findIndex(p => p.symbol === symbol);
+          if (posIdx >= 0) {
+            const oldQty = wallet.spot_positions[posIdx].amount;
+            const oldPrice = wallet.spot_positions[posIdx].entryPrice || cp;
+            wallet.spot_positions[posIdx].entryPrice = ((oldQty * oldPrice) + (qty * cp)) / (oldQty + qty);
+            wallet.spot_positions[posIdx].amount += qty;
+          } else {
+            wallet.spot_positions.push({ symbol, amount: qty, entryPrice: cp });
+          }
+        } else {
+          const posIdx = wallet.spot_positions.findIndex(p => p.symbol === symbol);
+          if (posIdx < 0 || wallet.spot_positions[posIdx].amount < qty) return sendJson(res, 400, { message: "Insufficient position" });
+          wallet.spot_positions[posIdx].amount -= qty;
+          wallet.balance += amt; 
+          if (wallet.spot_positions[posIdx].amount <= 1e-10) wallet.spot_positions.splice(posIdx, 1);
+        }
+        wallet.transactions.push({ type: "spot_trade", title: `${side.toUpperCase()} ${symbol}`, amount: amt, asset: "USDT", status: "completed", created: Date.now() });
+      } else {
+        if (side === "buy") {
+          if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+          wallet.balance -= amt; 
+        }
+        wallet.spot_orders.push(order);
       }
+      writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { message: "Order placed", order, wallet });
+    }
+
+    if (url.pathname === "/api/trade/spot/orders" && req.method === "GET") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+
+      const wallet = readWalletForUser(decoded.id);
+      const pricesRaw = url.searchParams.get("prices");
+      let prices = {};
+      try { if(pricesRaw) prices = JSON.parse(pricesRaw); } catch(e){}
+
+      let changed = false;
+      wallet.spot_orders = wallet.spot_orders || [];
+      wallet.spot_positions = wallet.spot_positions || [];
       
-      const supportFile = path.join(ROOT, "data", `support_${decoded.id}.json`);
-      let supportData = { messages: [] };
-      
-      if (fs.existsSync(supportFile)) {
-        supportData = JSON.parse(fs.readFileSync(supportFile, "utf8"));
+      for (const order of wallet.spot_orders.filter(o => o.status === "open")) {
+        const cur = Number(prices[order.symbol]);
+        if (!cur) continue;
+        if ((order.side === "buy" && cur <= order.limitPrice) || (order.side === "sell" && cur >= order.limitPrice)) {
+          order.status = "filled"; order.filledPrice = cur; changed = true;
+          if (order.side === "buy") {
+            const posIdx = wallet.spot_positions.findIndex(p => p.symbol === order.symbol);
+            const qty = order.amount / cur;
+            if (posIdx >= 0) {
+              const oq = wallet.spot_positions[posIdx].amount; const op = wallet.spot_positions[posIdx].entryPrice || cur;
+              wallet.spot_positions[posIdx].entryPrice = ((oq * op) + (qty * cur)) / (oq + qty);
+              wallet.spot_positions[posIdx].amount += qty;
+            } else wallet.spot_positions.push({ symbol: order.symbol, amount: qty, entryPrice: cur });
+          } else {
+            const posIdx = wallet.spot_positions.findIndex(p => p.symbol === order.symbol);
+            const qty = order.amount / cur;
+            if (posIdx >= 0 && wallet.spot_positions[posIdx].amount >= qty) {
+              wallet.spot_positions[posIdx].amount -= qty; wallet.balance += order.amount;
+              if (wallet.spot_positions[posIdx].amount <= 1e-10) wallet.spot_positions.splice(posIdx, 1);
+            }
+          }
+        }
       }
-      
-      const newMessage = {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId: decoded.id,
-        userName: String(decoded.name || "").trim() || "Unknown",
-        userEmail: String(decoded.email || "").trim() || "",
-        type: type,
-        message: message,
-        time: Date.now(),
-        status: "sent"
-      };
-      
-      supportData.messages.push(newMessage);
-      fs.writeFileSync(supportFile, JSON.stringify(supportData, null, 2));
-      
-      return sendJson(res, 200, { 
-        message: "Message sent successfully",
-        messageData: newMessage
-      });
+      if (changed) writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { orders: wallet.spot_orders, positions: wallet.spot_positions, wallet: changed ? wallet : null });
+    }
+
+    if (url.pathname === "/api/trade/spot/cancel" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+
+      const { orderId } = await parseBody(req);
+      const wallet = readWalletForUser(decoded.id);
+      const idx = (wallet.spot_orders || []).findIndex(o => o.id === orderId && o.status === "open");
+      if (idx < 0) return sendJson(res, 404, { message: "Order not found" });
+
+      const order = wallet.spot_orders[idx];
+      order.status = "cancelled";
+      if (order.side === "buy") wallet.balance += order.amount;
+      writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { message: "Order cancelled", wallet });
     }
 
     return serveFile(url.pathname, res);
