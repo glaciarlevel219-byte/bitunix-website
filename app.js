@@ -605,7 +605,12 @@ function applyVerificationBadge(wallet) {
   if (wl) {
     const base = String(wl.textContent || "").replace(/[✅✔]/g, "").trim();
     if (status === "approved") {
-      wl.innerHTML = `${safeText(base)} <span style="font-size:0.85em;color:#3b82f6;">✔</span>`;
+      wl.innerHTML = `${safeText(base)} <span style="display:inline-flex;vertical-align:middle;margin-left:6px;">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false" style="display:block;">
+          <circle cx="8" cy="8" r="8" fill="#1d87ff" />
+          <path d="M6.45 10.9 3.7 8.15a.9.9 0 0 1 1.27-1.27l1.86 1.86 4.2-4.2A.9.9 0 1 1 12.3 5.8l-4.84 5.1a.9.9 0 0 1-1.01 0z" fill="#fff"/>
+        </svg>
+      </span>`;
     } else {
       wl.textContent = base;
     }
