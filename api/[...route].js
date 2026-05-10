@@ -149,6 +149,13 @@ module.exports = async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     let pathname = url.pathname;
+    // Handle Vercel internal rewrites (where pathname becomes /api/[...route].js)
+    const originalUrl = req.headers['x-original-url'] || req.headers['x-forwarded-path'];
+    if (originalUrl && pathname.includes('[...route]')) {
+        try {
+            pathname = new URL(originalUrl, `http://${req.headers.host}`).pathname;
+        } catch (e) {}
+    }
     if (pathname.endsWith("/") && pathname.length > 1) pathname = pathname.slice(0, -1);
     
     const auth = req.headers.authorization || "";

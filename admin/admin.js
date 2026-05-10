@@ -1,5 +1,5 @@
-// API Base URL - uses current domain (works on both localhost and Vercel)
-const API_BASE = window.location.origin.includes('localhost') ? '/admin/api' : '/admin/api';
+// API Base URL
+const API_BASE = '/admin/api';
 
 let authToken = localStorage.getItem('admin_token') || '';
 let currentAdminToken = localStorage.getItem("admin_token") || "";
@@ -43,7 +43,6 @@ function setupEventListeners() {
     // Config form
     configForm.addEventListener('submit', handleConfigSave);
 }
-
 async function handleLogin(e) {
     e.preventDefault();
     const formData = new FormData(loginForm);
@@ -60,7 +59,7 @@ async function handleLogin(e) {
             body: JSON.stringify({ username, password })
         });
         
-        const data = await response.json();
+        const data = await response.json().catch(() => ({ message: 'Invalid JSON from server' }));
         console.log('Login response:', response.status, data);
         
         if (response.ok) {
@@ -76,12 +75,12 @@ async function handleLogin(e) {
         } else {
             const errorMsg = data.message || 'Login failed';
             showMessage('loginMessage', errorMsg, 'error');
-            alert('Login Error: ' + errorMsg);
+            alert('Login Error (' + response.status + '): ' + errorMsg);
         }
     } catch (error) {
         console.error('Login network error:', error);
         showMessage('loginMessage', 'Network error. Please try again.', 'error');
-        alert('Network Error: Could not reach the API. Check your internet or if the server is down.');
+        alert('Network Error: ' + error.message + '\nThis usually means the API is unreachable or crashed.');
     }
 }
 
