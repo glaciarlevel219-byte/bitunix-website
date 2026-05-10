@@ -729,6 +729,19 @@ function showUserModal(user) {
     if (scoreInput) scoreInput.value = user.creditScore || '100';
     document.getElementById('modalUserRegistered').textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
     document.getElementById('modalUserWalletStatus').textContent = user.wallet ? 'Active' : 'No Wallet';
+    
+    // Withdrawal status
+    const withdrawStatusEl = document.getElementById('modalWithdrawalStatus');
+    const withdrawBtn = document.getElementById('toggleWithdrawBtn');
+    if (withdrawStatusEl && withdrawBtn) {
+        const isEnabled = user.withdrawalEnabled !== false;
+        withdrawStatusEl.textContent = isEnabled ? 'Enabled' : 'Disabled';
+        withdrawStatusEl.style.color = isEnabled ? '#10b981' : '#ef4444';
+        withdrawBtn.textContent = isEnabled ? 'Disable' : 'Enable';
+        withdrawBtn.className = isEnabled ? 'btn-small btn-reject' : 'btn-small btn-approve';
+        window.currentUserWithdrawalEnabled = isEnabled;
+    }
+
     const vipSelect = document.getElementById('editVipLevel');
     if (vipSelect) {
         vipSelect.value = (user.manualVipLevel !== undefined && user.manualVipLevel !== null) ? user.manualVipLevel : "-1";
@@ -1407,6 +1420,40 @@ async function updateVipLevelAdmin() {
         }
     } catch (error) {
         alert('Network error while updating VIP level');
+    }
+}
+async function toggleUserWithdrawal() {
+    const userId = window.currentModalUserId;
+    const currentStatus = window.currentUserWithdrawalEnabled;
+    if (!userId) return;
+    
+    const newStatus = !currentStatus;
+    if (!confirm(`Are you sure you want to ${newStatus ? 'ENABLE' : 'DISABLE'} withdrawals for this user?`)) return;
+
+    try {
+        const response = await fetch(`/admin/api/user/update-withdrawal-status`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentAdminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, enabled: newStatus })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(`Withdrawals ${newStatus ? 'enabled' : 'disabled'} successfully`);
+            loadUsers(); // Refresh list to get updated status
+            // Update modal UI immediately
+            window.currentUserWithdrawalEnabled = newStatus;
+            document.getElementById('modalWithdrawalStatus').textContent = newStatus ? 'Enabled' : 'Disabled';
+            document.getElementById('modalWithdrawalStatus').style.color = newStatus ? '#10b981' : '#ef4444';
+            document.getElementById('toggleWithdrawBtn').textContent = newStatus ? 'Disable' : 'Enable';
+            document.getElementById('toggleWithdrawBtn').className = newStatus ? 'btn-small btn-reject' : 'btn-small btn-approve';
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating withdrawal status');
     }
 }
 async function updateTradeMode(mode) {

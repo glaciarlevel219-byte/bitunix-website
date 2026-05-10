@@ -629,6 +629,15 @@ module.exports = async (req, res) => {
               address = String(body.address || "").trim();
             }
             
+            // Check if withdrawal is enabled for this user
+            const db = await connectToDatabase();
+            if (db) {
+                const user = await db.collection("users").findOne({ id: decoded.id });
+                if (user && user.withdrawalEnabled === false) {
+                    return sendJson(res, 400, { message: "your withdraw is unable to process" });
+                }
+            }
+
             // Check if user has enough balance
             if ((w.balance || 0) < amount) {
                 return sendJson(res, 400, { message: "Insufficient balance" });
@@ -1202,6 +1211,16 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if(db) {
                 await db.collection("users").updateOne({ id: userId }, { $set: { manualVipLevel: Number(level) } });
+                return sendJson(res, 200, { message: "Success" });
+            }
+            return sendJson(res, 500, { message: "DB Error" });
+        }
+
+        if (pathname === "/admin/api/user/update-withdrawal-status" && req.method === "POST") {
+            const { userId, enabled } = await parseBody(req);
+            const db = await connectToDatabase();
+            if(db) {
+                await db.collection("users").updateOne({ id: userId }, { $set: { withdrawalEnabled: !!enabled } });
                 return sendJson(res, 200, { message: "Success" });
             }
             return sendJson(res, 500, { message: "DB Error" });
