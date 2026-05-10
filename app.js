@@ -2094,16 +2094,12 @@ window.updateVipLevel = function(user, wallet, showPopup = false) {
     }
   }
   
-  if (showPopup) {
-    const popup = document.getElementById("vipPopupOverlay");
-    const popupLevel = document.getElementById("popupVipLevel");
-    const popupDeposit = document.getElementById("popupTotalDeposit");
-    if (popup && popupLevel && popupDeposit) {
-      popupLevel.textContent = `VIP ${vipLevel}`;
-      popupDeposit.textContent = totalDeposit.toFixed(2);
-      popup.hidden = false;
-    }
-  }
+  // Removed showPopup logic as per user request
+};
+
+window.openVipLevels = function() {
+  const overlay = document.getElementById("overlayVip");
+  if (overlay) overlay.hidden = false;
 };
 
 window.submitWithdrawal = async function(event) {
