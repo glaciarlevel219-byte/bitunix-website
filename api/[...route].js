@@ -281,6 +281,119 @@ module.exports = async (req, res) => {
         return sendJson(res, 200, { rows });
     }
 
+    if (pathname === "/api/chart/market") {
+        const id = url.searchParams.get("id") || "bitcoin";
+        const symbol = url.searchParams.get("symbol") || "BTCUSDT";
+        const days = url.searchParams.get("days") || "1";
+        
+        try {
+            // Try Binance first for spot symbols
+            if (symbol) {
+              const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const bUrl = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=100`;
+              const br = await fetch(bUrl);
+              if (br.ok) {
+                const bData = await br.json();
+                const prices = bData.map(k => [k[0], Number(k[4])]);
+                return sendJson(res, 200, { data: { prices, source: "binance" } });
+              }
+            }
+
+            // Fallback to CoinGecko
+            const r = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`);
+            if (r.ok) {
+              const data = await r.json();
+              if (data.prices && data.prices.length > 0) {
+                return sendJson(res, 200, { data: { prices: data.prices, source: "coingecko" } });
+              }
+            }
+            throw new Error("Feeds failed");
+        } catch (err) {
+            console.error("Chart API fallback engaged:", err);
+            // High-fidelity simulated data to keep UI working
+            const mockData = [];
+            let p = 65000;
+            const now = Date.now();
+            for(let i=0; i<100; i++) {
+                p += (Math.random()*200 - 100);
+                mockData.push([now - (100-i)*3600000, p]);
+            }
+            return sendJson(res, 200, { data: { prices: mockData, source: "simulated" } });
+        }
+    }
+
+    if (pathname === "/api/coin/ticker") {
+        const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        try {
+            const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+            if (!r.ok) throw new Error("binance ticker failed");
+            const t = await r.json();
+            return sendJson(res, 200, {
+                symbol,
+                lastPrice: Number(t.lastPrice || 0),
+                priceChangePercent: Number(t.priceChangePercent || 0),
+                highPrice: Number(t.highPrice || 0),
+                lowPrice: Number(t.lowPrice || 0),
+                volume: Number(t.volume || 0),
+                bidPrice: Number(t.bidPrice || 0),
+                askPrice: Number(t.askPrice || 0),
+                source: "binance",
+            });
+        } catch (e) {
+            // Fallback: reuse our live market aggregator if possible
+            try {
+                const rowsRes = await fetch(`http://${req.headers.host}/api/market/live`);
+                const rowsJson = rowsRes.ok ? await rowsRes.json() : null;
+                const rows = rowsJson?.data || [];
+                const base = symbol.replace("USDT", "");
+                const row = rows.find((x) => String(x.legal_name || "").toUpperCase() === base) || null;
+                const last = Number(row?.now_price || 0);
+                const chg = Number(row?.change || 0);
+                return sendJson(res, 200, {
+                    symbol,
+                    lastPrice: last,
+                    priceChangePercent: chg,
+                    source: "fallback",
+                });
+            } catch (_) {}
+            const mock = 65000 + (Math.random() * 1000 - 500);
+            return sendJson(res, 200, {
+                symbol,
+                lastPrice: mock,
+                priceChangePercent: Math.random() * 2 - 1,
+                source: "simulated",
+            });
+        }
+    }
+
+    if (pathname === "/api/coin/depth") {
+        const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit") || 20)));
+        try {
+            const r = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`);
+            if (!r.ok) throw new Error("binance depth failed");
+            const d = await r.json();
+            const asks = Array.isArray(d.asks) ? d.asks.map((x) => ({ price: Number(x[0]), qty: Number(x[1]) })) : [];
+            const bids = Array.isArray(d.bids) ? d.bids.map((x) => ({ price: Number(x[0]), qty: Number(x[1]) })) : [];
+            return sendJson(res, 200, { symbol, asks, bids, source: "binance" });
+        } catch (e) {
+            // Simulated depth around current ticker fallback
+            let mid = 65000;
+            try {
+                const tr = await fetch(`http://${req.headers.host}/api/coin/ticker?symbol=${symbol}`);
+                const tj = tr.ok ? await tr.json() : null;
+                if (tj?.lastPrice) mid = Number(tj.lastPrice);
+            } catch (_) {}
+            const asks = [];
+            const bids = [];
+            for (let i = 0; i < limit; i++) {
+                asks.push({ price: mid * (1 + (i + 1) * 0.0002), qty: Math.random() * 2 + 0.05 });
+                bids.push({ price: mid * (1 - (i + 1) * 0.0002), qty: Math.random() * 2 + 0.05 });
+            }
+            return sendJson(res, 200, { symbol, asks, bids, source: "simulated" });
+        }
+    }
+
     if (pathname === "/api/trade/klines" || pathname === "/admin/api/trade/klines") {
         const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
         const source = String(url.searchParams.get("source") || "binance");
@@ -579,6 +692,155 @@ module.exports = async (req, res) => {
 
             await writeWallet(decoded.id, wallet);
             return sendJson(res, 200, { message: "Success", result, wallet });
+        }
+
+        if (pathname === "/api/trade/spot/execute" && req.method === "POST") {
+            const { amount, symbol, side, type, limitPrice, currentPrice } = await parseBody(req);
+            const amt = Number(amount); // USDT value
+            if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
+
+            const wallet = await readWallet(decoded.id);
+            const cp = Number(currentPrice) || 0;
+            const price = type === "limit" ? Number(limitPrice) : cp;
+            if (price <= 0) return sendJson(res, 400, { message: "Invalid price" });
+
+            const qty = amt / price;
+
+            const orderId = `spo_${Date.now()}`;
+            const order = {
+                id: orderId,
+                symbol,
+                side, 
+                type, 
+                amount: amt,
+                qty: qty,
+                limitPrice: price,
+                entryPrice: cp,
+                status: type === "market" ? "filled" : "open",
+                created: Date.now()
+            };
+
+            wallet.spot_orders = wallet.spot_orders || [];
+            wallet.spot_positions = wallet.spot_positions || [];
+            
+            if (type === "market") {
+                if (side === "buy") {
+                    if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+                    wallet.balance -= amt;
+                    const posIdx = wallet.spot_positions.findIndex(p => p.symbol === symbol);
+                    if (posIdx >= 0) {
+                        const oldQty = wallet.spot_positions[posIdx].amount;
+                        const oldPrice = wallet.spot_positions[posIdx].entryPrice || cp;
+                        wallet.spot_positions[posIdx].entryPrice = ((oldQty * oldPrice) + (qty * cp)) / (oldQty + qty);
+                        wallet.spot_positions[posIdx].amount += qty;
+                    } else {
+                        wallet.spot_positions.push({ symbol, amount: qty, entryPrice: cp });
+                    }
+                } else {
+                    const posIdx = wallet.spot_positions.findIndex(p => p.symbol === symbol);
+                    if (posIdx < 0 || wallet.spot_positions[posIdx].amount < qty) {
+                        return sendJson(res, 400, { message: "Insufficient position to sell" });
+                    }
+                    wallet.spot_positions[posIdx].amount -= qty;
+                    wallet.balance += amt; 
+                    if (wallet.spot_positions[posIdx].amount <= 1e-10) { // floating point zero
+                        wallet.spot_positions.splice(posIdx, 1);
+                    }
+                }
+                
+                wallet.transactions = wallet.transactions || [];
+                wallet.transactions.push({
+                    type: "spot_trade",
+                    description: `${side.toUpperCase()} ${symbol} Market Order`,
+                    amount: amt,
+                    asset: "USDT",
+                    status: "completed",
+                    created: Date.now()
+                });
+            } else {
+                if (side === "buy") {
+                    if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+                    wallet.balance -= amt; 
+                }
+                wallet.spot_orders.push(order);
+            }
+
+            await writeWallet(decoded.id, wallet);
+            return sendJson(res, 200, { message: "Order placed", order, wallet });
+        }
+
+        if (pathname === "/api/trade/spot/orders" && req.method === "GET") {
+            const wallet = await readWallet(decoded.id);
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const pricesRaw = url.searchParams.get("prices"); // JSON string of symbol:price
+            let prices = {};
+            try { if(pricesRaw) prices = JSON.parse(pricesRaw); } catch(e){}
+
+            // Simple Limit Order Matching
+            let changed = false;
+            wallet.spot_orders = wallet.spot_orders || [];
+            wallet.spot_positions = wallet.spot_positions || [];
+            
+            const openOrders = wallet.spot_orders.filter(o => o.status === "open");
+            for (const order of openOrders) {
+                const currentPrice = Number(prices[order.symbol]);
+                if (!currentPrice) continue;
+
+                let triggered = false;
+                if (order.side === "buy" && currentPrice <= order.limitPrice) triggered = true;
+                if (order.side === "sell" && currentPrice >= order.limitPrice) triggered = true;
+
+                if (triggered) {
+                    order.status = "filled";
+                    order.filledPrice = currentPrice;
+                    changed = true;
+                    if (order.side === "buy") {
+                        const posIdx = wallet.spot_positions.findIndex(p => p.symbol === order.symbol);
+                        const qty = order.amount / currentPrice;
+                        if (posIdx >= 0) {
+                            const oldQty = wallet.spot_positions[posIdx].amount;
+                            const oldPrice = wallet.spot_positions[posIdx].entryPrice || currentPrice;
+                            wallet.spot_positions[posIdx].entryPrice = ((oldQty * oldPrice) + (qty * currentPrice)) / (oldQty + qty);
+                            wallet.spot_positions[posIdx].amount += qty;
+                        } else {
+                            wallet.spot_positions.push({ symbol: order.symbol, amount: qty, entryPrice: currentPrice });
+                        }
+                    } else {
+                        // Sell
+                        const posIdx = wallet.spot_positions.findIndex(p => p.symbol === order.symbol);
+                        const qty = order.amount / currentPrice;
+                        if (posIdx >= 0 && wallet.spot_positions[posIdx].amount >= qty) {
+                            wallet.spot_positions[posIdx].amount -= qty;
+                            wallet.balance += order.amount;
+                            if (wallet.spot_positions[posIdx].amount <= 1e-10) wallet.spot_positions.splice(posIdx, 1);
+                        }
+                    }
+                }
+            }
+
+            if (changed) await writeWallet(decoded.id, wallet);
+
+            return sendJson(res, 200, { 
+                orders: wallet.spot_orders || [],
+                positions: wallet.spot_positions || [],
+                wallet // return updated wallet if changed
+            });
+        }
+
+        if (pathname === "/api/trade/spot/cancel" && req.method === "POST") {
+            const { orderId } = await parseBody(req);
+            const wallet = await readWallet(decoded.id);
+            wallet.spot_orders = wallet.spot_orders || [];
+            const idx = wallet.spot_orders.findIndex(o => o.id === orderId);
+            if (idx >= 0) {
+                const order = wallet.spot_orders[idx];
+                if (order.status === "open") {
+                    if (order.side === "buy") wallet.balance += order.amount; // refund
+                    wallet.spot_orders.splice(idx, 1);
+                }
+            }
+            await writeWallet(decoded.id, wallet);
+            return sendJson(res, 200, { message: "Order cancelled", wallet });
         }
     }
 

@@ -38,6 +38,8 @@ const state = {
   },
   coinDrawerCategory: "crypto",
   coinChartTimer: null,
+  coinMarketTimer: null,
+  coinDepth: null,
   coinSide: "buy",
   tradeCat: "fx",
   tradeTf: "15m",
@@ -2263,28 +2265,63 @@ function updateCoinOrderBook() {
   const asks = document.querySelector("#coinBookAsks");
   const bids = document.querySelector("#coinBookBids");
   if (asks && bids) {
+    const depth = state.coinDepth;
+    const aRows = Array.isArray(depth?.asks) ? depth.asks.slice(0, 8) : [];
+    const bRows = Array.isArray(depth?.bids) ? depth.bids.slice(0, 8) : [];
+
+    const maxAskQty = aRows.reduce((m, x) => Math.max(m, Number(x.qty) || 0), 0) || 1;
+    const maxBidQty = bRows.reduce((m, x) => Math.max(m, Number(x.qty) || 0), 0) || 1;
+
     let askHtml = "";
     let bidHtml = "";
-    for (let i = 0; i < 8; i++) {
-      const ap = mid * (1 + (8 - i) * 0.0005);
-      const aa = Math.random() * 2 + 0.1;
-      const aw = Math.min(100, aa * 40);
-      askHtml += `
-        <div class="ob-row ask">
-          <div class="ob-bg" style="width: ${aw}%"></div>
-          <span>${ap.toFixed(2)}</span>
-          <span>${aa.toFixed(4)}</span>
-        </div>`;
-      const bp = mid * (1 - (i + 1) * 0.0005);
-      const ba = Math.random() * 2 + 0.1;
-      const bw = Math.min(100, ba * 40);
-      bidHtml += `
-        <div class="ob-row bid">
-          <div class="ob-bg" style="width: ${bw}%"></div>
-          <span>${bp.toFixed(2)}</span>
-          <span>${ba.toFixed(4)}</span>
-        </div>`;
+
+    if (aRows.length && bRows.length) {
+      for (let i = 0; i < 8; i++) {
+        const a = aRows[i];
+        const b = bRows[i];
+        if (a) {
+          const aw = Math.min(100, ((Number(a.qty) || 0) / maxAskQty) * 100);
+          askHtml += `
+            <div class="ob-row ask">
+              <div class="ob-bg" style="width: ${aw}%"></div>
+              <span>${Number(a.price || 0).toFixed(2)}</span>
+              <span>${Number(a.qty || 0).toFixed(4)}</span>
+            </div>`;
+        }
+        if (b) {
+          const bw = Math.min(100, ((Number(b.qty) || 0) / maxBidQty) * 100);
+          bidHtml += `
+            <div class="ob-row bid">
+              <div class="ob-bg" style="width: ${bw}%"></div>
+              <span>${Number(b.price || 0).toFixed(2)}</span>
+              <span>${Number(b.qty || 0).toFixed(4)}</span>
+            </div>`;
+        }
+      }
+    } else {
+      // Fallback to simulated book if depth not available yet
+      for (let i = 0; i < 8; i++) {
+        const ap = mid * (1 + (8 - i) * 0.0005);
+        const aa = Math.random() * 2 + 0.1;
+        const aw = Math.min(100, aa * 40);
+        askHtml += `
+          <div class="ob-row ask">
+            <div class="ob-bg" style="width: ${aw}%"></div>
+            <span>${ap.toFixed(2)}</span>
+            <span>${aa.toFixed(4)}</span>
+          </div>`;
+        const bp = mid * (1 - (i + 1) * 0.0005);
+        const ba = Math.random() * 2 + 0.1;
+        const bw = Math.min(100, ba * 40);
+        bidHtml += `
+          <div class="ob-row bid">
+            <div class="ob-bg" style="width: ${bw}%"></div>
+            <span>${bp.toFixed(2)}</span>
+            <span>${ba.toFixed(4)}</span>
+          </div>`;
+      }
     }
+
     asks.innerHTML = askHtml;
     bids.innerHTML = bidHtml;
   }
@@ -2293,6 +2330,39 @@ function updateCoinOrderBook() {
     const ch = state.coin.change || 0;
     midEl.innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${mid.toFixed(2)}</span>`;
   }
+}
+
+async function pullCoinMarketOnce() {
+  const sym = (state.coin.usdt || "BTCUSDT").toUpperCase();
+  try {
+    const t = await fetchJson(`/api/coin/ticker?symbol=${encodeURIComponent(sym)}`);
+    if (t && Number(t.lastPrice) > 0) {
+      state.coin = { ...state.coin, price: Number(t.lastPrice), change: Number(t.priceChangePercent || 0) };
+    }
+  } catch (_) {}
+
+  try {
+    const d = await fetchJson(`/api/coin/depth?symbol=${encodeURIComponent(sym)}&limit=20`);
+    if (d) state.coinDepth = d;
+  } catch (_) {}
+
+  applyCoinToUi();
+  updateCoinOrderBook();
+}
+
+function startCoinMarketLoop() {
+  if (state.coinMarketTimer) return;
+  // Pull once immediately
+  pullCoinMarketOnce().catch(() => {});
+  state.coinMarketTimer = setInterval(() => {
+    const active = document.querySelector("#coin")?.classList.contains("active");
+    if (!active) {
+      clearInterval(state.coinMarketTimer);
+      state.coinMarketTimer = null;
+      return;
+    }
+    pullCoinMarketOnce().catch(() => {});
+  }, 3000);
 }
 
 
@@ -2427,6 +2497,7 @@ function onCoinTabShown() {
   applyCoinToUi();
   loadCoinChart();
   refreshCoinHistory();
+  startCoinMarketLoop();
 }
 
 function openCoinDrawer() {
