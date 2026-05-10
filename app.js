@@ -3418,7 +3418,7 @@ function loadUserInfo() {
     .then((response) => response.json())
     .then((data) => {
       if (data.user) {
-        if (idEl) idEl.textContent = `${data.user.id.slice(0, 8)}…`;
+        if (idEl) idEl.textContent = safeText(data.user.id, "—");
         if (nameEl) nameEl.textContent = data.user.name || "Unknown";
       } else {
         if (idEl) idEl.textContent = "—";
