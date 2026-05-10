@@ -3127,3 +3127,86 @@ select {
   cursor: pointer;
 }
 
+
+/* Coin Page Enhancements */
+.coin-header-price-info { display: flex; flex-direction: column; }
+.coin-main-chart { background: #131d2f; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+.coin-order-type-wrap { margin-bottom: 15px; }
+.coin-input-select { width: 100%; background: #19263d; border: 1px solid #263757; color: #e9eef7; padding: 10px; border-radius: 6px; outline: none; }
+.coin-summary-box { background: rgba(25, 38, 61, 0.5); border-radius: 8px; padding: 12px; margin-bottom: 15px; }
+.summary-line { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+.summary-line span:first-child { color: #92a2c3; }
+.summary-line span:last-child { font-weight: 600; }
+.coin-history-section { margin-top: 20px; border-top: 1px solid #263757; }
+.coin-history-tabs { display: flex; gap: 20px; padding: 15px 0; }
+.history-tab { background: none; border: none; color: #92a2c3; font-size: 13px; font-weight: 600; cursor: pointer; padding-bottom: 5px; position: relative; }
+.history-tab.active { color: #e9eef7; }
+.history-tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: #2dd4bf; }
+.history-item { padding: 12px; border-bottom: 1px solid #263757; display: flex; flex-direction: column; gap: 5px; }
+.h-main { display: flex; gap: 10px; align-items: center; }
+.h-type.buy { color: #22c55e; }
+.h-type.sell { color: #f87171; }
+.h-pair { font-weight: bold; }
+.h-price { color: #92a2c3; font-size: 12px; }
+.h-sub { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #92a2c3; }
+.h-cancel-btn { background: none; border: 1px solid #f87171; color: #f87171; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+.h-cancel-btn:hover { background: #f87171; color: #fff; }
+.coin-search-wrap { padding: 10px; border-bottom: 1px solid #263757; }
+#coinDrawerSearch { width: 100%; background: #19263d; border: 1px solid #263757; color: #e9eef7; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.up { color: #22c55e !important; }
+.down { color: #f87171 !important; }
+
+/* === Premium Coin Trading Styles === */
+.coin-trading-header-pro { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(19, 29, 47, 0.8); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px 12px 0 0; }
+.coin-info-group { display: flex; align-items: center; gap: 24px; }
+.coin-pair-selector { background: none; border: none; text-align: left; cursor: pointer; padding: 0; }
+.pair-main { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; color: #fff; }
+.chevron-mini { font-size: 10px; color: #92a2c3; }
+.pair-sub { font-size: 12px; color: #92a2c3; margin-top: 2px; }
+.live-price-block { display: flex; flex-direction: column; }
+.main-price { font-size: 18px; font-weight: 700; color: #22c55e; }
+.price-change { font-size: 12px; font-weight: 500; }
+.trading-layout-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1px; background: rgba(255, 255, 255, 0.05); }
+.main-content-col { background: #0b0e11; display: flex; flex-direction: column; }
+.chart-container-premium { padding: 10px; background: #0b0e11; }
+.bottom-history-panel { flex: 1; border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; }
+.history-tabs-premium { display: flex; gap: 24px; padding: 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.h-tab { background: none; border: none; color: #92a2c3; padding: 14px 0; font-size: 13px; font-weight: 600; cursor: pointer; position: relative; }
+.h-tab.active { color: #2dd4bf; }
+.h-tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: #2dd4bf; }
+.side-panel-col { background: #131d2f; display: flex; flex-direction: column; border-left: 1px solid rgba(255, 255, 255, 0.05); }
+.trade-form-premium { padding: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.side-toggle-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 8px; }
+.side-btn { border: none; padding: 8px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #92a2c3; transition: all 0.2s; }
+.side-btn.buy.active { background: #22c55e; color: #fff; }
+.side-btn.sell.active { background: #f87171; color: #fff; }
+.input-group-premium { margin-bottom: 16px; }
+.input-group-premium label { display: block; font-size: 12px; color: #92a2c3; margin-bottom: 6px; }
+.input-with-suffix { position: relative; display: flex; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+.input-with-suffix input { flex: 1; background: none; border: none; padding: 10px 12px; color: #fff; font-size: 14px; outline: none; }
+.input-with-suffix .suffix { padding-right: 12px; font-size: 12px; color: #92a2c3; }
+.percent-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 20px; }
+.percent-grid button { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #92a2c3; padding: 6px 0; border-radius: 4px; font-size: 11px; cursor: pointer; }
+.percent-grid button:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.execution-details { margin-bottom: 20px; }
+.detail-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+.detail-row span:first-child { color: #92a2c3; }
+.detail-row span:last-child { color: #fff; font-weight: 600; }
+.action-btn-premium { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+.action-btn-premium:active { transform: scale(0.98); }
+.action-btn-premium.is-buy { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3); }
+.action-btn-premium.is-sell { background: linear-gradient(135deg, #f87171, #dc2626); color: #fff; box-shadow: 0 4px 15px rgba(248, 113, 113, 0.3); }
+.order-book-premium { flex: 1; display: flex; flex-direction: column; padding: 12px; font-size: 11px; }
+.ob-header { display: flex; justify-content: space-between; color: #92a2c3; margin-bottom: 8px; padding: 0 4px; }
+.ob-list { display: flex; flex-direction: column; gap: 2px; }
+.ob-row { display: flex; justify-content: space-between; padding: 2px 4px; position: relative; overflow: hidden; }
+.ob-row span { position: relative; z-index: 1; }
+.ob-row.ask { color: #f87171; }
+.ob-row.bid { color: #22c55e; }
+.ob-mid-price { font-size: 16px; font-weight: 700; text-align: center; padding: 12px 0; color: #fff; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); margin: 8px 0; }
+.coin-side-drawer-pro { position: fixed; right: 0; top: 0; bottom: 0; width: 340px; background: #131d2f; z-index: 1000; transform: translateX(100%); transition: transform 0.3s ease; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.5); }
+.coin-side-drawer-pro.is-open { transform: translateX(0); }
+.drawer-header-pro { padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.pair-list-premium { list-style: none; padding: 0; overflow-y: auto; }
+.pair-list-premium li { padding: 12px 20px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; }
+.pair-list-premium li:hover { background: rgba(255,255,255,0.05); }

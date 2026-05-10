@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=2.6">
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script defer src="./app.js?v=2.6"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -19,8 +20,9 @@
   <header class="topbar">
     <div class="container topbar-inner">
       <div class="brand-wrap brand-wrap-home">
-        <img src="./Bitunix.jpg" alt="Bitunix Logo" class="brand-logo">
-        <strong id="siteName">Bitunix</strong>
+        <img src="logo.png" alt="Logo" class="brand-logo">
+        <span style="font-weight: 700; font-size: 1.2rem; letter-spacing: -0.5px;">Bitunix</span>
+        <span style="font-size: 10px; background: #22c55e; color: #000; padding: 2px 4px; border-radius: 4px; margin-left: 5px;">V2.4</span>
       </div>
       <nav class="desktop-nav">
         <button data-tab="home" class="tab-btn active">Home</button>
@@ -173,82 +175,129 @@
 
     <section id="coin" class="view coin-trading-view">
       <div class="coin-trading-wrap">
-        <header class="coin-trading-header">
-          <button type="button" class="coin-pair-trigger" id="coinPairTrigger" aria-expanded="false" aria-controls="coinDrawer">
-            <span class="coin-pair-symbol" id="coinPairLabel">BTC</span>
-            <span class="coin-pair-sub" id="coinPairSub">BTC/USD</span>
-            <span class="coin-pair-chev" aria-hidden="true">&#9662;</span>
-          </button>
-          <button type="button" class="coin-header-chart" id="coinHeaderChartBtn" aria-label="Toggle chart">&#128200;</button>
+        <header class="coin-trading-header-pro">
+          <div class="coin-info-group">
+            <button type="button" class="coin-pair-selector" id="coinPairTrigger">
+              <div class="pair-main">
+                <span id="coinPairLabel">BTC</span>
+                <span class="chevron-mini">▼</span>
+              </div>
+              <div class="pair-sub" id="coinPairSub">BTC / USDT</div>
+            </button>
+            <div class="live-price-block">
+              <div id="coinHeaderPrice" class="main-price">--</div>
+              <div id="coinHeaderChange" class="price-change">--</div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="icon-btn-glass" id="coinHeaderChartBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 9l-5 5-2-2-4 4"/></svg>
+            </button>
+          </div>
         </header>
 
-        <div class="coin-chart-block" id="coinChartBlock">
-          <div class="coin-chart-meta">
-            <span class="coin-chart-price" id="coinChartBigPrice">--</span>
-            <span class="coin-chart-pct" id="coinChartPct">--</span>
-          </div>
-          <canvas id="coinPriceCanvas" width="360" height="200" class="coin-price-canvas"></canvas>
-        </div>
-
-        <div class="coin-trading-grid">
-          <div class="coin-form-col">
-            <div class="coin-bs-toggle">
-              <button type="button" class="coin-bs-btn is-buy active" data-coin-side="buy">Buy</button>
-              <button type="button" class="coin-bs-btn is-sell" data-coin-side="sell">Sell</button>
+        <div class="trading-layout-grid">
+          <!-- Left: Chart & History -->
+          <div class="main-content-col">
+            <div class="chart-container-premium" id="coinChartBlock">
+              <div id="coinMainChart" style="height: 340px; width: 100%;"></div>
             </div>
-            <label class="coin-tf">
-              <span>Market Order</span>
-              <select id="coinOrderSelect" class="coin-order-select">
-                <option>Market Order</option>
-                <option>Limit Order</option>
-              </select>
-            </label>
-            <label class="coin-tf">
-              <span>Market Price</span>
-              <input id="coinDisplayPrice" class="coin-input" type="text" value="--" readonly>
-            </label>
-            <label class="coin-tf">
-              <span class="coin-amt-lbl">Amount</span>
-              <span class="coin-amt-wrap">
-                <input id="coinAmountInput" class="coin-input" type="number" min="0" step="any" placeholder="0">
-                <span class="coin-amt-suffix">USDT</span>
-              </span>
-            </label>
-            <div class="coin-pct-btns">
-              <button type="button" data-amt-pct="25">25%</button>
-              <button type="button" data-amt-pct="50">50%</button>
-              <button type="button" data-amt-pct="75">75%</button>
-              <button type="button" data-amt-pct="100">100%</button>
-            </div>
-            <p class="coin-avail">Available Balance <span id="coinAvailDisplay">0.000000</span> USDT</p>
-            <button type="button" class="coin-main-btn is-buy" id="coinMainActionBtn">Buy</button>
-          </div>
-          <div class="coin-book-col">
-            <div class="coin-book-hdr"><span>Price</span><span>Quantity</span></div>
-            <div class="coin-book-asks" id="coinBookAsks"></div>
-            <div class="coin-book-mid" id="coinBookMid">--</div>
-            <div class="coin-book-bids" id="coinBookBids"></div>
-          </div>
-        </div>
 
-        <div class="coin-bottom-tabs">
-          <button type="button" class="is-active" data-coin-subtab="pos">My position</button>
-          <button type="button" data-coin-subtab="closed">My closed position</button>
+            <div class="bottom-history-panel">
+              <div class="history-tabs-premium">
+                <button type="button" class="h-tab active" data-history-tab="open">Open Orders</button>
+                <button type="button" class="h-tab" data-history-tab="positions">Positions</button>
+                <button type="button" class="h-tab" data-history-tab="history">History</button>
+              </div>
+              <div class="history-content-scroll">
+                <div id="coinOpenOrdersList" class="history-list-pro"></div>
+                <div id="coinPositionsList" class="history-list-pro" hidden></div>
+                <div id="coinTradeHistoryList" class="history-list-pro" hidden></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Form & Order Book -->
+          <div class="side-panel-col">
+            <div class="trade-form-premium">
+              <div class="side-toggle-group">
+                <button type="button" class="side-btn buy active" data-coin-side="buy">Buy</button>
+                <button type="button" class="side-btn sell" data-coin-side="sell">Sell</button>
+              </div>
+
+              <div class="order-type-select-wrap">
+                <select id="coinOrderType" class="premium-select">
+                  <option value="market">Market Order</option>
+                  <option value="limit">Limit Order</option>
+                </select>
+              </div>
+
+              <div id="coinLimitPriceWrap" class="input-group-premium" style="display: none;">
+                <label>Price</label>
+                <div class="input-with-suffix">
+                  <input id="coinLimitPrice" type="number" step="any" placeholder="0.00">
+                  <span class="suffix">USDT</span>
+                </div>
+              </div>
+
+              <div class="input-group-premium">
+                <label>Amount</label>
+                <div class="input-with-suffix">
+                  <input id="coinAmountInput" type="number" min="0" step="any" placeholder="0.00">
+                  <span class="suffix">USDT</span>
+                </div>
+              </div>
+
+              <div class="percent-grid">
+                <button type="button" data-amt-pct="25">25%</button>
+                <button type="button" data-amt-pct="50">50%</button>
+                <button type="button" data-amt-pct="75">75%</button>
+                <button type="button" data-amt-pct="100">100%</button>
+              </div>
+
+              <div class="execution-details">
+                <div class="detail-row">
+                  <span>Available</span>
+                  <span id="coinAvailDisplay">0.00</span>
+                </div>
+                <div class="detail-row">
+                  <span>Max Buy</span>
+                  <span id="coinMaxBuy">0.00</span>
+                </div>
+              </div>
+
+              <button type="button" class="action-btn-premium is-buy" id="coinMainActionBtn">Buy BTC</button>
+            </div>
+
+            <div class="order-book-premium">
+              <div class="ob-header">
+                <span>Price (USDT)</span>
+                <span>Amount</span>
+              </div>
+              <div class="ob-list asks" id="coinBookAsks"></div>
+              <div class="ob-mid-price" id="coinBookMid">--</div>
+              <div class="ob-list bids" id="coinBookBids"></div>
+            </div>
+          </div>
         </div>
-        <p class="coin-nomore">No more data</p>
       </div>
 
       <div class="coin-drawer-overlay" id="coinDrawerOverlay" hidden></div>
-      <aside class="coin-side-drawer" id="coinDrawer" aria-hidden="true">
-        <div class="coin-drawer-seg">
-          <button type="button" class="is-on" data-cat="crypto">Cryptocurrency</button>
-          <button type="button" data-cat="metal">Precious Metals</button>
+      <aside class="coin-side-drawer-pro" id="coinDrawer" aria-hidden="true">
+        <div class="drawer-header-pro">
+          <h3>Market Pairs</h3>
+          <button type="button" onclick="closeCoinDrawer()">&times;</button>
         </div>
-        <ul class="coin-drawer-list" id="coinDrawerList"></ul>
+        <div class="drawer-search-wrap">
+          <input type="text" id="coinDrawerSearch" placeholder="Search Symbol...">
+        </div>
+        <div class="drawer-tabs">
+          <button type="button" class="is-on" data-cat="crypto">Crypto</button>
+          <button type="button" data-cat="metal">Metal</button>
+        </div>
+        <ul class="pair-list-premium" id="coinDrawerList"></ul>
       </aside>
     </section>
-
-    <section id="user" class="view">
       <article class="panel user-profile-panel">
         <div class="user-header-card user-profile-head">
           <div class="avatar profile-logo">
@@ -257,6 +306,8 @@
           <div>
             <h3 id="welcomeLine">Welcome</h3>
             <p id="userMeta" class="muted">Welcome to Bitunix</p>
+            <p id="userIdDisplay" class="muted" style="margin-top: 4px; font-size: 12px;"></p>
+            <p id="userVipDisplay" class="vip-level" style="margin-top: 4px; color: #f6b53b; font-weight: bold; font-size: 13px;"></p>
             <div style="margin-top: 10px;">
               <button id="transactionPasswordBtn" class="transaction-password-btn" style="padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;">
                 <span>&#128274;</span>
@@ -620,7 +671,7 @@
     </div>
   </footer>
 
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=2.6" defer></script>
   <script>
     // Admin Panel Access - Click 5 times on the dot to access admin
     (function() {
@@ -724,6 +775,28 @@
 
         <button type="button" class="trade-close-overlay-btn" onclick="closeTradeResult()">CLOSE REPORT</button>
       </div>
+    </div>
+  </div>
+
+  <!-- VIP Popup -->
+  <div id="vipPopupOverlay" class="trade-countdown-overlay" hidden style="z-index: 9999;">
+    <div class="trade-countdown-header">
+      <div class="trade-countdown-title">VIP LEVEL STATUS</div>
+      <button type="button" class="overlay-close" onclick="document.getElementById('vipPopupOverlay').hidden = true">&times;</button>
+    </div>
+    <div class="trade-countdown-grid" style="display: block; max-width: 500px; margin: 0 auto; text-align: center; background: #1a1f2e; padding: 20px; border-radius: 8px; border: 1px solid #f6b53b;">
+      <h3 style="color: #f6b53b; margin-bottom: 15px;">Your VIP Reward</h3>
+      <p style="color: #fff; margin-bottom: 10px; font-size: 16px;">Current Level: <strong id="popupVipLevel" style="color: #2dd4bf;">VIP 0</strong></p>
+      <p style="color: #a0aec0; margin-bottom: 20px; font-size: 14px;">Total Deposit: <span id="popupTotalDeposit">0</span> USDT</p>
+      
+      <div style="text-align: left; background: #141a26; padding: 15px; border-radius: 6px; font-size: 13px; color: #a0aec0;">
+        <div style="margin-bottom: 5px;">VIP 1: deposit 1000 USDT -> 200 USDT reward</div>
+        <div style="margin-bottom: 5px;">VIP 2: deposit 3000 USDT -> 500 USDT reward</div>
+        <div style="margin-bottom: 5px;">VIP 3: deposit 5000 USDT -> 1000 USDT reward</div>
+        <div style="margin-bottom: 5px;">VIP 4: deposit 10000 USDT -> 2500 USDT reward</div>
+        <div style="margin-bottom: 5px;">VIP 5: deposit 20000 USDT -> 5000 USDT reward</div>
+      </div>
+      <button type="button" class="login-submit-btn" style="margin-top: 20px;" onclick="document.getElementById('vipPopupOverlay').hidden = true">Awesome!</button>
     </div>
   </div>
 </body>

@@ -2061,6 +2061,47 @@ async function bindAuth() {
   // Withdrawal form logic moved to window.submitWithdrawal
 }
 
+window.updateVipLevel = function(user, wallet, showPopup = false) {
+  if (!user || !wallet) return;
+  
+  const idDisplay = document.querySelector("#userIdDisplay");
+  if (idDisplay) idDisplay.textContent = `UID: ${user.id}`;
+  
+  let totalDeposit = 0;
+  if (wallet.recharges && Array.isArray(wallet.recharges)) {
+    totalDeposit = wallet.recharges
+      .filter(r => r.status === "completed")
+      .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  }
+  
+  let vipLevel = 0;
+  if (totalDeposit >= 20000) vipLevel = 5;
+  else if (totalDeposit >= 10000) vipLevel = 4;
+  else if (totalDeposit >= 5000) vipLevel = 3;
+  else if (totalDeposit >= 3000) vipLevel = 2;
+  else if (totalDeposit >= 1000) vipLevel = 1;
+  
+  const vipDisplay = document.querySelector("#userVipDisplay");
+  if (vipDisplay) {
+    if (vipLevel > 0) {
+      vipDisplay.textContent = `VIP Level ${vipLevel}`;
+    } else {
+      vipDisplay.textContent = `VIP Level 0`;
+    }
+  }
+  
+  if (showPopup) {
+    const popup = document.getElementById("vipPopupOverlay");
+    const popupLevel = document.getElementById("popupVipLevel");
+    const popupDeposit = document.getElementById("popupTotalDeposit");
+    if (popup && popupLevel && popupDeposit) {
+      popupLevel.textContent = `VIP ${vipLevel}`;
+      popupDeposit.textContent = totalDeposit.toFixed(2);
+      popup.hidden = false;
+    }
+  }
+};
+
 window.submitWithdrawal = async function(event) {
   event.preventDefault();
   if (!state.token) {
@@ -2156,9 +2197,16 @@ async function refreshAuthUser() {
       } catch (_) {}
       saveWallet(nw);
       applyVerificationBadge(nw);
+      
+      if (window.updateVipLevel) {
+        window.updateVipLevel(me.user, nw, true);
+      }
     } catch {
       state.wallet = loadWallet();
       updateWalletDisplay();
+      if (window.updateVipLevel && me && me.user) {
+        window.updateVipLevel(me.user, state.wallet, true);
+      }
     }
   } catch (_) {
     state.token = "";
