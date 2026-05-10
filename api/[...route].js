@@ -586,8 +586,9 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if (db) {
                 const user = await db.collection("users").findOne({ id: decoded.id });
-                if (user && user.creditScore !== undefined) {
-                    wallet.creditScore = user.creditScore;
+                if (user) {
+                    if (user.creditScore !== undefined) wallet.creditScore = user.creditScore;
+                    if (user.manualVipLevel !== undefined) wallet.manualVipLevel = user.manualVipLevel;
                 }
             }
             return sendJson(res, 200, { wallet });
@@ -1191,6 +1192,16 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if(db) {
                 await db.collection("users").updateOne({ id: userId }, { $set: { tradeOutcomeMode: mode } });
+                return sendJson(res, 200, { message: "Success" });
+            }
+            return sendJson(res, 500, { message: "DB Error" });
+        }
+
+        if (pathname === "/admin/api/user/update-vip-level" && req.method === "POST") {
+            const { userId, level } = await parseBody(req);
+            const db = await connectToDatabase();
+            if(db) {
+                await db.collection("users").updateOne({ id: userId }, { $set: { manualVipLevel: Number(level) } });
                 return sendJson(res, 200, { message: "Success" });
             }
             return sendJson(res, 500, { message: "DB Error" });

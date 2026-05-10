@@ -729,6 +729,10 @@ function showUserModal(user) {
     if (scoreInput) scoreInput.value = user.creditScore || '100';
     document.getElementById('modalUserRegistered').textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
     document.getElementById('modalUserWalletStatus').textContent = user.wallet ? 'Active' : 'No Wallet';
+    const vipSelect = document.getElementById('editVipLevel');
+    if (vipSelect) {
+        vipSelect.value = (user.manualVipLevel !== undefined && user.manualVipLevel !== null) ? user.manualVipLevel : "-1";
+    }
     const kycStatus = user.wallet?.profile?.kycStatus || 'none';
     const kycEl = document.getElementById('modalUserKyc');
     if (kycEl) kycEl.textContent = kycStatus;
@@ -1378,6 +1382,31 @@ async function updateCreditScore() {
         }
     } catch (error) {
         alert('Network error while updating score');
+    }
+}
+async function updateVipLevelAdmin() {
+    const userId = window.currentModalUserId;
+    const level = document.getElementById('editVipLevel').value;
+    if (!userId) return;
+    
+    try {
+        const response = await fetch(`/admin/api/user/update-vip-level`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentAdminToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, level: Number(level) })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('VIP level updated successfully');
+            loadUsers(); // Refresh list
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating VIP level');
     }
 }
 async function updateTradeMode(mode) {

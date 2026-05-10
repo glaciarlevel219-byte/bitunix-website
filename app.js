@@ -2075,7 +2075,9 @@ window.updateVipLevel = function(user, wallet, showPopup = false) {
   }
   
   let vipLevel = 0;
-  if (totalDeposit >= 20000) vipLevel = 5;
+  if (wallet.manualVipLevel !== undefined && wallet.manualVipLevel !== null && wallet.manualVipLevel !== -1) {
+    vipLevel = Number(wallet.manualVipLevel);
+  } else if (totalDeposit >= 20000) vipLevel = 5;
   else if (totalDeposit >= 10000) vipLevel = 4;
   else if (totalDeposit >= 5000) vipLevel = 3;
   else if (totalDeposit >= 3000) vipLevel = 2;
