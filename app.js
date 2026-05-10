@@ -2300,6 +2300,29 @@ function updateCoinOrderBook() {
 let coinChartInstance = null;
 let coinCandleSeries = null;
 
+let coinChartLibPromise = null;
+
+function ensureCoinChartLib() {
+  if (typeof window.LightweightCharts !== "undefined") return Promise.resolve(true);
+  if (coinChartLibPromise) return coinChartLibPromise;
+  coinChartLibPromise = new Promise((resolve) => {
+    const existing = document.querySelector('script[data-coin-chart-lib="1"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(typeof window.LightweightCharts !== "undefined"));
+      existing.addEventListener("error", () => resolve(false));
+      return;
+    }
+    const s = document.createElement("script");
+    s.defer = true;
+    s.src = "https://cdn.jsdelivr.net/npm/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js";
+    s.setAttribute("data-coin-chart-lib", "1");
+    s.onload = () => resolve(typeof window.LightweightCharts !== "undefined");
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+  return coinChartLibPromise;
+}
+
 function initCoinChart() {
   if (typeof window.LightweightCharts === "undefined") return;
   const root = document.getElementById("coinMainChart");
@@ -2329,7 +2352,10 @@ async function loadCoinChart() {
   const id = state.coin.geckoId;
   const symbol = state.coin.usdt || "BTCUSDT";
   if (!id) return;
-  if (typeof window.LightweightCharts === "undefined") return;
+  if (typeof window.LightweightCharts === "undefined") {
+    const ok = await ensureCoinChartLib();
+    if (!ok) return;
+  }
   initCoinChart();
   
   const tryLoad = async () => {
