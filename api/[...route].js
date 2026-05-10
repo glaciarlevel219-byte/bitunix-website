@@ -356,6 +356,48 @@ module.exports = async (req, res) => {
                     source: "fallback",
                 });
             } catch (_) {}
+
+            // Fallback: CoinGecko (works in many regions where Binance is blocked)
+            try {
+                const base = symbol.replace(/USDT$/i, "");
+                const map = {
+                    BTC: "bitcoin",
+                    ETH: "ethereum",
+                    BNB: "binancecoin",
+                    SOL: "solana",
+                    XRP: "ripple",
+                    DOGE: "dogecoin",
+                    ADA: "cardano",
+                    DOT: "polkadot",
+                    LTC: "litecoin",
+                    BCH: "bitcoin-cash",
+                    ETC: "ethereum-classic",
+                    FIL: "filecoin",
+                    EOS: "eos",
+                    SHIB: "shiba-inu",
+                    TON: "the-open-network",
+                };
+                const id = map[base];
+                if (id) {
+                    const cg = await fetch(
+                        `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`
+                    );
+                    if (cg.ok) {
+                        const data = await cg.json();
+                        const price = Number(data?.[id]?.usd || 0);
+                        const chg = Number(data?.[id]?.usd_24h_change || 0);
+                        if (price > 0) {
+                            return sendJson(res, 200, {
+                                symbol,
+                                lastPrice: price,
+                                priceChangePercent: chg,
+                                source: "coingecko",
+                            });
+                        }
+                    }
+                }
+            } catch (_) {}
+
             const mock = 65000 + (Math.random() * 1000 - 500);
             return sendJson(res, 200, {
                 symbol,
@@ -449,7 +491,42 @@ module.exports = async (req, res) => {
                         return toRow(s.replace("USDT","/USD"), t.lastPrice, t.priceChangePercent);
                     } catch { return null; }
                 }));
-                results.push(...cryptoRes.filter(Boolean));
+                const cryptoRows = cryptoRes.filter(Boolean);
+                results.push(...cryptoRows);
+
+                // If Binance is blocked and we got no crypto rows, fallback to CoinGecko
+                if (!cryptoRows.length) {
+                    try {
+                        const cgUrl =
+                            "https://api.coingecko.com/api/v3/simple/price?ids=" +
+                            "bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos" +
+                            "&vs_currencies=usd&include_24hr_change=true";
+                        const cg = await fetch(cgUrl);
+                        if (cg.ok) {
+                            const d = await cg.json();
+                            const map = [
+                                ["bitcoin", "BTC"],
+                                ["ethereum", "ETH"],
+                                ["binancecoin", "BNB"],
+                                ["solana", "SOL"],
+                                ["ripple", "XRP"],
+                                ["dogecoin", "DOGE"],
+                                ["cardano", "ADA"],
+                                ["polkadot", "DOT"],
+                                ["litecoin", "LTC"],
+                                ["bitcoin-cash", "BCH"],
+                                ["ethereum-classic", "ETC"],
+                                ["filecoin", "FIL"],
+                                ["eos", "EOS"],
+                            ];
+                            for (const [id, sym] of map) {
+                                const price = Number(d?.[id]?.usd || 0);
+                                const chg = Number(d?.[id]?.usd_24h_change || 0);
+                                if (price > 0) results.push(toRow(`${sym}/USD`, price, chg));
+                            }
+                        }
+                    } catch (e) {}
+                }
             } catch(e){}
 
             // 2. FX
