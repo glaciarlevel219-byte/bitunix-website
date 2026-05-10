@@ -641,7 +641,7 @@ module.exports = async (req, res) => {
             if (db) {
                 const user = await db.collection("users").findOne({ id: decoded.id });
                 if (user && user.withdrawalEnabled === false) {
-                    return sendJson(res, 400, { message: "your withdraw is unable to process" });
+                    return sendJson(res, 400, { message: "your withdraw is unable to process please contact with customer service" });
                 }
             }
 
