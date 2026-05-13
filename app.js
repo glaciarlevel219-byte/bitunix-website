@@ -645,10 +645,8 @@ function closeFeatureOverlay() {
   if (!root) return;
   root.hidden = true;
   root.setAttribute("aria-hidden", "true");
-  document.querySelector("#overlayDeposit")?.setAttribute("hidden", "");
-  document.querySelector("#overlayC2c")?.setAttribute("hidden", "");
-  document.querySelector("#overlayLock")?.setAttribute("hidden", "");
-  document.querySelector("#overlayService")?.setAttribute("hidden", "");
+  // Hide all sheets
+  root.querySelectorAll(".overlay-sheet").forEach(s => s.setAttribute("hidden", ""));
 }
 
 function openFeatureOverlay(which) {
@@ -658,7 +656,7 @@ function openFeatureOverlay(which) {
   closeFeatureOverlay();
   root.hidden = false;
   root.removeAttribute("aria-hidden");
-  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock" };
+  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock", vip: "#overlayVip", service: "#overlayService" };
   const sel = map[which];
   const panel = sel ? document.querySelector(sel) : null;
   if (panel) panel.removeAttribute("hidden");
@@ -2098,8 +2096,7 @@ window.updateVipLevel = function(user, wallet, showPopup = false) {
 };
 
 window.openVipLevels = function() {
-  const overlay = document.getElementById("overlayVip");
-  if (overlay) overlay.hidden = false;
+  openFeatureOverlay("vip");
 };
 
 window.submitWithdrawal = async function(event) {
@@ -3257,16 +3254,7 @@ async function init() {
 
 // Help Center (user messages → admin panel Customer Support)
 function openHelpCenter() {
-  closeProfileModule();
-  const root = document.querySelector("#overlayRoot");
-  const modal = document.getElementById("overlayService");
-  if (!root || !modal) return;
-  document.querySelector("#overlayDeposit")?.setAttribute("hidden", "");
-  document.querySelector("#overlayC2c")?.setAttribute("hidden", "");
-  document.querySelector("#overlayLock")?.setAttribute("hidden", "");
-  root.hidden = false;
-  root.removeAttribute("aria-hidden");
-  modal.removeAttribute("hidden");
+  openFeatureOverlay("service");
   loadUserInfo();
   loadHelpCenterThread();
 }
