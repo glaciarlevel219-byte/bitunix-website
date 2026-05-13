@@ -735,6 +735,40 @@ const server = http.createServer(async (req, res) => {
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       return sendJson(res, 200, { wallet: readWalletForUser(decoded.id) });
     }
+
+    if (req.method === "GET" && url.pathname === "/api/support/messages/user") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const file = path.join(ROOT, "data", `support_${decoded.id}.json`);
+      if (!fs.existsSync(file)) return sendJson(res, 200, { messages: [] });
+      const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+      return sendJson(res, 200, { messages: raw.messages || [] });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/support/messages/send") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const message = String(body.message || "").trim();
+      if (!message) return sendJson(res, 400, { message: "Message is required" });
+      const file = path.join(ROOT, "data", `support_${decoded.id}.json`);
+      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
+      raw.messages.push({
+        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        userId: decoded.id,
+        userName: decoded.name || "Unknown",
+        type: "user",
+        message,
+        time: Date.now(),
+        status: "sent"
+      });
+      fs.writeFileSync(file, JSON.stringify(raw, null, 2));
+      return sendJson(res, 200, { message: "Support message sent" });
+    }
     if (req.method === "POST" && url.pathname === "/api/verification/submit") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
