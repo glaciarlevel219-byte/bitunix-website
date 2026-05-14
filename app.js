@@ -1066,9 +1066,8 @@ function buildProfileModuleHtml(action) {
     case "withdrawal-record":
       return renderWithdrawalModule(w);
     case "transactions":
-      return renderTransactionsModule(w);
     case "tx-log":
-      return renderTxLogModule(w);
+      return renderTransactionsModule(w);
     case "verification":
       return renderVerificationModule(w);
     case "settings":
@@ -1705,6 +1704,7 @@ function renderAccountMenu() {
     { label: "Recharge Record", icon: "&#128196;", action: "recharge" },
     { label: "Withdrawal Record", icon: "&#128196;", action: "withdrawal-record" },
     { label: "Transaction history", icon: "&#128196;", action: "transactions" },
+    { label: "Transaction Log", icon: "&#128196;", action: "tx-log" },
     { label: "Verification", icon: "&#128101;", action: "verification" },
     { label: "Account Settings", icon: "&#9881;", action: "settings" },
     { label: "Funding Account", icon: "&#128179;", action: "funding" },
