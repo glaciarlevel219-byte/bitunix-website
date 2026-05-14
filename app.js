@@ -1031,23 +1031,31 @@ function closeFeaturePanelsOnly() {
 }
 
 function openProfileModule(action) {
-  if (!state.token) {
-    promptAuthAndFocus();
-    showToast("Please sign in to open this section.", true);
-    return;
+  try {
+    if (!state.token) {
+      promptAuthAndFocus();
+      showToast("Please sign in to open this section.", true);
+      return;
+    }
+    closeFeaturePanelsOnly();
+    closeProfileModule();
+    switchToTab("user");
+    const root = document.querySelector("#profileModuleRoot");
+    const titleEl = document.querySelector("#profileModuleTitle");
+    const body = document.querySelector("#profileModuleBody");
+    if (!root || !titleEl || !body) {
+      console.error("Profile module elements not found");
+      return;
+    }
+    titleEl.textContent = PROFILE_MODULE_TITLES[action] || "Account";
+    body.innerHTML = buildProfileModuleHtml(action);
+    root.hidden = false;
+    root.removeAttribute("aria-hidden");
+    if (action === "intro") hydrateIntroLiveLine();
+  } catch (err) {
+    console.error("Error opening profile module:", err);
+    showToast("Failed to open section. Please try again.", true);
   }
-  closeFeaturePanelsOnly();
-  closeProfileModule();
-  switchToTab("user");
-  const root = document.querySelector("#profileModuleRoot");
-  const titleEl = document.querySelector("#profileModuleTitle");
-  const body = document.querySelector("#profileModuleBody");
-  if (!root || !titleEl || !body) return;
-  titleEl.textContent = PROFILE_MODULE_TITLES[action] || "Account";
-  body.innerHTML = buildProfileModuleHtml(action);
-  root.hidden = false;
-  root.removeAttribute("aria-hidden");
-  if (action === "intro") hydrateIntroLiveLine();
 }
 
 function buildProfileModuleHtml(action) {
@@ -1140,8 +1148,8 @@ function renderTransactionsModule(w) {
       (r) => `<tr>
       <td>${fmtTs(r.created)}</td>
       <td>${safeText(r.title || r.kind)}</td>
-      <td>${Number(r.amount).toFixed(2)} ${safeText(r.asset || "USDT")}</td>
-      <td><span class="status-badge status-${String(r.status).toLowerCase()}">${safeText(r.status)}</span></td>
+      <td>${(Number(r.amount) || 0).toFixed(2)} ${safeText(r.asset || "USDT")}</td>
+      <td><span class="status-badge status-${String(r.status || 'unknown').toLowerCase()}">${safeText(r.status)}</span></td>
       <td>${safeText(r.detail || "—")}</td>
     </tr>`,
     )
@@ -1696,8 +1704,7 @@ function renderAccountMenu() {
   const list = [
     { label: "Recharge Record", icon: "&#128196;", action: "recharge" },
     { label: "Withdrawal Record", icon: "&#128196;", action: "withdrawal-record" },
-    { label: "Transaction records", icon: "&#128196;", action: "transactions" },
-    { label: "Transaction Log", icon: "&#128196;", action: "tx-log" },
+    { label: "Transaction history", icon: "&#128196;", action: "transactions" },
     { label: "Verification", icon: "&#128101;", action: "verification" },
     { label: "Account Settings", icon: "&#9881;", action: "settings" },
     { label: "Funding Account", icon: "&#128179;", action: "funding" },
