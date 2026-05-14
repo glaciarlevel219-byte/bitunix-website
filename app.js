@@ -1155,13 +1155,28 @@ function renderTransactionsModule(w) {
   }
   const body = rows
     .map(
-      (r) => `<tr>
-      <td>${fmtTs(r.created)}</td>
-      <td>${safeText(r.title || r.kind)}</td>
-      <td>${Number(r.amount).toFixed(4)} ${safeText(r.asset || "USDT")}</td>
-      <td>${safeText(r.status)}</td>
-      <td>${safeText(r.detail || "—")}</td>
-    </tr>`,
+      (r) => {
+        const isTrade = r.type === "trade";
+        const typeStr = r.title || r.kind || (isTrade ? `Trade ${r.symbol || ""}` : r.type) || "Other";
+        let amountStr = "";
+        if (isTrade && r.profitAmount !== undefined) {
+           const p = Number(r.profitAmount);
+           amountStr = (p >= 0 ? "+" : "") + p.toFixed(2);
+        } else {
+           amountStr = Number(r.amount || 0).toFixed(4);
+        }
+        const statusStr = r.status || "completed";
+        const noteStr = r.detail || r.description || "—";
+        const amountClass = isTrade ? (Number(r.profitAmount || 0) >= 0 ? "text-success" : "text-danger") : "";
+
+        return `<tr>
+          <td>${fmtTs(r.created)}</td>
+          <td>${safeText(typeStr)}</td>
+          <td class="${amountClass}">${amountStr} ${safeText(r.asset || "USDT")}</td>
+          <td>${safeText(statusStr)}</td>
+          <td>${safeText(noteStr)}</td>
+        </tr>`;
+      }
     )
     .join("");
   return `<p class="profile-mod-muted">Unified ledger (same style as major exchanges).</p>${tableWrap(["Time", "Type", "Amount", "Status", "Note"], body)}`;

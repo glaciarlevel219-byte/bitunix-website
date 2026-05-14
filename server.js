@@ -1032,6 +1032,62 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { message: "Order cancelled", wallet });
     }
 
+    if (url.pathname === "/api/trade/execute" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+
+      const { amount, symbol, direction, duration, entryPrice } = await parseBody(req);
+      const amt = Number(amount);
+      if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
+
+      const wallet = readWalletForUser(decoded.id);
+      if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+
+      const users = readUsers();
+      const user = users.find(u => u.id === decoded.id);
+      const mode = user?.tradeOutcomeMode || "random";
+
+      let isWin = false;
+      if (mode === "profit") isWin = true;
+      else if (mode === "loss") isWin = false;
+      else isWin = Math.random() > 0.5;
+
+      const config = { "30": 30, "60": 40, "90": 50, "120": 60, "180": 70, "300": 80 };
+      const pct = config[String(duration)] || 30;
+      const profitAmount = (amt * pct) / 100;
+      
+      wallet.balance -= amt;
+      if (isWin) wallet.balance += (amt + profitAmount);
+
+      const tradeId = `tr_${Date.now()}`;
+      const result = {
+        id: tradeId,
+        symbol,
+        direction,
+        duration,
+        amount: amt,
+        entryPrice,
+        exitPrice: isWin ? entryPrice * (1 + (pct/1000)) : entryPrice * (1 - (pct/1000)),
+        profitPct: isWin ? pct : -pct,
+        profitAmount: isWin ? profitAmount : -profitAmount,
+        isWin,
+        status: "completed",
+        created: Date.now()
+      };
+
+      wallet.transactions = wallet.transactions || [];
+      wallet.transactions.push({
+        ...result,
+        type: "trade",
+        description: `Trade ${symbol} (${duration}s) - ${isWin ? 'PROFIT' : 'LOSS'}`
+      });
+
+      writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { message: "Success", result, wallet });
+    }
+
     return serveFile(url.pathname, res);
   } catch (err) {
     return sendJson(res, 500, { message: "Server error", detail: String(err.message || err) });
