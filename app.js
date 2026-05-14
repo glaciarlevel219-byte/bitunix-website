@@ -874,7 +874,7 @@ function initFeatureOverlays() {
     });
   });
 
-  document.querySelector("#c2cForm")?.addEventListener("submit", (e) => {
+  document.querySelector("#c2cForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!state.token) {
       showToast("Please log in first.", true);
@@ -889,12 +889,14 @@ function initFeatureOverlays() {
     const amt = Number(fd.get("amount") || 0);
     const price = Number(fd.get("price") || 0);
     const side = String(fd.get("side") || state.c2cSide);
+    const note = String(fd.get("note") || "");
+
     w.c2c.push({
       id: oid,
       side,
       amount: amt,
       price,
-      note: String(fd.get("note") || ""),
+      note,
       status: "open",
       created: Date.now(),
     });
@@ -904,7 +906,7 @@ function initFeatureOverlays() {
       amount: amt,
       asset: "USDT",
       status: "open",
-      detail: `@ ${price.toFixed(4)} · ${String(fd.get("note") || "").slice(0, 40)}`,
+      detail: `@ ${price.toFixed(4)} · ${note.slice(0, 40)}`,
     });
     walletAddTxLog(w, {
       level: "INFO",
@@ -916,9 +918,17 @@ function initFeatureOverlays() {
     const m = document.querySelector("#c2cMsg");
     if (m) m.textContent = "Order published.";
     showToast("C2C order is live on the board.", false);
+    
+    // Auto-send support message
+    const c2cSummary = `🆕 C2C ORDER APPLIED\nType: ${side.toUpperCase()} USDT\nAmount: ${amt} USDT\nPrice: ${price} per USDT\nNote: ${note || "N/A"}\nOrder ID: ${oid.slice(0, 8)}`;
+    await sendSupportMessage(c2cSummary);
+    
     e.target.reset();
     document.querySelector("#c2cSideField").value = state.c2cSide;
     renderC2cOrderList();
+    
+    // Open Help Center to show the message
+    openHelpCenter();
   });
 
   document.querySelector("#lockSubscribeForm")?.addEventListener("submit", (e) => {
