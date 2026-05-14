@@ -644,47 +644,29 @@ function closeFeatureOverlay() {
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
   root.hidden = true;
-  root.style.display = "none";
   root.setAttribute("aria-hidden", "true");
-  root.querySelectorAll(".overlay-sheet").forEach(s => {
-    s.setAttribute("hidden", "true");
-    s.style.display = "none";
-  });
+  // Hide all sheets globally to prevent overlaps
+  document.querySelectorAll(".overlay-sheet").forEach(s => s.setAttribute("hidden", ""));
 }
 
 function openFeatureOverlay(which) {
-  console.log("openFeatureOverlay triggered for:", which);
   closeProfileModule();
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
-
-  // First, close/hide everything to start clean
+  
+  // Aggressively hide everything first
   closeFeatureOverlay();
   
-  // Show root
-  root.hidden = false;
-  root.style.display = "flex";
-  root.removeAttribute("aria-hidden");
-
-  const map = { 
-    deposit: "#overlayDeposit", 
-    c2c: "#overlayC2c", 
-    lock: "#overlayLock", 
-    vip: "#overlayVip", 
-    service: "#overlayService" 
-  };
-  
+  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock", vip: "#overlayVip", service: "#overlayService" };
   const sel = map[which];
   const panel = sel ? document.querySelector(sel) : null;
   
   if (panel) {
-    panel.hidden = false;
     panel.removeAttribute("hidden");
-    panel.style.display = "block";
-    console.log("Sheet displayed:", sel);
-  } else {
-    console.error("Sheet not found for key:", which);
+    root.hidden = false;
+    root.removeAttribute("aria-hidden");
   }
+
   if (which === "lock") {
     renderLockProductGrid();
     renderLockPositionsTable();
@@ -1151,35 +1133,20 @@ function renderWithdrawalModule(w) {
 function renderTransactionsModule(w) {
   const rows = (w.transactions || []).slice().reverse();
   if (!rows.length) {
-    return `<p class="profile-mod-muted">No movements yet. Deposits, withdrawals, C2C and lock-up create entries here.</p>`;
+    return `<p class="profile-mod-muted">No movements yet. Deposits, withdrawals, and trades create entries here.</p>`;
   }
   const body = rows
     .map(
-      (r) => {
-        const isTrade = r.type === "trade";
-        const typeStr = r.title || r.kind || (isTrade ? `Trade ${r.symbol || ""}` : r.type) || "Other";
-        let amountStr = "";
-        if (isTrade && r.profitAmount !== undefined) {
-           const p = Number(r.profitAmount);
-           amountStr = (p >= 0 ? "+" : "") + p.toFixed(2);
-        } else {
-           amountStr = Number(r.amount || 0).toFixed(4);
-        }
-        const statusStr = r.status || "completed";
-        const noteStr = r.detail || r.description || "—";
-        const amountClass = isTrade ? (Number(r.profitAmount || 0) >= 0 ? "text-success" : "text-danger") : "";
-
-        return `<tr>
-          <td>${fmtTs(r.created)}</td>
-          <td>${safeText(typeStr)}</td>
-          <td class="${amountClass}">${amountStr} ${safeText(r.asset || "USDT")}</td>
-          <td>${safeText(statusStr)}</td>
-          <td>${safeText(noteStr)}</td>
-        </tr>`;
-      }
+      (r) => `<tr>
+      <td>${fmtTs(r.created)}</td>
+      <td>${safeText(r.title || r.kind)}</td>
+      <td>${Number(r.amount).toFixed(2)} ${safeText(r.asset || "USDT")}</td>
+      <td><span class="status-badge status-${String(r.status).toLowerCase()}">${safeText(r.status)}</span></td>
+      <td>${safeText(r.detail || "—")}</td>
+    </tr>`,
     )
     .join("");
-  return `<p class="profile-mod-muted">Unified ledger (same style as major exchanges).</p>${tableWrap(["Time", "Type", "Amount", "Status", "Note"], body)}`;
+  return `<p class="profile-mod-muted">Unified transaction history.</p>${tableWrap(["Time", "Type", "Amount", "Status", "Detail"], body)}`;
 }
 
 function renderTxLogModule(w) {
@@ -2136,7 +2103,6 @@ window.updateVipLevel = function(user, wallet, showPopup = false) {
 };
 
 window.openVipLevels = function() {
-  console.log("openVipLevels called");
   openFeatureOverlay("vip");
 };
 
@@ -3295,13 +3261,10 @@ async function init() {
 
 // Help Center (user messages → admin panel Customer Support)
 function openHelpCenter() {
-  console.log("openHelpCenter called");
   openFeatureOverlay("service");
   loadUserInfo();
   loadHelpCenterThread();
 }
-
-window.openHelpCenter = openHelpCenter;
 
 function openSupportModal() {
   openHelpCenter();

