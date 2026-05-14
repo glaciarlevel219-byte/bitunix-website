@@ -644,22 +644,47 @@ function closeFeatureOverlay() {
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
   root.hidden = true;
+  root.style.display = "none";
   root.setAttribute("aria-hidden", "true");
-  // Hide all sheets
-  root.querySelectorAll(".overlay-sheet").forEach(s => s.setAttribute("hidden", ""));
+  root.querySelectorAll(".overlay-sheet").forEach(s => {
+    s.setAttribute("hidden", "true");
+    s.style.display = "none";
+  });
 }
 
 function openFeatureOverlay(which) {
+  console.log("openFeatureOverlay triggered for:", which);
   closeProfileModule();
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
+
+  // First, close/hide everything to start clean
   closeFeatureOverlay();
+  
+  // Show root
   root.hidden = false;
+  root.style.display = "flex";
   root.removeAttribute("aria-hidden");
-  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock", vip: "#overlayVip", service: "#overlayService" };
+
+  const map = { 
+    deposit: "#overlayDeposit", 
+    c2c: "#overlayC2c", 
+    lock: "#overlayLock", 
+    vip: "#overlayVip", 
+    service: "#overlayService" 
+  };
+  
   const sel = map[which];
   const panel = sel ? document.querySelector(sel) : null;
-  if (panel) panel.removeAttribute("hidden");
+  
+  if (panel) {
+    panel.hidden = false;
+    panel.removeAttribute("hidden");
+    panel.style.display = "block";
+    console.log("Sheet displayed:", sel);
+  } else {
+    console.error("Sheet not found for key:", which);
+  }
   if (which === "lock") {
     renderLockProductGrid();
     renderLockPositionsTable();
@@ -2096,6 +2121,7 @@ window.updateVipLevel = function(user, wallet, showPopup = false) {
 };
 
 window.openVipLevels = function() {
+  console.log("openVipLevels called");
   openFeatureOverlay("vip");
 };
 
@@ -3254,10 +3280,13 @@ async function init() {
 
 // Help Center (user messages → admin panel Customer Support)
 function openHelpCenter() {
+  console.log("openHelpCenter called");
   openFeatureOverlay("service");
   loadUserInfo();
   loadHelpCenterThread();
 }
+
+window.openHelpCenter = openHelpCenter;
 
 function openSupportModal() {
   openHelpCenter();
