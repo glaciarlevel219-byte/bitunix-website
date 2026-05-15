@@ -193,12 +193,12 @@ module.exports = async (req, res) => {
       await db.collection("reset_codes").updateOne({ email }, { $set: { code, expires: Date.now() + 15 * 60000 } }, { upsert: true });
 
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || "smtp.hostinger.com",
+        host: process.env.SMTP_HOST || "mail.bitunixpk.com",
         port: Number(process.env.SMTP_PORT) || 465,
         secure: true,
         auth: {
           user: process.env.SMTP_USER || "support@bitunixpk.com",
-          pass: process.env.SMTP_PASS || ""
+          pass: process.env.SMTP_PASS || "Bitunix@123"
         }
       });
 
@@ -208,10 +208,21 @@ module.exports = async (req, res) => {
           return sendJson(res, 400, { message: "SMTP Password not configured in Vercel. Please set SMTP_PASS." });
         }
         await transporter.sendMail({
-          from: `"Bitunix Support" <${process.env.SMTP_USER || "support@bitunixpk.com"}>`,
+          from: `"Bitunix Support Team" <${process.env.SMTP_USER || "support@bitunixpk.com"}>`,
           to: email,
-          subject: "Password Reset Code",
-          text: `Your password reset code is: ${code}\nThis code will expire in 15 minutes.`
+          subject: "Password Reset Verification Code",
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; color: #333; line-height: 1.6;">
+              <p>Hi,</p>
+              <p>We received a request to reset your account password.</p>
+              <p>Your verification code is:</p>
+              <div style="font-size: 24px; font-weight: bold; color: #f6b53b; margin: 10px 0;">${code}</div>
+              <p>This code will expire in <strong>15 minutes</strong> for security purposes.</p>
+              <p>If you did not request a password reset, please ignore this email or contact support immediately.</p>
+              <p>Best regards,<br>Bitunix Support Team</p>
+            </div>
+          `,
+          text: `Hi,\n\nWe received a request to reset your account password.\nYour verification code is: ${code}\n\nThis code will expire in 15 minutes for security purposes.\nIf you did not request a password reset, please ignore this email or contact support immediately.\n\nBest regards,\nBitunix Support Team`
         });
         return sendJson(res, 200, { message: "Code sent to email" });
       } catch (err) {
