@@ -20,17 +20,21 @@ const transporter = nodemailer.createTransport(smtpConfig);
 async function sendResetEmail(to, code) {
   try {
     await transporter.sendMail({
-      from: `"Bitunix Support" <${smtpConfig.auth.user}>`,
+      from: `"Bitunix Support Team" <${smtpConfig.auth.user}>`,
       to,
-      subject: "Verification Code: " + code,
+      subject: "Password Reset Verification Code",
       html: `
-        <div style="font-family: sans-serif; max-width: 500px; border: 1px solid #eee; padding: 20px;">
-          <h2 style="color: #f6b53b;">Password Reset</h2>
-          <p>Your verification code for password reset is:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #333; margin: 20px 0;">${code}</div>
-          <p>This code will expire in 1 hour. If you didn't request this, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; color: #333; line-height: 1.6;">
+          <p>Hi,</p>
+          <p>We received a request to reset your account password.</p>
+          <p>Your verification code is:</p>
+          <div style="font-size: 24px; font-weight: bold; color: #f6b53b; margin: 10px 0;">${code}</div>
+          <p>This code will expire in <strong>15 minutes</strong> for security purposes.</p>
+          <p>If you did not request a password reset, please ignore this email or contact support immediately.</p>
+          <p>Best regards,<br>Bitunix Support Team</p>
         </div>
-      `
+      `,
+      text: `Hi,\n\nWe received a request to reset your account password.\nYour verification code is: ${code}\n\nThis code will expire in 15 minutes for security purposes.\nIf you did not request a password reset, please ignore this email or contact support immediately.\n\nBest regards,\nBitunix Support Team`
     });
     return true;
   } catch (err) {
@@ -578,7 +582,7 @@ const server = http.createServer(async (req, res) => {
 
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       user.resetCode = code;
-      user.resetExpires = Date.now() + 3600000;
+      user.resetExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
       writeUsers(users);
 
       const emailSent = await sendResetEmail(email, code);
