@@ -6,12 +6,12 @@ const nodemailer = require("nodemailer");
 
 // SMTP Config (Update these with your real credentials)
 const smtpConfig = {
-  host: "smtp.gmail.com", 
+  host: "mail.bitunixpk.com", 
   port: 465,
   secure: true,
   auth: {
-    user: "support@bitunix-global.com", // Placeholder
-    pass: "your-app-password"           // Placeholder
+    user: "support@bitunixpk.com",
+    pass: "Bitunix@123"
   }
 };
 
@@ -549,7 +549,7 @@ const server = http.createServer(async (req, res) => {
       if (users.some((u) => u.email === email)) {
         return sendJson(res, 409, { message: "Email already registered." });
       }
-      
+
       let nextId = 854694;
       for (const u of users) {
         if (/^\d+$/.test(u.id)) {
@@ -559,7 +559,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
       }
-      
+
       const user = { id: nextId.toString(), name, email, passwordHash: hashPassword(password), createdAt: Date.now() };
       users.push(user);
       writeUsers(users);
@@ -583,7 +583,7 @@ const server = http.createServer(async (req, res) => {
 
       const emailSent = await sendResetEmail(email, code);
       console.log(`[PASSWORD RESET] Code for ${email}: ${code} (Email Sent: ${emailSent})`);
-      
+
       if (emailSent) {
         return sendJson(res, 200, { message: "Reset code has been sent to your email." });
       } else {
@@ -901,38 +901,38 @@ const server = http.createServer(async (req, res) => {
       const config = { "30": 30, "60": 40, "90": 50, "120": 60, "180": 70, "300": 80 };
       const pct = config[String(duration)] || 30;
       const profitAmount = (amt * pct) / 100;
-      
+
       wallet.balance = (wallet.balance || 0) - amt;
       if (isWin) {
-          wallet.balance += (amt + profitAmount);
+        wallet.balance += (amt + profitAmount);
       }
 
       const tradeId = `tr_${Date.now()}`;
       const result = {
-          id: tradeId,
-          symbol,
-          direction,
-          duration,
-          amount: amt,
-          entryPrice: Number(entryPrice || 0),
-          exitPrice: isWin ? (Number(entryPrice || 0) * (1 + 0.001)) : (Number(entryPrice || 0) * (1 - 0.001)),
-          profitPct: isWin ? pct : -pct,
-          profitAmount: isWin ? profitAmount : -profitAmount,
-          isWin,
-          status: "completed",
-          created: Date.now()
+        id: tradeId,
+        symbol,
+        direction,
+        duration,
+        amount: amt,
+        entryPrice: Number(entryPrice || 0),
+        exitPrice: isWin ? (Number(entryPrice || 0) * (1 + 0.001)) : (Number(entryPrice || 0) * (1 - 0.001)),
+        profitPct: isWin ? pct : -pct,
+        profitAmount: isWin ? profitAmount : -profitAmount,
+        isWin,
+        status: "completed",
+        created: Date.now()
       };
 
       wallet.transactions = wallet.transactions || [];
       wallet.transactions.push({
-          id: tradeId,
-          created: Date.now(),
-          kind: "trade",
-          title: `Trade ${symbol}`,
-          amount: amt,
-          asset: "USDT",
-          status: "completed",
-          detail: `${direction.toUpperCase()} | ${isWin ? 'PROFIT' : 'LOSS'}: ${Math.abs(result.profitAmount).toFixed(2)} USDT`
+        id: tradeId,
+        created: Date.now(),
+        kind: "trade",
+        title: `Trade ${symbol}`,
+        amount: amt,
+        asset: "USDT",
+        status: "completed",
+        detail: `${direction.toUpperCase()} | ${isWin ? 'PROFIT' : 'LOSS'}: ${Math.abs(result.profitAmount).toFixed(2)} USDT`
       });
 
       writeWalletForUser(decoded.id, wallet);
@@ -945,12 +945,12 @@ const server = http.createServer(async (req, res) => {
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       const body = await parseBody(req);
       const fullName = String(body.fullName || "").trim();
-      
-      
-      
-      
-      
-      
+
+
+
+
+
+
       const idType = String(body.idType || "").trim();
       const idNumber = String(body.idNumber || "").trim();
       const idImageData = String(body.idImageData || "");
@@ -997,29 +997,29 @@ const server = http.createServer(async (req, res) => {
       writeWalletForUser(decoded.id, w);
       return sendJson(res, 200, { message: "Withdrawal submitted.", withdrawal: wd, wallet: w });
     }
-    
+
     // Deposit/Recharge API endpoints
     if (req.method === "POST" && url.pathname === "/api/deposit/create") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      
+
       const body = await parseBody(req);
       const amount = Number(body.amount);
       const network = String(body.network || "TRC20").trim();
-      
+
       if (!amount || amount <= 0) {
         return sendJson(res, 400, { message: "Invalid deposit amount." });
       }
-      
+
       const walletFile = path.join(ROOT, "data", `wallet_${decoded.id}.json`);
       let wallet = { balance: 0, locks: [], c2c: [], recharges: [], withdrawals: [], transactions: [], txLogs: [], pendingDeposits: [] };
-      
+
       if (fs.existsSync(walletFile)) {
         wallet = JSON.parse(fs.readFileSync(walletFile, "utf8"));
       }
-      
+
       const deposit = {
         id: `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         amount: amount,
@@ -1028,7 +1028,7 @@ const server = http.createServer(async (req, res) => {
         created: Date.now(),
         creditedAt: null
       };
-      
+
       wallet.pendingDeposits.push(deposit);
       wallet.transactions.push({
         id: deposit.id,
@@ -1040,30 +1040,30 @@ const server = http.createServer(async (req, res) => {
         status: "pending",
         detail: `${network} Network`
       });
-      
+
       fs.writeFileSync(walletFile, JSON.stringify(wallet, null, 2));
-      
-      return sendJson(res, 200, { 
+
+      return sendJson(res, 200, {
         message: "Deposit request created successfully.",
         deposit: deposit
       });
     }
-    
+
     if (req.method === "GET" && url.pathname === "/api/deposit/pending") {
       const auth = req.headers.authorization || "";
       const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
-      
+
       const walletFile = path.join(ROOT, "data", `wallet_${decoded.id}.json`);
       if (!fs.existsSync(walletFile)) {
         return sendJson(res, 200, { pendingDeposits: [] });
       }
-      
+
       const wallet = JSON.parse(fs.readFileSync(walletFile, "utf8"));
       return sendJson(res, 200, { pendingDeposits: wallet.pendingDeposits || [] });
     }
-    
+
     // --- SPOT TRADING & CHART APIs ---
     if (url.pathname === "/api/chart/market" && req.method === "GET") {
       const id = url.searchParams.get("id") || "bitcoin";
@@ -1082,7 +1082,7 @@ const server = http.createServer(async (req, res) => {
         if (b) return sendJson(res, 200, { data: b });
         // Return dummy data if both fail
         const prices = []; let p = 60000; const now = Date.now();
-        for(let i=0; i<100; i++) { p += (Math.random()-0.5)*500; prices.push([now - (100-i)*3600000, p]); }
+        for (let i = 0; i < 100; i++) { p += (Math.random() - 0.5) * 500; prices.push([now - (100 - i) * 3600000, p]); }
         return sendJson(res, 200, { data: { prices } });
       }
     }
@@ -1108,7 +1108,7 @@ const server = http.createServer(async (req, res) => {
 
       wallet.spot_orders = wallet.spot_orders || [];
       wallet.spot_positions = wallet.spot_positions || [];
-      
+
       if (type === "market") {
         if (side === "buy") {
           if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
@@ -1126,14 +1126,14 @@ const server = http.createServer(async (req, res) => {
           const posIdx = wallet.spot_positions.findIndex(p => p.symbol === symbol);
           if (posIdx < 0 || wallet.spot_positions[posIdx].amount < qty) return sendJson(res, 400, { message: "Insufficient position" });
           wallet.spot_positions[posIdx].amount -= qty;
-          wallet.balance += amt; 
+          wallet.balance += amt;
           if (wallet.spot_positions[posIdx].amount <= 1e-10) wallet.spot_positions.splice(posIdx, 1);
         }
         wallet.transactions.push({ type: "spot_trade", title: `${side.toUpperCase()} ${symbol}`, amount: amt, asset: "USDT", status: "completed", created: Date.now() });
       } else {
         if (side === "buy") {
           if (wallet.balance < amt) return sendJson(res, 400, { message: "Insufficient balance" });
-          wallet.balance -= amt; 
+          wallet.balance -= amt;
         }
         wallet.spot_orders.push(order);
       }
@@ -1150,12 +1150,12 @@ const server = http.createServer(async (req, res) => {
       const wallet = readWalletForUser(decoded.id);
       const pricesRaw = url.searchParams.get("prices");
       let prices = {};
-      try { if(pricesRaw) prices = JSON.parse(pricesRaw); } catch(e){}
+      try { if (pricesRaw) prices = JSON.parse(pricesRaw); } catch (e) { }
 
       let changed = false;
       wallet.spot_orders = wallet.spot_orders || [];
       wallet.spot_positions = wallet.spot_positions || [];
-      
+
       for (const order of wallet.spot_orders.filter(o => o.status === "open")) {
         const cur = Number(prices[order.symbol]);
         if (!cur) continue;
