@@ -2774,6 +2774,10 @@ select {
   backdrop-filter: blur(10px);
 }
 
+.trade-countdown-overlay[hidden] {
+  display: none !important;
+}
+
 .overlay-close {
   background: transparent;
   border: none;

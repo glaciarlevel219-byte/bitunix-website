@@ -3899,34 +3899,60 @@ let setupDirection = 'buy';
 
 window.openTradeSetup = function(cat, label) {
   const overlay = document.getElementById("tradeSetupOverlay");
-  if (!overlay) return;
+  if (!overlay) {
+    console.error("tradeSetupOverlay not found in DOM");
+    return;
+  }
 
-  const list = TRADE_CATALOGS[cat] || [];
-  const item = list.find(x => x.label === label);
-  if (!item) return;
+  // Find item in specific cat, or fallback search all
+  let list = TRADE_CATALOGS[cat] || [];
+  let item = list.find(x => x.label === label);
+  if (!item) {
+    // Try finding in any category
+    for (const c in TRADE_CATALOGS) {
+      const found = TRADE_CATALOGS[c].find(x => x.label === label);
+      if (found) {
+        item = found;
+        cat = c;
+        break;
+      }
+    }
+  }
+
+  if (!item) {
+    showToast(`Trading pair ${label} configuration not found.`, true);
+    return;
+  }
 
   document.getElementById("setupOverlayCurrency").textContent = label;
-  const price = item.last ? Number(item.last).toFixed(6) : "--";
-  document.getElementById("setupOverlayPrice").textContent = price;
+  const price = item.last || tradeLastRowMap.get(label)?.last;
+  document.getElementById("setupOverlayPrice").textContent = price ? Number(price).toFixed(6) : "--";
   
   const w = loadWallet();
-  document.getElementById("setupOverlayBalance").textContent = `${w.balance.toFixed(2)} USDT`;
+  const balEl = document.getElementById("setupOverlayBalance");
+  if (balEl) balEl.textContent = `${Number(w.balance || 0).toFixed(2)} USDT`;
 
   overlay.hidden = false;
+  overlay.style.display = "flex"; // Force display
+  
   initTradeOverlayUI();
   
-  // Start price update interval for the overlay
+  if (state.setupOverlayInterval) clearInterval(state.setupOverlayInterval);
   state.setupOverlayInterval = setInterval(() => {
     const fresh = tradeLastRowMap.get(label);
     if (fresh) {
-      document.getElementById("setupOverlayPrice").textContent = Number(fresh.last).toFixed(6);
+      const pEl = document.getElementById("setupOverlayPrice");
+      if (pEl) pEl.textContent = Number(fresh.last).toFixed(6);
     }
   }, 3000);
 };
 
 window.closeTradeSetup = function() {
   const overlay = document.getElementById("tradeSetupOverlay");
-  if (overlay) overlay.hidden = true;
+  if (overlay) {
+    overlay.hidden = true;
+    overlay.style.display = "none";
+  }
   if (state.setupOverlayInterval) clearInterval(state.setupOverlayInterval);
 };
 
