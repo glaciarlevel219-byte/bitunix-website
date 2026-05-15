@@ -68,7 +68,7 @@ const DIAL_CACHE_KEY_LEGACY = "bitbank_dial_codes_v1";
 
 const DEPOSIT_PENDING_MS = 30 * 60 * 1000;
 const DEPOSIT_ADDR_BY_NETWORK = {
-  TRC20: "TE4t2G2XjM2RokYutrDfC556pBpXV6T796",
+  TRC20: "TMco7yk1rHxcsEX76bvJWgncoddDjNdTNb",
   ERC20: "",
   BEP20: "",
 };
