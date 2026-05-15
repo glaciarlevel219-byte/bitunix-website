@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=3.0">
+  <link rel="stylesheet" href="./styles.css?v=3.1">
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=3.0"></script>
+  <script defer src="./app.js?v=3.1"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -732,12 +732,13 @@
         <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with trading')">Trading</button>
         <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with verification')">Verification</button>
       </div>
-      <div class="help-center-custom-message">
-        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Describe your issue in detail and our support team will assist you..." rows="3"></textarea>
-        <button type="button" class="help-topic-btn" onclick="sendCustomCustomerMessage()">Send Message</button>
-      </div>
       <div id="customerMessages" class="help-center-thread" aria-live="polite"></div>
       <p id="customerStatus" class="help-center-status muted"></p>
+
+      <div class="help-center-custom-message">
+        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Type your message here... Our support team will assist you." rows="5"></textarea>
+        <button type="button" class="help-topic-btn" onclick="sendCustomCustomerMessage()">Send Message</button>
+      </div>
       <p id="supportMsg" class="overlay-msg muted"></p>
     </div>
   </div>

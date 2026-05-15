@@ -2029,11 +2029,6 @@ select {
   font-family: inherit;
 }
 
-.help-center-textarea:focus {
-  outline: none;
-  border-color: #5a7ab8;
-}
-
 .help-center-thread {
   max-height: 220px;
   overflow: auto;
@@ -2533,14 +2528,15 @@ select {
 }
 
 .help-center-textarea {
+  width: 100%;
   background: #0d1117;
   border: 1px solid #30363d;
-  border-radius: 12px;
+  border-radius: 8px;
+  padding: 12px;
   color: #f0f6fc;
-  padding: 14px;
   font-size: 14px;
-  resize: none;
-  transition: border-color 0.2s;
+  resize: vertical;
+  min-height: 120px;
 }
 
 .help-center-textarea:focus {
@@ -2559,6 +2555,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  margin-bottom: 20px;
 }
 
 /* Thread scrollbar */
