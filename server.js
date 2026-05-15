@@ -2,6 +2,42 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const nodemailer = require("nodemailer");
+
+// SMTP Config (Update these with your real credentials)
+const smtpConfig = {
+  host: "smtp.gmail.com", 
+  port: 465,
+  secure: true,
+  auth: {
+    user: "support@bitunix-global.com", // Placeholder
+    pass: "your-app-password"           // Placeholder
+  }
+};
+
+const transporter = nodemailer.createTransport(smtpConfig);
+
+async function sendResetEmail(to, code) {
+  try {
+    await transporter.sendMail({
+      from: `"Bitunix Support" <${smtpConfig.auth.user}>`,
+      to,
+      subject: "Verification Code: " + code,
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; border: 1px solid #eee; padding: 20px;">
+          <h2 style="color: #f6b53b;">Password Reset</h2>
+          <p>Your verification code for password reset is:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #333; margin: 20px 0;">${code}</div>
+          <p>This code will expire in 1 hour. If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    });
+    return true;
+  } catch (err) {
+    console.error("Email send error:", err);
+    return false;
+  }
+}
 
 const HOST = "127.0.0.1";
 const PORT = 5608;
@@ -545,8 +581,14 @@ const server = http.createServer(async (req, res) => {
       user.resetExpires = Date.now() + 3600000;
       writeUsers(users);
 
-      console.log(`\x1b[33m[PASSWORD RESET] Code for ${email}: ${code}\x1b[0m`);
-      return sendJson(res, 200, { message: "Reset code sent to your email (Check server logs)" });
+      const emailSent = await sendResetEmail(email, code);
+      console.log(`[PASSWORD RESET] Code for ${email}: ${code} (Email Sent: ${emailSent})`);
+      
+      if (emailSent) {
+        return sendJson(res, 200, { message: "Reset code has been sent to your email." });
+      } else {
+        return sendJson(res, 500, { message: "Failed to send email. Please contact support." });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/auth/reset-password") {
