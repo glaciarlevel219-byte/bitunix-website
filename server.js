@@ -528,8 +528,49 @@ const server = http.createServer(async (req, res) => {
       users.push(user);
       writeUsers(users);
       writeWalletForUser(user.id, readWalletForUser(user.id));
-      return sendJson(res, 201, { message: "Registered successfully." });
+      return sendJson(res, 201, { message: "User registered" });
     }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/forgot-password") {
+      const body = await parseBody(req);
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!email) return sendJson(res, 400, { message: "Email is required" });
+
+      const users = readUsers();
+      const user = users.find(u => u.email.toLowerCase() === email);
+      if (!user) return sendJson(res, 404, { message: "User not found" });
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      user.resetCode = code;
+      user.resetExpires = Date.now() + 3600000;
+      writeUsers(users);
+
+      console.log(`\x1b[33m[PASSWORD RESET] Code for ${email}: ${code}\x1b[0m`);
+      return sendJson(res, 200, { message: "Reset code sent to your email (Check server logs)" });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/reset-password") {
+      const body = await parseBody(req);
+      const { email, code, password } = body;
+      if (!email || !code || !password) return sendJson(res, 400, { message: "Missing required fields" });
+
+      const users = readUsers();
+      const userIdx = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+      if (userIdx === -1) return sendJson(res, 400, { message: "Invalid request" });
+
+      const user = users[userIdx];
+      if (!user.resetCode || user.resetCode !== String(code) || user.resetExpires < Date.now()) {
+        return sendJson(res, 400, { message: "Invalid or expired code" });
+      }
+
+      user.passwordHash = hashPassword(password);
+      delete user.resetCode;
+      delete user.resetExpires;
+      writeUsers(users);
+
+      return sendJson(res, 200, { message: "Password reset successful" });
+    }
+
     if (req.method === "POST" && url.pathname === "/api/auth/login") {
       const body = await parseBody(req);
       const email = String(body.email || "").trim().toLowerCase();
