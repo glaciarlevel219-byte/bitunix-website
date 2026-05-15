@@ -590,8 +590,42 @@ function processPendingDeposits() {
 function updateWalletDisplay() {
   const w = state.wallet || loadWallet();
   state.wallet = w;
+  
   const el = document.querySelector("#assetsText");
   if (el) el.textContent = `${w.balance.toFixed(2)} USDT`;
+  
+  // Calculate Profits (Today, Yesterday, Total Revenue)
+  const txs = w.transactions || [];
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86400000;
+  
+  let todayP = 0;
+  let yesterdayP = 0;
+  let totalP = 0;
+  
+  txs.forEach(t => {
+    // Only count completed trades/transactions with profit
+    const profit = Number(t.profitAmount || 0);
+    const time = Number(t.created || 0);
+    
+    if (time >= todayStart) {
+      todayP += profit;
+    } else if (time >= yesterdayStart && time < todayStart) {
+      yesterdayP += profit;
+    }
+    totalP += profit;
+  });
+
+  const todayEl = document.querySelector("#todayProfit");
+  if (todayEl) todayEl.textContent = todayP.toFixed(2);
+  
+  const yesterdayEl = document.querySelector("#yesterdayProfit");
+  if (yesterdayEl) yesterdayEl.textContent = yesterdayP.toFixed(2);
+  
+  const totalEl = document.querySelector("#totalProfit");
+  if (totalEl) totalEl.textContent = totalP.toFixed(2);
+
   const ca = document.querySelector("#coinAvailDisplay");
   if (ca) ca.textContent = Number(w.balance).toFixed(6);
   const wa = document.querySelector("#withdrawAvailableBalance");
