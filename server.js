@@ -380,15 +380,24 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === "POST" && url.pathname === "/admin/api/support/messages/send") {
         const body = await parseBody(req);
-        const userId = String(body.userId || "");
-        const message = String(body.message || "").trim();
-        if (!message || !userId) return sendJson(res, 400, { message: "userId and message are required" });
+        const { userId, message } = body;
+        if (!userId || !message) return sendJson(res, 400, { message: "User ID and message are required" });
+        const user = readUsers().find((u) => u.id === userId);
+        if (!user) return sendJson(res, 404, { message: "User not found" });
         const file = path.join(ROOT, "data", `support_${userId}.json`);
         const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { messages: [] };
-        const user = getUserById(userId) || {};
         raw.messages.push({ id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, userId, userName: user.name || "Unknown", userEmail: user.email || "", type: "admin", message, time: Date.now(), status: "sent" });
-        fs.writeFileSync(file, JSON.stringify(raw, null, 2));
-        return sendJson(res, 200, { message: "Support message sent" });
+        fs.writeFileSync(file, JSON.stringify(raw, null, 2), "utf8");
+        return sendJson(res, 200, { success: true });
+      }
+      if (req.method === "POST" && url.pathname === "/admin/api/user/update-transaction-password") {
+        const body = await parseBody(req);
+        const { userId, newPassword } = body;
+        if (!userId || !newPassword) return sendJson(res, 400, { message: "User ID and password are required" });
+        const wallet = readWalletForUser(userId);
+        wallet.transactionPassword = newPassword;
+        writeWalletForUser(userId, wallet);
+        return sendJson(res, 200, { success: true, message: "Transaction password updated" });
       }
       if (req.method === "GET" && url.pathname === "/admin/api/kyc/pending") {
         const items = readUsers().map((u) => ({ user: u, wallet: readWalletForUser(u.id) }))
@@ -734,6 +743,20 @@ const server = http.createServer(async (req, res) => {
       const decoded = verifyToken(token);
       if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
       return sendJson(res, 200, { wallet: readWalletForUser(decoded.id) });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/wallet/set-transaction-password") {
+      const auth = req.headers.authorization || "";
+      const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      const decoded = verifyToken(token);
+      if (!decoded) return sendJson(res, 401, { message: "Unauthorized." });
+      const body = await parseBody(req);
+      const newPassword = String(body.newPassword || "").trim();
+      if (!newPassword || newPassword.length < 6) return sendJson(res, 400, { message: "Password must be at least 6 characters." });
+      const wallet = readWalletForUser(decoded.id);
+      wallet.transactionPassword = newPassword;
+      writeWalletForUser(decoded.id, wallet);
+      return sendJson(res, 200, { success: true, message: "Transaction password updated." });
     }
 
     if (req.method === "GET" && url.pathname === "/api/support/messages/user") {

@@ -808,13 +808,47 @@ function showUserModal(user) {
         console.error('Deposit history element not found!');
     }
     
-    // Check transaction password (this would need to be implemented in backend)
-    document.getElementById('modalUserTransactionPassword').textContent = 'Not Available';
+    // Check transaction password
+    const txPassInput = document.getElementById('modalUserTransactionPassword');
+    if (txPassInput) {
+        txPassInput.value = user.wallet?.transactionPassword || '';
+    }
     
     // Show modal
     modal.hidden = false;
     modal.style.display = 'flex';
     console.log('User modal displayed');
+}
+
+async function updateUserTxPasswordAdmin() {
+    const userId = window.currentModalUserId;
+    const newPassword = document.getElementById('modalUserTransactionPassword').value.trim();
+    if (!userId) return;
+    if (!newPassword || newPassword.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/user/update-transaction-password`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, newPassword })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('Transaction password updated successfully');
+            viewUserDetails(userId);
+        } else {
+            alert('Failed to update: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Update Tx Pass Error:', error);
+        alert('Network error while updating transaction password');
+    }
 }
 
 async function kycAction(action) {

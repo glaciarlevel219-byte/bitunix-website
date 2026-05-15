@@ -3629,11 +3629,33 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       
-      // Store transaction password (in real app, this would be sent to server)
-      localStorage.setItem('transaction_password', newPassword);
-      
-      alert('Transaction password set successfully!');
-      hideTransactionPasswordModal();
+      // Sync with server
+      fetch('/api/wallet/set-transaction-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${state.token}`
+        },
+        body: JSON.stringify({ newPassword })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          localStorage.setItem('transaction_password', newPassword);
+          alert('Transaction password set successfully!');
+          hideTransactionPasswordModal();
+          // Update profile UI if needed
+          if (state.currentUser) {
+            openProfileModule('settings');
+          }
+        } else {
+          alert('Error: ' + (data.message || 'Failed to update transaction password'));
+        }
+      })
+      .catch(err => {
+        console.error('Update TX Pass Error:', err);
+        alert('Connection error. Please try again.');
+      });
     });
   }
 });
