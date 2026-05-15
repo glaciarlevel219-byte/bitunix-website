@@ -3707,22 +3707,13 @@ window.placeCountdownTrade = async function(direction) {
       runDetail.textContent = `${symbol} · ${amount.toFixed(2)} USDT`;
     }
 
-    // Call API to pre-determine result
-    const res = await postJson("/api/trade/execute", {
-      amount,
-      symbol,
-      direction,
-      duration,
-      entryPrice
-    }, {
-      headers: { Authorization: `Bearer ${state.token}` }
-    });
-
-    // Start timer animation
+    // Start timer animation IMMEDIATELY
     let timeLeft = parseInt(duration);
     const totalTime = timeLeft;
-    
-    const tick = () => {
+    let timerFinished = false;
+    let apiResult = null;
+
+    const timerInterval = setInterval(() => {
       if (timerVal) timerVal.textContent = timeLeft;
       if (timerProg) {
         const offset = 282.7 * (1 - timeLeft / totalTime);
@@ -3731,23 +3722,50 @@ window.placeCountdownTrade = async function(direction) {
       
       if (timeLeft <= 0) {
         clearInterval(timerInterval);
+        timerFinished = true;
+        checkCompletion();
+      }
+      timeLeft--;
+    }, 1000);
+
+    // Initial tick to show starting time
+    if (timerVal) timerVal.textContent = timeLeft;
+
+    // Call API in background
+    postJson("/api/trade/execute", {
+      amount,
+      symbol,
+      direction,
+      duration,
+      entryPrice
+    }, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    })
+    .then(res => {
+      apiResult = res;
+      checkCompletion();
+    })
+    .catch(err => {
+      console.error("Trade execution error:", err);
+      clearInterval(timerInterval);
+      if (runOverlay) runOverlay.hidden = true;
+      showToast(err.message || "Trade failed.", true);
+    });
+
+    function checkCompletion() {
+      if (timerFinished && apiResult) {
         if (runOverlay) runOverlay.hidden = true;
-        showTradeResult(res.result, symbol);
+        showTradeResult(apiResult.result, symbol);
         // Update local wallet
-        if (res.wallet) {
-          saveWallet(normalizeWallet(res.wallet));
+        if (apiResult.wallet) {
+          saveWallet(normalizeWallet(apiResult.wallet));
           updateWalletDisplay();
         }
       }
-      timeLeft--;
-    };
-
-    tick();
-    const timerInterval = setInterval(tick, 1000);
+    }
 
   } catch (err) {
-    console.error("Trade execution error:", err);
-    showToast(err.message || "Trade failed.", true);
+    console.error("Critical Trade error:", err);
     const runOverlay = document.getElementById("tradeRunningOverlay");
     if (runOverlay) runOverlay.hidden = true;
   }
