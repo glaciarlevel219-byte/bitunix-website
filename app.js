@@ -1662,7 +1662,9 @@ function openTradeFromMarketList(cat, label) {
   state.tradePairIndex = idx;
   state.tradePairFilter = "";
   
-  openTradeSetup(cat, label);
+  syncTradeCategoryButtons();
+  switchToTab("trade");
+  onTradeTabShown();
 }
 
 async function refreshMarketTabList() {
