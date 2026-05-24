@@ -670,13 +670,19 @@ const server = http.createServer(async (req, res) => {
         const data = await r.json();
         const rates = data.rates || {};
         const inv = String(url.searchParams.get("inv") || "1") === "1";
-        const entries = Object.keys(rates)
-          .sort()
+        const days = Object.keys(rates).sort();
+        let prevClose = null;
+        const entries = days
           .map((d) => {
             const m = rates[d] && rates[d][toC];
             if (m == null) return null;
-            const p = inv ? 1 / Number(m) : Number(m);
-            return { t: new Date(d).getTime(), o: p, h: p, l: p, c: p, v: 1 };
+            const close = inv ? 1 / Number(m) : Number(m);
+            const open = prevClose != null ? prevClose : close;
+            const spread = Math.max(Math.abs(close - open), close * 0.00015, 1e-8);
+            const high = Math.max(open, close) + spread * 0.5;
+            const low = Math.min(open, close) - spread * 0.5;
+            prevClose = close;
+            return { t: new Date(d).getTime(), o: open, h: high, l: low, c: close, v: 1 };
           })
           .filter(Boolean);
         if (!entries.length) return sendJson(res, 404, { message: "No FX data." });

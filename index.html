@@ -724,19 +724,11 @@
         <strong id="currentUserName">—</strong>
         <span class="muted">· ID</span> <code id="currentUserId" class="help-center-user-id">—</code>
       </div>
-      <p class="help-center-quick-label muted">How can we help you today?</p>
-      <div class="help-center-topics">
-        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with my deposit')">Deposit</button>
-        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with withdrawal')">Withdrawal</button>
-        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with my account')">Account</button>
-        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with trading')">Trading</button>
-        <button type="button" class="help-topic-btn" onclick="sendCustomerMessage('I need help with verification')">Verification</button>
-      </div>
       <div id="customerMessages" class="help-center-thread" aria-live="polite"></div>
       <p id="customerStatus" class="help-center-status muted"></p>
 
       <div class="help-center-custom-message">
-        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Type your message here... Our support team will assist you." rows="5"></textarea>
+        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Type your message here... Our support team will assist you." rows="6"></textarea>
         <button type="button" class="help-topic-btn" onclick="sendCustomCustomerMessage()">Send Message</button>
       </div>
       <p id="supportMsg" class="overlay-msg muted"></p>

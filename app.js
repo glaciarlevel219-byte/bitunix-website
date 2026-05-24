@@ -41,6 +41,8 @@ const state = {
   coinMarketTimer: null,
   coinDepth: null,
   coinSide: "buy",
+  coinSpotOrders: [],
+  coinSpotPositions: [],
   tradeCat: "fx",
   tradeTf: "15m",
   tradePairIndex: 0,
@@ -2362,6 +2364,9 @@ function applyCoinToUi() {
   updateCoinEstQty();
   updateCoinOrderBook();
   updateCoinAvailDisplay();
+  if (state.coinSpotPositions?.length) {
+    renderCoinHistory(state.coinSpotOrders || [], state.coinSpotPositions);
+  }
 }
 
 function updateCoinEstQty() {
@@ -2487,6 +2492,9 @@ async function pullCoinMarketOnce() {
 
   applyCoinToUi();
   updateCoinOrderBook();
+  if (state.coinSpotPositions?.length) {
+    renderCoinHistory(state.coinSpotOrders || [], state.coinSpotPositions);
+  }
 }
 
 function startCoinMarketLoop() {
@@ -2787,28 +2795,61 @@ function initCoinView() {
   }, 10000);
 }
 
+function getCoinMarkPrice(symbol) {
+  const sym = String(symbol || "").toUpperCase();
+  if (sym === state.coin.symbol && Number(state.coin.price) > 0) {
+    return Number(state.coin.price);
+  }
+  return rowPriceForSymbol(sym).price;
+}
+
+function calcSpotPositionPnL(position) {
+  const entry = Number(position.entryPrice) || 0;
+  const qty = Number(position.amount) || 0;
+  const mark = getCoinMarkPrice(position.symbol);
+  if (!(mark > 0) || !(entry > 0) || !(qty > 0)) return null;
+  return (mark - entry) * qty;
+}
+
 async function refreshCoinHistory() {
   if (!state.token) return;
   try {
-    // Gather some current prices for limit order matching on server
     const prices = {};
-    if (state.coin.symbol) prices[state.coin.symbol] = state.coin.price;
-    if (state.backupRows) {
-      state.backupRows.forEach(r => { prices[r.legal_name] = Number(r.now_price); });
+    if (state.coin.symbol && state.coin.price > 0) prices[state.coin.symbol] = state.coin.price;
+    const w = loadWallet();
+    for (const p of w.spot_positions || []) {
+      if (!prices[p.symbol]) {
+        const mark = getCoinMarkPrice(p.symbol);
+        if (mark > 0) prices[p.symbol] = mark;
+      }
     }
-    
+    if (state.backupRows) {
+      state.backupRows.forEach((r) => {
+        const sym = String(r.legal_name || "").toUpperCase();
+        if (sym && !prices[sym]) prices[sym] = Number(r.now_price);
+      });
+    }
+    if (state.liveTickerRows) {
+      state.liveTickerRows.forEach((r) => {
+        const sym = String(r.legal_name || "").toUpperCase();
+        if (sym && !prices[sym]) prices[sym] = Number(r.now_price);
+      });
+    }
+
     const qs = new URLSearchParams({ prices: JSON.stringify(prices) });
     const res = await fetchJson(`/api/trade/spot/orders?${qs.toString()}`, {
       headers: { Authorization: `Bearer ${state.token}` }
     });
-    
+
     if (res.wallet) {
       saveWallet(normalizeWallet(res.wallet));
       updateWalletDisplay();
       updateCoinAvailDisplay();
     }
-    
-    renderCoinHistory(res.orders, res.positions);
+
+    state.coinSpotOrders = res.orders || [];
+    state.coinSpotPositions = res.positions || [];
+    renderCoinHistory(state.coinSpotOrders, state.coinSpotPositions);
   } catch (err) {
     console.error("History error:", err);
   }
@@ -2836,7 +2877,11 @@ function renderCoinHistory(orders, positions) {
   }
 
   if (posList) {
-    posList.innerHTML = positions.length ? positions.map(p => `
+    posList.innerHTML = positions.length ? positions.map((p) => {
+      const pl = calcSpotPositionPnL(p);
+      const plClass = pl == null ? "muted" : pl >= 0 ? "up" : "down";
+      const plStr = pl == null ? "--" : pl.toFixed(2);
+      return `
       <div class="history-item">
         <div class="h-main">
           <span class="h-pair">${p.symbol}</span>
@@ -2844,12 +2889,13 @@ function renderCoinHistory(orders, positions) {
         </div>
         <div class="h-sub">
           <span>Qty: ${p.amount.toFixed(4)}</span>
-          <span class="${p.entryPrice < state.coin.price ? 'up' : 'down'}">
-            P/L: ${((state.coin.price - (p.entryPrice || 0)) * p.amount).toFixed(2)}
+          <span class="${plClass}">
+            P/L: ${plStr}
           </span>
         </div>
       </div>
-    `).join("") : '<p class="muted" style="padding:20px;text-align:center;">No positions</p>';
+    `;
+    }).join("") : '<p class="muted" style="padding:20px;text-align:center;">No positions</p>';
   }
 }
 
@@ -2873,13 +2919,26 @@ function lwc() {
   return window.LightweightCharts;
 }
 
+function getTradePairPrice(item) {
+  if (!item) return 0;
+  const row = tradeLastRowMap.get(item.label);
+  if (row && row.last != null) return Number(row.last) || 0;
+  const raw = state.tradeLastRaw;
+  if (Array.isArray(raw) && raw.length) {
+    const last = Number(raw[raw.length - 1].c);
+    if (last > 0) return last;
+  }
+  return 0;
+}
+
 function tradeBuildKlineUrl() {
   const list = TRADE_CATALOGS[state.tradeCat] || [];
   const item = list[state.tradePairIndex];
   if (!item) return null;
   const { k } = item;
   if (k.source === "frank") {
-    return `${endpoints.tradeKlines}?source=frank&from=${k.from}&to=${k.to}&inv=1&days=${k.days || 60}`;
+    const inv = k.inv != null ? k.inv : 1;
+    return `${endpoints.tradeKlines}?source=frank&from=${k.from}&to=${k.to}&inv=${inv ? 1 : 0}&days=${k.days || 60}`;
   }
   if (k.source === "binance") {
     const interval = TRADE_TF_MAP[state.tradeTf] || "15m";
@@ -2891,14 +2950,24 @@ function tradeBuildKlineUrl() {
 function toChartCandles(rows) {
   if (!Array.isArray(rows) || !rows.length) return [];
   return rows
-    .map((c) => {
+    .map((c, i) => {
       const t = Math.floor((c.t || 0) / 1000);
-      const o = Number(c.o) || 0;
-      const h = Number(c.h) || 0;
-      const l = Number(c.l) || 0;
+      let o = Number(c.o) || 0;
+      let h = Number(c.h) || 0;
+      let l = Number(c.l) || 0;
       const cl = Number(c.c) || 0;
       if (!t || !cl) return null;
-      return { time: t, open: o, high: h || cl, low: l || cl, close: cl };
+      if (o <= 0) o = cl;
+      if (h <= 0) h = cl;
+      if (l <= 0) l = cl;
+      if (o === h && h === l && l === cl) {
+        const prev = i > 0 ? Number(rows[i - 1].c) : cl;
+        o = prev > 0 ? prev : cl;
+        const spread = Math.max(Math.abs(cl - o), cl * 0.00015, 1e-8);
+        h = Math.max(o, cl) + spread * 0.5;
+        l = Math.min(o, cl) - spread * 0.5;
+      }
+      return { time: t, open: o, high: h, low: l, close: cl };
     })
     .filter(Boolean);
 }
@@ -2936,6 +3005,31 @@ function formatTradeOhlc(candle) {
 
 let tradeCandleData = [];
 let tradeLastRowMap = new Map();
+let tradeKlineLoadId = 0;
+let lastTradePairKey = "";
+
+function tradePairKey() {
+  const list = TRADE_CATALOGS[state.tradeCat] || [];
+  const item = list[state.tradePairIndex];
+  if (!item) return "";
+  const { k } = item;
+  const inv = k.inv != null ? k.inv : 1;
+  if (k.source === "frank") return `${k.source}:${k.from}:${k.to}:${inv}:${k.days || 60}`;
+  if (k.source === "binance") return `${k.source}:${k.symbol}:${state.tradeTf}`;
+  return "";
+}
+
+function clearTradeChartData() {
+  if (state.tradeSeries.candle) state.tradeSeries.candle.setData([]);
+  if (state.tradeSeries.vol) state.tradeSeries.vol.setData([]);
+  if (state.tradeSeries.ma5) state.tradeSeries.ma5.setData([]);
+  if (state.tradeSeries.ma10) state.tradeSeries.ma10.setData([]);
+  if (state.tradeSeries.ma20) state.tradeSeries.ma20.setData([]);
+  state.tradeLastRaw = [];
+  tradeCandleData = [];
+  const line = document.querySelector("#tradeOhlcLine");
+  if (line) line.textContent = "";
+}
 
 function getFilteredTradePairs() {
   const list = TRADE_CATALOGS[state.tradeCat] || [];
@@ -3004,24 +3098,41 @@ function updateTradeHeader() {
 }
 
 async function loadTradeKlines() {
-  if (typeof window.LightweightCharts === "undefined") return;
+  if (typeof window.LightweightCharts === "undefined") {
+    const ok = await ensureCoinChartLib();
+    if (!ok) return;
+  }
   const url = tradeBuildKlineUrl();
   if (!url) return;
+  const loadId = ++tradeKlineLoadId;
+  const pairKey = tradePairKey();
+  const pairChanged = pairKey !== lastTradePairKey;
+  if (pairChanged) {
+    clearTradeChartData();
+    lastTradePairKey = pairKey;
+  }
   let res;
   try {
     res = await fetchJson(url);
   } catch (e) {
+    if (loadId !== tradeKlineLoadId) return;
     const item = TRADE_CATALOGS[state.tradeCat][state.tradePairIndex];
     if (item?.k?.source === "binance" && e.message) {
-      const sym = item.k.symbol.replace("USDT", "").toLowerCase();
-      const idMap = { btc: "bitcoin", eth: "ethereum", bnb: "binancecoin" };
-      const gid = idMap[sym] || "bitcoin";
-      res = await fetchJson(`${endpoints.tradeKlines}?source=gecko_ohlc&id=${gid}&days=7`);
+      try {
+        const sym = item.k.symbol.replace("USDT", "").toLowerCase();
+        const idMap = { btc: "bitcoin", eth: "ethereum", bnb: "binancecoin" };
+        const gid = idMap[sym] || "bitcoin";
+        res = await fetchJson(`${endpoints.tradeKlines}?source=gecko_ohlc&id=${gid}&days=7`);
+      } catch (fallbackErr) {
+        showToast(fallbackErr.message || "Chart load failed", true);
+        return;
+      }
     } else {
       showToast(e.message || "Chart load failed", true);
       return;
     }
   }
+  if (loadId !== tradeKlineLoadId) return;
   const raw = res.candles || [];
   state.tradeLastRaw = raw;
   tradeCandleData = raw.map((x) => ({
@@ -3035,6 +3146,7 @@ async function loadTradeKlines() {
   const candles = toChartCandles(raw);
   const vols = toVolRows(raw);
   if (!candles.length) {
+    clearTradeChartData();
     showToast("No candle data for this range.", true);
     return;
   }
@@ -3350,7 +3462,7 @@ async function loadHelpCenterThread() {
     const data = response.ok ? await response.json() : { messages: [] };
     const messages = data.messages || [];
     if (!messages.length) {
-      container.innerHTML = '<p class="muted">No messages yet. Type below or pick a quick topic.</p>';
+      container.innerHTML = '<p class="muted">No messages yet. Type your message below.</p>';
     } else {
       container.innerHTML = messages
         .map((msg) => {
@@ -3727,7 +3839,7 @@ window.placeCountdownTrade = async function(direction) {
   const list = TRADE_CATALOGS[state.tradeCat] || [];
   const item = list[state.tradePairIndex];
   const symbol = item ? item.label : "BTC/USDT";
-  const entryPrice = item && item.last ? Number(item.last) : 0;
+  const entryPrice = getTradePairPrice(item);
 
   try {
     // Show running overlay immediately
@@ -3927,8 +4039,8 @@ window.openTradeSetup = function(cat, label) {
   }
 
   document.getElementById("setupOverlayCurrency").textContent = label;
-  const price = item.last || tradeLastRowMap.get(label)?.last;
-  document.getElementById("setupOverlayPrice").textContent = price ? Number(price).toFixed(6) : "--";
+  const price = getTradePairPrice(item);
+  document.getElementById("setupOverlayPrice").textContent = price > 0 ? price.toFixed(6) : "--";
   
   const w = loadWallet();
   const balEl = document.getElementById("setupOverlayBalance");
@@ -4045,7 +4157,7 @@ window.placeCountdownTradeWithParams = async function(direction, duration, amoun
   const list = TRADE_CATALOGS[state.tradeCat] || [];
   const item = list[state.tradePairIndex];
   const symbol = item ? item.label : "BTC/USDT";
-  const entryPrice = item && item.last ? Number(item.last) : 0;
+  const entryPrice = getTradePairPrice(item);
 
   try {
     const runOverlay = document.getElementById("tradeRunningOverlay");
