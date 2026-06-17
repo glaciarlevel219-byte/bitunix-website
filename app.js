@@ -3198,17 +3198,19 @@ function createTradeCharts() {
   };
   const w = pEl.clientWidth || 400;
   state.tradeChart = L.createChart(pEl, { width: w, height: 300, ...chartOpt });
-  state.tradeSeries.candle = state.tradeChart.addCandlestickSeries({
-    upColor: "#1a7f5f",
-    downColor: "#c62828",
-    borderUpColor: "#1a7f5f",
-    borderDownColor: "#c62828",
-    wickUpColor: "#1a7f5f",
-    wickDownColor: "#c62828",
-  });
   state.tradeSeries.ma5 = state.tradeChart.addLineSeries({ color: "#e69138", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   state.tradeSeries.ma10 = state.tradeChart.addLineSeries({ color: "#7e57c2", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
   state.tradeSeries.ma20 = state.tradeChart.addLineSeries({ color: "#4fc3f7", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+  state.tradeSeries.candle = state.tradeChart.addCandlestickSeries({
+    upColor: "#26a69a",
+    downColor: "#ef5350",
+    borderUpColor: "#26a69a",
+    borderDownColor: "#ef5350",
+    wickUpColor: "#26a69a",
+    wickDownColor: "#ef5350",
+    borderVisible: true,
+    wickVisible: true,
+  });
   state.tradeVolChart = L.createChart(vEl, { width: w, height: 120, ...chartOpt });
   state.tradeSeries.vol = state.tradeVolChart.addHistogramSeries({ color: "#1a7f5f" });
   state.tradeChart.timeScale().subscribeVisibleTimeRangeChange((timeRange) => {

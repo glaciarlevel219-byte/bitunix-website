@@ -455,36 +455,114 @@ module.exports = async (req, res) => {
     }
 
     if (pathname === "/api/trade/klines" || pathname === "/admin/api/trade/klines") {
-        const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
         const source = String(url.searchParams.get("source") || "binance");
-        
-        if (source === "frank") {
+
+        if (source === "binance") {
+            const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
+            const interval = String(url.searchParams.get("interval") || "5m");
+            const limit = Math.min(1000, Math.max(10, Number(url.searchParams.get("limit")) || 200));
             try {
-                const r = await fetch(`https://api.frankfurter.app/2020-01-01..?to=${symbol.replace("USD","")}`);
+                const burl = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+                const r = await fetch(burl);
+                if (!r.ok) throw new Error("Binance unavailable");
+                const raw = await r.json();
+                const candles = raw.map((k) => ({
+                    t: k[0],
+                    o: k[1],
+                    h: k[2],
+                    l: k[3],
+                    c: k[4],
+                    v: k[5],
+                }));
+                return sendJson(res, 200, { source: "binance", candles });
+            } catch {
+                const basePrices = {
+                    BTCUSDT: 65000, ETHUSDT: 3500, BNBUSDT: 600, SOLUSDT: 150,
+                    XRPUSDT: 0.55, DOGEUSDT: 0.12, ADAUSDT: 0.45, DOTUSDT: 7,
+                    LTCUSDT: 85, BCHUSDT: 400, ETCUSDT: 25, FILUSDT: 5, EOSUSDT: 0.8,
+                    AUDUSDT: 0.65, EURUSDT: 1.08, GBPUSDT: 1.27, PAXGUSDT: 2300, XAUTUSDT: 2300,
+                };
+                let p = basePrices[symbol] || 100;
+                const candles = [];
+                const stepMs = interval === "1d" ? 86400000 : interval === "1h" ? 3600000 : interval === "30m" ? 1800000 : interval === "15m" ? 900000 : interval === "5m" ? 300000 : 60000;
+                for (let i = 0; i < 100; i++) {
+                    const open = p;
+                    const change = (Math.random() - 0.5) * p * 0.004;
+                    const close = open + change;
+                    const wick = Math.abs(close - open) + p * 0.001 * Math.random();
+                    const high = Math.max(open, close) + wick;
+                    const low = Math.min(open, close) - wick;
+                    candles.push({
+                        t: Date.now() - (100 - i) * stepMs,
+                        o: String(open),
+                        h: String(high),
+                        l: String(low),
+                        c: String(close),
+                        v: String(Math.floor(Math.random() * 500 + 50)),
+                    });
+                    p = close;
+                }
+                return sendJson(res, 200, { source: "simulated", candles });
+            }
+        }
+
+        if (source === "frank") {
+            const fromC = String(url.searchParams.get("from") || "USD");
+            const toC = String(url.searchParams.get("to") || "INR");
+            const days = Math.min(180, Math.max(7, Number(url.searchParams.get("days")) || 60));
+            try {
+                const end = new Date();
+                const start = new Date(end);
+                start.setDate(start.getDate() - days);
+                const fmt = (d) => d.toISOString().slice(0, 10);
+                const furl = `https://api.frankfurter.app/${fmt(start)}..${fmt(end)}?from=${encodeURIComponent(fromC)}&to=${encodeURIComponent(toC)}`;
+                const r = await fetch(furl);
                 if (!r.ok) throw new Error();
                 const data = await r.json();
-                const candles = [];
-                let prev = 1;
-                for(const date in data.rates) {
-                    const rate = 1 / data.rates[date][symbol.replace("USD","")];
-                    candles.push({ t: new Date(date).getTime(), o: String(prev), h: String(Math.max(prev, rate)), l: String(Math.min(prev, rate)), c: String(rate), v: "100" });
-                    prev = rate;
-                }
-                return sendJson(res, 200, { candles: candles.slice(-100) });
+                const rates = data.rates || {};
+                const inv = String(url.searchParams.get("inv") || "1") === "1";
+                const dayKeys = Object.keys(rates).sort();
+                let prevClose = null;
+                const candles = dayKeys
+                    .map((d) => {
+                        const m = rates[d] && rates[d][toC];
+                        if (m == null) return null;
+                        const close = inv ? 1 / Number(m) : Number(m);
+                        const open = prevClose != null ? prevClose : close;
+                        const spread = Math.max(Math.abs(close - open), close * 0.00015, 1e-8);
+                        const high = Math.max(open, close) + spread * 0.5;
+                        const low = Math.min(open, close) - spread * 0.5;
+                        prevClose = close;
+                        return { t: new Date(d).getTime(), o: open, h: high, l: low, c: close, v: 1 };
+                    })
+                    .filter(Boolean);
+                return sendJson(res, 200, { source: "frank", candles });
             } catch {
                 return sendJson(res, 200, { candles: [] });
             }
         }
-        
-        try {
-            const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&limit=100`);
-            if(!r.ok) throw new Error();
-            const data = await r.json();
-            return sendJson(res, 200, { candles: data.map(k => ({ t: k[0], o: String(k[1]), h: String(k[2]), l: String(k[3]), c: String(k[4]), v: String(k[5]) })) });
-        } catch {
-            const candles = []; let p = 65000; for(let i=0; i<100; i++) { p += Math.random()*100-50; candles.push({ t: Date.now() - (100-i)*300000, o: String(p), h: String(p+10), l: String(p-10), c: String(p), v: "100" }); }
-            return sendJson(res, 200, { candles });
+
+        if (source === "gecko_ohlc") {
+            const id = String(url.searchParams.get("id") || "bitcoin")
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, "");
+            const days = Math.min(30, Math.max(1, Number(url.searchParams.get("days")) || 7));
+            try {
+                const gurl = `https://api.coingecko.com/api/v3/coins/${id}/ohlc?vs_currency=usd&days=${days}`;
+                const r = await fetch(gurl);
+                if (!r.ok) throw new Error();
+                const ohlc = await r.json();
+                const candles = (Array.isArray(ohlc) ? ohlc : []).map((row) => {
+                    const [ts, o, h, l, c] = row;
+                    return { t: ts, o: String(o), h: String(h), l: String(l), c: String(c), v: 0 };
+                });
+                return sendJson(res, 200, { source: "gecko_ohlc", candles });
+            } catch {
+                return sendJson(res, 502, { message: "CoinGecko OHLC failed." });
+            }
         }
+
+        return sendJson(res, 400, { message: "Unknown klines source." });
     }
 
     if (pathname === "/api/market/live") {
@@ -610,6 +688,18 @@ module.exports = async (req, res) => {
                 }
             }
             return sendJson(res, 200, { wallet });
+        }
+
+        if (pathname === "/api/wallet/set-transaction-password" && req.method === "POST") {
+            const body = await parseBody(req);
+            const newPassword = String(body.newPassword || "").trim();
+            if (!newPassword || newPassword.length < 6) {
+                return sendJson(res, 400, { message: "Password must be at least 6 characters." });
+            }
+            const wallet = await readWallet(decoded.id);
+            wallet.transactionPassword = newPassword;
+            await writeWallet(decoded.id, wallet);
+            return sendJson(res, 200, { success: true, message: "Transaction password updated." });
         }
         
         if (pathname === "/api/deposit/create" && req.method === "POST") {
@@ -1201,6 +1291,17 @@ module.exports = async (req, res) => {
             const db = await connectToDatabase();
             if(db) await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } });
             return sendJson(res, 200, { message: "Success" });
+        }
+
+        if (pathname === "/admin/api/user/update-transaction-password" && req.method === "POST") {
+            const { userId, newPassword } = await parseBody(req);
+            if (!userId || !newPassword) {
+                return sendJson(res, 400, { message: "User ID and password are required" });
+            }
+            const wallet = await readWallet(userId);
+            wallet.transactionPassword = String(newPassword);
+            await writeWallet(userId, wallet);
+            return sendJson(res, 200, { success: true, message: "Transaction password updated" });
         }
 
         if (pathname === "/admin/api/user/update-credit-score" && req.method === "POST") {
