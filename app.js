@@ -200,6 +200,8 @@ function showToast(message, isError = false) {
 }
 
 function switchToTab(next) {
+  const prev = document.querySelector(".view.active")?.id;
+  if (prev === "trade" && next !== "trade") stopTradeRealtime();
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === next);
   });
@@ -3008,6 +3010,269 @@ let tradeLastRowMap = new Map();
 let tradeKlineLoadId = 0;
 let lastTradePairKey = "";
 
+const BINANCE_WS_BASE = "wss://stream.binance.com:9443";
+const tradeRealtime = {
+  tickerWs: null,
+  klineWs: null,
+  tickerReconnectTimer: null,
+  klineReconnectTimer: null,
+  tickerCat: null,
+  klineKey: null,
+};
+
+function getBinanceSymbolsForCat(cat) {
+  const symbols = [];
+  for (const row of TRADE_CATALOGS[cat] || []) {
+    if (row.k?.source === "binance" && row.k.symbol) symbols.push(row.k.symbol.toUpperCase());
+  }
+  return [...new Set(symbols)];
+}
+
+function buildSymbolLabelMap(cat) {
+  const map = new Map();
+  for (const row of TRADE_CATALOGS[cat] || []) {
+    if (row.k?.source === "binance" && row.k.symbol) map.set(row.k.symbol.toUpperCase(), row.label);
+  }
+  return map;
+}
+
+function formatTradePrice(last) {
+  const n = Number(last);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  if (n >= 1000) return n.toFixed(2);
+  if (n >= 1) return n.toFixed(4);
+  return n.toFixed(6);
+}
+
+function formatTradeChg(chg) {
+  const numChg = Number(chg);
+  if (!Number.isFinite(numChg)) return "—";
+  return `${numChg >= 0 ? "+" : ""}${Math.abs(numChg) < 0.01 ? numChg.toFixed(4) : numChg.toFixed(2)}%`;
+}
+
+function patchTradePairDom(label, last, chg) {
+  const prev = tradeLastRowMap.get(label) || { label, last: 0, chg: "0" };
+  const row = { ...prev, last: Number(last), chg: chg != null ? String(chg) : prev.chg };
+  tradeLastRowMap.set(label, row);
+
+  const items = document.querySelectorAll("#tradePairList li[data-label]");
+  for (const li of items) {
+    if (li.getAttribute("data-label") !== label) continue;
+    const rateEl = li.querySelector(".tp-rate");
+    const pctEl = li.querySelector(".tp-pct");
+    if (rateEl) rateEl.textContent = formatTradePrice(last);
+    if (pctEl && chg != null) {
+      const numChg = Number(chg);
+      pctEl.textContent = formatTradeChg(chg);
+      pctEl.className = `tp-pct ${numChg > 0 ? "pos" : numChg < 0 ? "neg" : "muted"}`;
+    }
+    break;
+  }
+
+  const list = TRADE_CATALOGS[state.tradeCat] || [];
+  const active = list[state.tradePairIndex];
+  if (active?.label === label) updateTradeHeader();
+
+  const overlay = document.getElementById("tradeSetupOverlay");
+  if (overlay && overlay.style.display !== "none" && !overlay.hidden) {
+    const pairEl = document.getElementById("setupOverlayPair");
+    if (pairEl?.textContent === label) {
+      const pEl = document.getElementById("setupOverlayPrice");
+      if (pEl) pEl.textContent = formatTradePrice(last);
+    }
+  }
+}
+
+function stopTradeTickerWs() {
+  if (tradeRealtime.tickerReconnectTimer) {
+    clearTimeout(tradeRealtime.tickerReconnectTimer);
+    tradeRealtime.tickerReconnectTimer = null;
+  }
+  if (tradeRealtime.tickerWs) {
+    tradeRealtime.tickerWs.onclose = null;
+    tradeRealtime.tickerWs.close();
+    tradeRealtime.tickerWs = null;
+  }
+  tradeRealtime.tickerCat = null;
+}
+
+function startTradeTickerWs() {
+  const cat = state.tradeCat === "metal" ? "metal" : state.tradeCat;
+  const symbols = getBinanceSymbolsForCat(cat);
+  if (!symbols.length || !document.querySelector("#trade")?.classList.contains("active")) return;
+  if (tradeRealtime.tickerCat === cat && tradeRealtime.tickerWs?.readyState === WebSocket.OPEN) return;
+
+  stopTradeTickerWs();
+  tradeRealtime.tickerCat = cat;
+  const streams = symbols.map((s) => `${s.toLowerCase()}@miniTicker`).join("/");
+  const labelMap = buildSymbolLabelMap(cat);
+
+  try {
+    const ws = new WebSocket(`${BINANCE_WS_BASE}/stream?streams=${streams}`);
+    tradeRealtime.tickerWs = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        const d = msg.data || msg;
+        const sym = String(d.s || "").toUpperCase();
+        const label = labelMap.get(sym);
+        if (!label) return;
+        patchTradePairDom(label, d.c, d.P);
+      } catch (_) {}
+    };
+    ws.onclose = () => {
+      tradeRealtime.tickerWs = null;
+      if (document.querySelector("#trade")?.classList.contains("active") && tradeRealtime.tickerCat === cat) {
+        tradeRealtime.tickerReconnectTimer = setTimeout(startTradeTickerWs, 3000);
+      }
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (_) {}
+    };
+  } catch (_) {}
+}
+
+function stopTradeKlineWs() {
+  if (tradeRealtime.klineReconnectTimer) {
+    clearTimeout(tradeRealtime.klineReconnectTimer);
+    tradeRealtime.klineReconnectTimer = null;
+  }
+  if (tradeRealtime.klineWs) {
+    tradeRealtime.klineWs.onclose = null;
+    tradeRealtime.klineWs.close();
+    tradeRealtime.klineWs = null;
+  }
+  tradeRealtime.klineKey = null;
+}
+
+function getActiveTradeBinanceItem() {
+  const list = TRADE_CATALOGS[state.tradeCat] || [];
+  const item = list[state.tradePairIndex];
+  if (!item?.k || item.k.source !== "binance") return null;
+  return item;
+}
+
+function applyTradeKlineUpdate(k, label) {
+  if (!state.tradeSeries.candle || !k) return;
+  const t = Math.floor(k.t / 1000);
+  const candle = {
+    time: t,
+    open: Number(k.o),
+    high: Number(k.h),
+    low: Number(k.l),
+    close: Number(k.c),
+  };
+  try {
+    state.tradeSeries.candle.update(candle);
+  } catch (_) {
+    return;
+  }
+
+  const up = candle.close >= candle.open;
+  if (state.tradeSeries.vol) {
+    state.tradeSeries.vol.update({
+      time: t,
+      value: Number(k.v) || 0,
+      color: up ? "rgba(26,127,95,0.6)" : "rgba(198,40,40,0.6)",
+    });
+  }
+
+  if (Array.isArray(state.tradeLastRaw) && state.tradeLastRaw.length) {
+    const last = state.tradeLastRaw[state.tradeLastRaw.length - 1];
+    const lastT = Math.floor(last.t / 1000);
+    if (lastT === t) {
+      last.o = k.o;
+      last.h = k.h;
+      last.l = k.l;
+      last.c = k.c;
+      last.v = k.v;
+    } else if (t > lastT) {
+      state.tradeLastRaw.push({ t: k.t, o: k.o, h: k.h, l: k.l, c: k.c, v: k.v });
+    }
+  }
+
+  const oc = {
+    time: t,
+    open: candle.open,
+    high: candle.high,
+    low: candle.low,
+    close: candle.close,
+    vol: Number(k.v) || 0,
+  };
+  const line = document.querySelector("#tradeOhlcLine");
+  if (line) line.textContent = formatTradeOhlc(oc);
+  const vc = document.querySelector("#tradeVolCaption");
+  if (vc) vc.textContent = `VOLUME: ${oc.vol ? oc.vol.toFixed(0) : "—"}`;
+
+  const existingChg = tradeLastRowMap.get(label)?.chg;
+  patchTradePairDom(label, k.c, existingChg);
+
+  if (k.x && Array.isArray(state.tradeLastRaw) && state.tradeLastRaw.length) {
+    const candles = toChartCandles(state.tradeLastRaw);
+    if (state.tradeSeries.ma5) state.tradeSeries.ma5.setData(maData(candles, 5));
+    if (state.tradeSeries.ma10) state.tradeSeries.ma10.setData(maData(candles, 10));
+    if (state.tradeSeries.ma20) state.tradeSeries.ma20.setData(maData(candles, 20));
+    const ma5 = maData(candles, 5).slice(-1)[0]?.value;
+    const ma10 = maData(candles, 10).slice(-1)[0]?.value;
+    const ma20 = maData(candles, 20).slice(-1)[0]?.value;
+    const ml = document.querySelector("#tradeMaLine");
+    if (ml) {
+      ml.textContent = `MA5: ${ma5 != null ? ma5.toFixed(4) : "—"}  MA10: ${ma10 != null ? ma10.toFixed(4) : "—"}  MA20: ${ma20 != null ? ma20.toFixed(4) : "—"}`;
+    }
+  }
+}
+
+function startTradeKlineWs() {
+  const item = getActiveTradeBinanceItem();
+  if (!item || !document.querySelector("#trade")?.classList.contains("active")) {
+    stopTradeKlineWs();
+    return;
+  }
+  const symbol = item.k.symbol.toUpperCase();
+  const interval = TRADE_TF_MAP[state.tradeTf] || "15m";
+  const key = `${symbol}:${interval}`;
+  if (tradeRealtime.klineKey === key && tradeRealtime.klineWs?.readyState === WebSocket.OPEN) return;
+
+  stopTradeKlineWs();
+  tradeRealtime.klineKey = key;
+  const stream = `${symbol.toLowerCase()}@kline_${interval}`;
+
+  try {
+    const ws = new WebSocket(`${BINANCE_WS_BASE}/ws/${stream}`);
+    tradeRealtime.klineWs = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.e !== "kline" || !msg.k) return;
+        applyTradeKlineUpdate(msg.k, item.label);
+      } catch (_) {}
+    };
+    ws.onclose = () => {
+      tradeRealtime.klineWs = null;
+      if (document.querySelector("#trade")?.classList.contains("active") && tradeRealtime.klineKey === key) {
+        tradeRealtime.klineReconnectTimer = setTimeout(startTradeKlineWs, 3000);
+      }
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (_) {}
+    };
+  } catch (_) {}
+}
+
+function stopTradeRealtime() {
+  stopTradeTickerWs();
+  stopTradeKlineWs();
+  if (state.tradeTimer) {
+    clearInterval(state.tradeTimer);
+    state.tradeTimer = null;
+  }
+}
+
+function startTradeRealtime() {
+  startTradeTickerWs();
+  startTradeKlineWs();
+}
+
 function tradePairKey() {
   const list = TRADE_CATALOGS[state.tradeCat] || [];
   const item = list[state.tradePairIndex];
@@ -3068,7 +3333,7 @@ async function loadTradeRowTable() {
         ? `${numChg >= 0 ? "+" : ""}${Math.abs(numChg) < 0.01 ? numChg.toFixed(4) : numChg.toFixed(2)}%`
         : "—";
       const cls = !d ? "muted" : chg > 0 ? "pos" : "neg";
-      return `<li class="trade-pair-item ${state.tradePairIndex === idx ? "is-sel" : ""}" data-idx="${idx}"><span class="tp-curr">${row.label}</span><span class="tp-rate">${last}</span><span class="tp-pct ${cls}">${chgStr}</span></li>`;
+      return `<li class="trade-pair-item ${state.tradePairIndex === idx ? "is-sel" : ""}" data-idx="${idx}" data-label="${row.label}"><span class="tp-curr">${row.label}</span><span class="tp-rate">${last}</span><span class="tp-pct ${cls}">${chgStr}</span></li>`;
     })
     .join("");
   root.querySelectorAll("li").forEach((li) => {
@@ -3080,6 +3345,7 @@ async function loadTradeRowTable() {
     });
   });
   updateTradeHeader();
+  startTradeTickerWs();
 }
 
 function updateTradeHeader() {
@@ -3179,6 +3445,9 @@ async function loadTradeKlines() {
   state.tradeChart.timeScale().fitContent();
   if (state.tradeVolChart) state.tradeVolChart.timeScale().fitContent();
   updateTradeHeader();
+  const activeItem = TRADE_CATALOGS[state.tradeCat]?.[state.tradePairIndex];
+  if (activeItem?.k?.source === "binance") startTradeKlineWs();
+  else stopTradeKlineWs();
 }
 
 function createTradeCharts() {
@@ -3268,14 +3537,21 @@ function onTradeTabShown() {
   renderTradeTfs();
   bindTradeTfRowOnce();
   if (state.tradeTimer) clearInterval(state.tradeTimer);
+  state._tradeKlineFallbackAt = 0;
   state.tradeTimer = setInterval(() => {
-    if (document.querySelector("#trade")?.classList.contains("active")) {
+    if (!document.querySelector("#trade")?.classList.contains("active")) return;
+    loadTradeRowTable().catch(() => {});
+    const now = Date.now();
+    if (!state._tradeKlineFallbackAt || now - state._tradeKlineFallbackAt > 60000) {
+      state._tradeKlineFallbackAt = now;
       loadTradeKlines();
-      loadTradeRowTable().catch(() => {});
     }
-  }, 3000);
+  }, 10000);
   loadTradeRowTable()
-    .then(() => loadTradeKlines())
+    .then(() => {
+      loadTradeKlines();
+      startTradeRealtime();
+    })
     .catch((e) => showToast(e.message, true));
 }
 
@@ -4058,9 +4334,9 @@ window.openTradeSetup = function(cat, label) {
     const fresh = tradeLastRowMap.get(label);
     if (fresh) {
       const pEl = document.getElementById("setupOverlayPrice");
-      if (pEl) pEl.textContent = Number(fresh.last).toFixed(6);
+      if (pEl) pEl.textContent = formatTradePrice(fresh.last);
     }
-  }, 3000);
+  }, 500);
 };
 
 window.closeTradeSetup = function() {
