@@ -467,6 +467,63 @@ async function writeWallet(userId, wallet) {
   if (db) await db.collection("wallets").updateOne({ userId }, { $set: wallet }, { upsert: true });
 }
 
+async function clearAllPendingRequests() {
+  const db = await connectToDatabase();
+  if (!db) return { clearedDeposits: 0, clearedWithdrawals: 0 };
+  const wallets = await db.collection("wallets").find({}).toArray();
+  let clearedDeposits = 0;
+  let clearedWithdrawals = 0;
+  for (const w of wallets) {
+    const pendingDeposits = w.pendingDeposits || [];
+    const pendingWithdrawals = w.pendingWithdrawals || [];
+    if (!pendingDeposits.length && !pendingWithdrawals.length) continue;
+
+    const wallet = { ...w };
+    wallet.pendingDeposits = [];
+    wallet.pendingWithdrawals = [];
+    wallet.deposits = wallet.deposits || [];
+    wallet.withdrawals = wallet.withdrawals || [];
+
+    for (const dep of pendingDeposits) {
+      wallet.deposits.push({
+        ...dep,
+        status: "cancelled",
+        processedAt: Date.now(),
+        cancelledReason: "cleared_by_admin",
+      });
+      clearedDeposits++;
+    }
+
+    for (const wd of pendingWithdrawals) {
+      wallet.balance = (wallet.balance || 0) + Number(wd.amount || 0);
+      const histIdx = wallet.withdrawals.findIndex((x) => x.id === wd.id);
+      const cancelled = {
+        ...wd,
+        status: "cancelled",
+        processedAt: Date.now(),
+        cancelledReason: "cleared_by_admin",
+      };
+      if (histIdx >= 0) wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...cancelled };
+      else wallet.withdrawals.push(cancelled);
+      clearedWithdrawals++;
+    }
+
+    await db.collection("wallets").updateOne(
+      { userId: wallet.userId },
+      {
+        $set: {
+          pendingDeposits: [],
+          pendingWithdrawals: [],
+          balance: wallet.balance,
+          deposits: wallet.deposits,
+          withdrawals: wallet.withdrawals,
+        },
+      }
+    );
+  }
+  return { clearedDeposits, clearedWithdrawals };
+}
+
 // --- HANDLER ---
 module.exports = async (req, res) => {
   try {
@@ -955,10 +1012,6 @@ module.exports = async (req, res) => {
             w.pendingWithdrawals = w.pendingWithdrawals || [];
             w.pendingWithdrawals.push(withdrawal);
             
-            // Also add to withdrawals history
-            w.withdrawals = w.withdrawals || [];
-            w.withdrawals.push(withdrawal);
-            
             await writeWallet(decoded.id, w);
             
             // Notification logic
@@ -1372,17 +1425,16 @@ module.exports = async (req, res) => {
             if (!db) return sendJson(res, 200, { deposits: [] });
             const [users, wallets] = await Promise.all([
                 db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
-                db.collection("wallets").find({}, { projection: { userId: 1, pendingDeposits: 1, deposits: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, pendingDeposits: 1 } }).toArray(),
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                (w.pendingDeposits || []).forEach((d) => out.push({ ...d, status: d.status || "pending", userId: u.id, userName: u.name, userEmail: u.email }));
-                (w.deposits || []).forEach((d) => out.push({ ...d, status: d.status || "completed", userId: u.id, userName: u.name, userEmail: u.email }));
+                (w.pendingDeposits || []).forEach((d) => out.push({ ...d, status: "pending", userId: u.id, userName: u.name, userEmail: u.email }));
             }
-            out.sort((a, b) => (b.created || b.processedAt || 0) - (a.created || a.processedAt || 0));
+            out.sort((a, b) => (b.created || 0) - (a.created || 0));
             return sendJson(res, 200, { deposits: out });
         }
 
@@ -1432,24 +1484,25 @@ module.exports = async (req, res) => {
             if (!db) return sendJson(res, 200, { withdrawals: [] });
             const [users, wallets] = await Promise.all([
                 db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
-                db.collection("wallets").find({}, { projection: { userId: 1, withdrawals: 1, pendingWithdrawals: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, pendingWithdrawals: 1 } }).toArray(),
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
-            const seen = new Set();
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                const all = [...(w.pendingWithdrawals || []), ...(w.withdrawals || [])];
-                for (const wd of all) {
-                    const key = `${u.id}:${wd.id}`;
-                    if (!wd.id || seen.has(key)) continue;
-                    seen.add(key);
-                    out.push({ ...wd, status: wd.status || "pending", userId: u.id, userName: u.name, userEmail: u.email });
-                }
+                (w.pendingWithdrawals || []).forEach((wd) => out.push({ ...wd, status: "pending", userId: u.id, userName: u.name, userEmail: u.email }));
             }
-            out.sort((a, b) => (b.created || b.processedAt || 0) - (a.created || a.processedAt || 0));
+            out.sort((a, b) => (b.created || 0) - (a.created || 0));
             return sendJson(res, 200, { withdrawals: out });
+        }
+
+        if (pathname === "/admin/api/pending/clear-all" && req.method === "POST") {
+            const result = await clearAllPendingRequests();
+            return sendJson(res, 200, {
+                message: `Cleared ${result.clearedDeposits} pending deposit(s) and ${result.clearedWithdrawals} pending withdrawal(s).`,
+                ...result,
+            });
         }
 
         if (pathname === "/admin/api/withdrawal/action" && req.method === "POST") {
@@ -1475,11 +1528,16 @@ module.exports = async (req, res) => {
             // Remove from pending
             wallet.pendingWithdrawals.splice(withdrawalIndex, 1);
             
-            // Update withdrawal status
+            // Update withdrawal status in history if present
             withdrawal.status = action === "approve" ? "completed" : "rejected";
             withdrawal.processedAt = Date.now();
             wallet.withdrawals = wallet.withdrawals || [];
-            wallet.withdrawals.push(withdrawal);
+            const histIdx = wallet.withdrawals.findIndex((w) => w.id === withdrawalId);
+            if (histIdx >= 0) {
+                wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...withdrawal };
+            } else {
+                wallet.withdrawals.push(withdrawal);
+            }
             
             await writeWallet(userId, wallet);
             return sendJson(res, 200, { message: `Withdrawal ${action}d successfully` });

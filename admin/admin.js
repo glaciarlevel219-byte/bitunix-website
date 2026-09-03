@@ -513,14 +513,12 @@ function renderDepositsTable(deposits) {
     console.log('Rendering deposits table with:', deposits);
     
     if (!deposits || deposits.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9">No deposits found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">No pending deposits</td></tr>';
         return;
     }
     
     tbody.innerHTML = deposits.map(deposit => {
         const depositId = deposit.id || deposit.rechargeId || '';
-        const status = String(deposit.status || 'pending').toLowerCase();
-        const isPending = status === 'pending';
         console.log('Creating buttons for deposit:', { userId: deposit.userId, depositId });
         
         // Receipt column HTML
@@ -528,11 +526,6 @@ function renderDepositsTable(deposits) {
         if (deposit.receipt) {
             receiptHtml = `<button class="btn-small" onclick="viewReceipt('${escapeHtml(depositId)}')">View Receipt</button>`;
         }
-        
-        const actionsHtml = isPending
-            ? `<button class="btn-small btn-approve" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'approve')">Approve</button>
-               <button class="btn-small btn-reject" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'reject')">Reject</button>`
-            : '<span class="muted">—</span>';
         
         return `
         <tr>
@@ -542,9 +535,12 @@ function renderDepositsTable(deposits) {
             <td>${Number(deposit.amount).toFixed(2)} USDT</td>
             <td>${escapeHtml(deposit.network || 'Unknown')}</td>
             <td>${new Date(deposit.created).toLocaleString()}</td>
-            <td>${renderAdminStatus(deposit.status)}</td>
+            <td><span class="status-pending">Pending</span></td>
             <td>${receiptHtml}</td>
-            <td>${actionsHtml}</td>
+            <td>
+                <button class="btn-small btn-approve" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'approve')">Approve</button>
+                <button class="btn-small btn-reject" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'reject')">Reject</button>
+            </td>
         </tr>
     `;
     }).join('');
@@ -595,20 +591,13 @@ function renderWithdrawalsTable(withdrawals) {
     console.log('Rendering withdrawals table with:', withdrawals);
     
     if (!withdrawals || withdrawals.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No withdrawals found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">No pending withdrawals</td></tr>';
         return;
     }
     
     tbody.innerHTML = withdrawals.map(withdrawal => {
         const withdrawalId = withdrawal.id || '';
-        const status = String(withdrawal.status || 'pending').toLowerCase();
-        const isPending = status === 'pending';
         console.log('Creating buttons for withdrawal:', { userId: withdrawal.userId, withdrawalId });
-        
-        const actionsHtml = isPending
-            ? `<button class="btn-small btn-approve" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'approve')">Approve</button>
-               <button class="btn-small btn-reject" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'reject')">Reject</button>`
-            : '<span class="muted">—</span>';
         
         return `
         <tr>
@@ -619,8 +608,11 @@ function renderWithdrawalsTable(withdrawals) {
             <td>${escapeHtml(withdrawal.network || 'Unknown')}</td>
             <td>${escapeHtml(withdrawal.address || 'N/A')}</td>
             <td>${new Date(withdrawal.created).toLocaleString()}</td>
-            <td>${renderAdminStatus(withdrawal.status)}</td>
-            <td>${actionsHtml}</td>
+            <td><span class="status-pending">Pending</span></td>
+            <td>
+                <button class="btn-small btn-approve" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'approve')">Approve</button>
+                <button class="btn-small btn-reject" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'reject')">Reject</button>
+            </td>
         </tr>
     `;
     }).join('');
@@ -628,6 +620,33 @@ function renderWithdrawalsTable(withdrawals) {
     console.log('Withdrawals table rendered');
     var wc = document.getElementById('withdrawalSearchCount');
     if (wc) wc.textContent = allWithdrawals.length + ' withdrawal(s)';
+}
+
+async function clearAllPendingRequests() {
+    if (!confirm('Clear ALL pending deposits and withdrawals? Withdrawal amounts will be returned to user balances.')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/pending/clear-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message || 'All pending requests cleared.');
+            loadDeposits();
+            loadWithdrawals();
+            refreshUsersQuietly();
+        } else {
+            alert(data.message || 'Failed to clear pending requests.');
+        }
+    } catch (error) {
+        console.error('Failed to clear pending requests:', error);
+        alert('Network error. Please try again.');
+    }
 }
 
 async function approveDeposit(userId, depositId, action) {
