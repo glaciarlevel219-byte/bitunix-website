@@ -980,18 +980,27 @@ td code.clickable-user-id:hover {
 }
 
 .chat-input-container {
-    display: flex;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
     align-items: center;
+    padding: 12px 0 0;
 }
 
-.chat-input-container input {
-    flex: 1;
+.chat-input-container input,
+.chat-input-container .chat-reply-input {
+    width: 100%;
     min-width: 0;
-    padding: 10px;
+    padding: 10px 14px;
     border: 1px solid #ddd;
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 14px;
+}
+
+.chat-input-container input:focus,
+.chat-input-container .chat-reply-input:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .chat-input-container .btn-primary {
@@ -1001,11 +1010,6 @@ td code.clickable-user-id:hover {
     padding: 10px 16px;
     font-size: 14px;
     white-space: nowrap;
-}
-
-.chat-input-container input:focus {
-    outline: none;
-    border-color: #667eea;
 }
 
 .support-actions {
@@ -1145,22 +1149,30 @@ td code.clickable-user-id:hover {
 .msg-time { font-size: 10px; color: #999; margin-top: 4px; text-align: right; }
 
 .chat-input-box {
-    padding: 20px;
+    padding: 16px 20px;
     border-top: 1px solid #eee;
-    display: flex;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
     align-items: center;
+    background: #fff;
 }
 
-.chat-input-box input {
-    flex: 1;
+.chat-input-box input,
+.chat-input-box .chat-reply-input {
+    width: 100%;
     min-width: 0;
-    width: auto;
-    padding: 12px 15px;
+    padding: 12px 16px;
     border: 1px solid #ddd;
-    border-radius: 25px;
+    border-radius: 24px;
     outline: none;
     font-size: 14px;
+    box-sizing: border-box;
+}
+
+.chat-input-box input:focus,
+.chat-input-box .chat-reply-input:focus {
+    border-color: #667eea;
 }
 
 .chat-input-box .btn-primary {
@@ -1170,6 +1182,34 @@ td code.clickable-user-id:hover {
     padding: 10px 18px;
     font-size: 14px;
     white-space: nowrap;
+}
+
+/* Compact send button for support chat — NOT full width */
+.btn-send-chat {
+    width: auto !important;
+    max-width: 76px;
+    min-width: 64px;
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    font-weight: 600;
+    line-height: 1.2;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.btn-send-chat:hover:not(:disabled) {
+    filter: brightness(1.05);
+}
+
+.btn-send-chat:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .empty-chat-state {

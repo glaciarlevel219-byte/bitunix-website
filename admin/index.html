@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Admin Panel - Bitunix</title>
-    <link rel="stylesheet" href="/admin/admin.css?v=4.1">
+    <link rel="stylesheet" href="/admin/admin.css?v=4.2">
     <script>
       window.onerror = function(msg, url, line) {
         console.error('ADMIN ERROR:', msg, 'at', url, 'line', line);
@@ -378,8 +378,8 @@
                                 </div>
                             </div>
                             <div class="chat-input-box">
-                                <input type="text" id="supportChatInput" placeholder="Type a message..." disabled>
-                                <button id="sendSupportMessage" class="btn-primary" disabled>Send</button>
+                                <input type="text" id="supportChatInput" class="chat-reply-input" placeholder="Type your reply..." disabled>
+                                <button type="button" id="sendSupportMessage" class="btn-send-chat" disabled>Send</button>
                             </div>
                         </div>
                     </div>
@@ -401,8 +401,8 @@
                         <!-- Chat messages will be loaded here -->
                     </div>
                     <div class="chat-input-container">
-                        <input type="text" id="modalSupportChatInput" placeholder="Type your message..." />
-                        <button id="modalSendSupportMessage" class="btn-primary">Send</button>
+                        <input type="text" id="modalSupportChatInput" class="chat-reply-input" placeholder="Type your reply..." />
+                        <button type="button" id="modalSendSupportMessage" class="btn-send-chat">Send</button>
                     </div>
                 </div>
             </div>
