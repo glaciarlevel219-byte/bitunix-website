@@ -5,6 +5,10 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const { loadEnvFile } = require("./scripts/load-env.js");
+
+loadEnvFile(path.join(__dirname, ".env"));
+
 const apiHandler = require("./api/[...route].js");
 
 const HOST = process.env.HOST || "0.0.0.0";

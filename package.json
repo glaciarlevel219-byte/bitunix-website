@@ -7,7 +7,9 @@
     "start": "node hostinger-server.js",
     "start:vercel-api": "node hostinger-server.js",
     "start:legacy": "node server.js",
-    "dev": "node hostinger-server.js"
+    "dev": "node hostinger-server.js",
+    "vps:setup": "bash scripts/vps-setup.sh",
+    "vps:update": "bash scripts/vps-update.sh"
   },
   "keywords": ["crypto", "trading", "bitunix"],
   "author": "",

@@ -18,6 +18,25 @@ Site ab **Hostinger** par chalani hai (Vercel ki jagah).
 
 ## Option A: Hostinger VPS (recommended)
 
+### One command (SSH par — purani site safe)
+
+```bash
+ssh root@YOUR_VPS_IP
+git clone https://github.com/glaciarlevel219-byte/bitunix-website.git /var/www/bitunix-website
+cd /var/www/bitunix-website
+chmod +x scripts/*.sh
+bash scripts/vps-setup.sh
+```
+
+Script `.env` banata hai, PM2 start karta hai, nginx add karta hai — **dusri website ko touch nahi karta**.
+
+Baad mein code update:
+```bash
+cd /var/www/bitunix-website && bash scripts/vps-update.sh
+```
+
+---
+
 ### Same VPS par pehle se website hai? (Multi-site)
 
 **Koi masla nahi** — ek VPS par **multiple websites** chal sakti hain.
