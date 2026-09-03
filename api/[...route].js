@@ -673,6 +673,33 @@ async function clearStuckWithdrawalsOnly() {
   return { clearedWithdrawals };
 }
 
+let adminMigrationPromise = null;
+
+async function runAdminPendingResetMigration() {
+  const db = await connectToDatabase();
+  if (!db) return { skipped: true };
+  const flag = "adminPendingReset20260903";
+  const meta = await db.collection("meta").findOne({ _id: "migrations" });
+  if (meta?.[flag]) return { skipped: true };
+  const result = await clearAllPendingRequests();
+  await db.collection("meta").updateOne(
+    { _id: "migrations" },
+    { $set: { [flag]: true, clearedAt: Date.now(), result } },
+    { upsert: true }
+  );
+  return result;
+}
+
+function ensureAdminMigrations() {
+  if (!adminMigrationPromise) {
+    adminMigrationPromise = runAdminPendingResetMigration().catch((err) => {
+      console.error("Admin migration failed:", err);
+      adminMigrationPromise = null;
+    });
+  }
+  return adminMigrationPromise;
+}
+
 function findPendingWithdrawal(wallet, withdrawalId) {
   const target = String(withdrawalId || "");
   const fromPending = (wallet.pendingWithdrawals || []).find(
@@ -1474,6 +1501,9 @@ module.exports = async (req, res) => {
     }
 
     if (pathname.startsWith("/admin/api")) {
+        if (pathname !== "/admin/api/login" && pathname !== "/api/admin/login") {
+            await ensureAdminMigrations();
+        }
         const admin = verifyAdminSession(token);
         if(!admin) {
             if(pathname !== "/admin/api/login") return sendJson(res, 401, { message: "Unauthorized" });
