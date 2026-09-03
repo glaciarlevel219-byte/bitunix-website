@@ -12,7 +12,9 @@ Site ab **Hostinger** par chalani hai (Vercel ki jagah).
 2. **MongoDB URI** — Vercel dashboard se copy karo:  
    Project → Settings → Environment Variables → `MONGODB_URI`
 
-3. Domain **bitunixpk.com** DNS Hostinger ki taraf point karni hogi
+3. Domain **bitunixpk.com** DNS → VPS IP **`2.24.197.24`** (abhi Vercel par hai — change karna zaroori)
+
+**Quick guide (is IP ke liye):** [VPS_DEPLOY_2.24.197.24.md](./VPS_DEPLOY_2.24.197.24.md)
 
 ---
 
