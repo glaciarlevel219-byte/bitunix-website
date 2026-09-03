@@ -490,6 +490,32 @@ input[type="color"] {
     text-transform: uppercase;
 }
 
+.status-stuck {
+    background: #fd7e14;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.btn-clear {
+    background: #6c757d;
+    color: #fff;
+    border: none;
+}
+
+.btn-clear:hover {
+    background: #5a6268;
+}
+
+.withdrawal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
 /* Table improvements */
 td code {
     background: #f8f9fa;

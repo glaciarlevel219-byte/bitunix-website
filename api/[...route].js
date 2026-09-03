@@ -476,7 +476,8 @@ async function clearAllPendingRequests() {
   for (const w of wallets) {
     const pendingDeposits = w.pendingDeposits || [];
     const pendingWithdrawals = w.pendingWithdrawals || [];
-    if (!pendingDeposits.length && !pendingWithdrawals.length) continue;
+    const stuckWithdrawals = getStuckWithdrawals(w);
+    if (!pendingDeposits.length && !pendingWithdrawals.length && !stuckWithdrawals.length) continue;
 
     const wallet = { ...w };
     wallet.pendingDeposits = [];
@@ -508,6 +509,11 @@ async function clearAllPendingRequests() {
       clearedWithdrawals++;
     }
 
+    for (const wd of getStuckWithdrawals(w)) {
+      finalizeWithdrawalRecord(wallet, { ...wd }, "clear");
+      clearedWithdrawals++;
+    }
+
     await db.collection("wallets").updateOne(
       { userId: wallet.userId },
       {
@@ -522,6 +528,75 @@ async function clearAllPendingRequests() {
     );
   }
   return { clearedDeposits, clearedWithdrawals };
+}
+
+function isPendingWithdrawalStatus(status) {
+  const s = String(status || "pending").toLowerCase();
+  return s === "pending" || s === "";
+}
+
+function getStuckWithdrawals(wallet) {
+  const pendingIds = new Set((wallet.pendingWithdrawals || []).map((w) => w.id).filter(Boolean));
+  return (wallet.withdrawals || []).filter((w) => w?.id && isPendingWithdrawalStatus(w.status) && !pendingIds.has(w.id));
+}
+
+function finalizeWithdrawalRecord(wallet, withdrawal, action) {
+  const amount = Number(withdrawal.amount || 0);
+  if (action === "reject" || action === "clear") {
+    wallet.balance = (wallet.balance || 0) + amount;
+  }
+  withdrawal.status = action === "approve" ? "completed" : action === "reject" ? "rejected" : "cancelled";
+  withdrawal.processedAt = Date.now();
+  if (action === "clear") withdrawal.cancelledReason = "cleared_by_admin";
+
+  wallet.pendingWithdrawals = (wallet.pendingWithdrawals || []).filter((w) => w.id !== withdrawal.id);
+  wallet.withdrawals = wallet.withdrawals || [];
+  const histIdx = wallet.withdrawals.findIndex((w) => w.id === withdrawal.id);
+  if (histIdx >= 0) wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...withdrawal };
+  else wallet.withdrawals.push({ ...withdrawal });
+}
+
+async function clearStuckWithdrawalsOnly() {
+  const db = await connectToDatabase();
+  if (!db) return { clearedWithdrawals: 0 };
+  const wallets = await db.collection("wallets").find({}).toArray();
+  let clearedWithdrawals = 0;
+  for (const w of wallets) {
+    const stuck = getStuckWithdrawals(w);
+    if (!stuck.length) continue;
+    const wallet = { ...w };
+    wallet.pendingWithdrawals = wallet.pendingWithdrawals || [];
+    wallet.withdrawals = wallet.withdrawals || [];
+    for (const wd of stuck) {
+      finalizeWithdrawalRecord(wallet, { ...wd }, "clear");
+      clearedWithdrawals++;
+    }
+    await db.collection("wallets").updateOne(
+      { userId: wallet.userId },
+      {
+        $set: {
+          pendingWithdrawals: wallet.pendingWithdrawals,
+          balance: wallet.balance,
+          withdrawals: wallet.withdrawals,
+        },
+      }
+    );
+  }
+  return { clearedWithdrawals };
+}
+
+function findPendingWithdrawal(wallet, withdrawalId) {
+  const pendingIdx = (wallet.pendingWithdrawals || []).findIndex((w) => w.id === withdrawalId);
+  if (pendingIdx >= 0) {
+    return { withdrawal: wallet.pendingWithdrawals[pendingIdx], source: "pending" };
+  }
+  const histIdx = (wallet.withdrawals || []).findIndex(
+    (w) => w.id === withdrawalId && isPendingWithdrawalStatus(w.status)
+  );
+  if (histIdx >= 0) {
+    return { withdrawal: wallet.withdrawals[histIdx], source: "history" };
+  }
+  return null;
 }
 
 // --- HANDLER ---
@@ -1484,17 +1559,35 @@ module.exports = async (req, res) => {
             if (!db) return sendJson(res, 200, { withdrawals: [] });
             const [users, wallets] = await Promise.all([
                 db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
-                db.collection("wallets").find({}, { projection: { userId: 1, pendingWithdrawals: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, pendingWithdrawals: 1, withdrawals: 1 } }).toArray(),
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
+            const seen = new Set();
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                (w.pendingWithdrawals || []).forEach((wd) => out.push({ ...wd, status: "pending", userId: u.id, userName: u.name, userEmail: u.email }));
+                for (const wd of w.pendingWithdrawals || []) {
+                    if (!wd?.id || seen.has(wd.id)) continue;
+                    seen.add(wd.id);
+                    out.push({ ...wd, status: "pending", stuck: false, userId: u.id, userName: u.name, userEmail: u.email });
+                }
+                for (const wd of getStuckWithdrawals(w)) {
+                    if (!wd?.id || seen.has(wd.id)) continue;
+                    seen.add(wd.id);
+                    out.push({ ...wd, status: "pending", stuck: true, userId: u.id, userName: u.name, userEmail: u.email });
+                }
             }
             out.sort((a, b) => (b.created || 0) - (a.created || 0));
             return sendJson(res, 200, { withdrawals: out });
+        }
+
+        if (pathname === "/admin/api/withdrawals/clear-stuck" && req.method === "POST") {
+            const result = await clearStuckWithdrawalsOnly();
+            return sendJson(res, 200, {
+                message: `Cleared ${result.clearedWithdrawals} stuck withdrawal request(s). Amounts returned to user balances.`,
+                ...result,
+            });
         }
 
         if (pathname === "/admin/api/pending/clear-all" && req.method === "POST") {
@@ -1510,37 +1603,21 @@ module.exports = async (req, res) => {
             if (!userId || !withdrawalId || !action) {
                 return sendJson(res, 400, { message: "Missing required fields" });
             }
-            
+            const normalizedAction = String(action).toLowerCase();
+            if (!["approve", "reject", "clear"].includes(normalizedAction)) {
+                return sendJson(res, 400, { message: "Invalid action. Use approve, reject, or clear." });
+            }
+
             const wallet = await readWallet(userId);
-            const withdrawalIndex = (wallet.pendingWithdrawals || []).findIndex(w => w.id === withdrawalId);
-            
-            if (withdrawalIndex === -1) {
-                return sendJson(res, 404, { message: "Withdrawal not found" });
+            const found = findPendingWithdrawal(wallet, withdrawalId);
+            if (!found) {
+                return sendJson(res, 404, { message: "Withdrawal not found or already processed." });
             }
-            
-            const withdrawal = wallet.pendingWithdrawals[withdrawalIndex];
-            
-            if (action === "reject") {
-                // Return amount to balance
-                wallet.balance = (wallet.balance || 0) + Number(withdrawal.amount);
-            }
-            
-            // Remove from pending
-            wallet.pendingWithdrawals.splice(withdrawalIndex, 1);
-            
-            // Update withdrawal status in history if present
-            withdrawal.status = action === "approve" ? "completed" : "rejected";
-            withdrawal.processedAt = Date.now();
-            wallet.withdrawals = wallet.withdrawals || [];
-            const histIdx = wallet.withdrawals.findIndex((w) => w.id === withdrawalId);
-            if (histIdx >= 0) {
-                wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...withdrawal };
-            } else {
-                wallet.withdrawals.push(withdrawal);
-            }
-            
+
+            finalizeWithdrawalRecord(wallet, { ...found.withdrawal }, normalizedAction);
             await writeWallet(userId, wallet);
-            return sendJson(res, 200, { message: `Withdrawal ${action}d successfully` });
+            const verb = normalizedAction === "clear" ? "cleared" : `${normalizedAction}d`;
+            return sendJson(res, 200, { message: `Withdrawal ${verb} successfully` });
         }
 
         if (pathname === "/admin/api/kyc/pending") {

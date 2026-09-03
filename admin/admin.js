@@ -591,35 +591,107 @@ function renderWithdrawalsTable(withdrawals) {
     console.log('Rendering withdrawals table with:', withdrawals);
     
     if (!withdrawals || withdrawals.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No pending withdrawals</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">No pending withdrawals</td></tr>';
         return;
     }
     
     tbody.innerHTML = withdrawals.map(withdrawal => {
         const withdrawalId = withdrawal.id || '';
-        console.log('Creating buttons for withdrawal:', { userId: withdrawal.userId, withdrawalId });
-        
+        const userId = withdrawal.userId || '';
+        const isStuck = Boolean(withdrawal.stuck);
+        const statusHtml = isStuck
+            ? '<span class="status-stuck">Stuck</span>'
+            : '<span class="status-pending">Pending</span>';
         return `
-        <tr>
-            <td><code>${withdrawalId ? withdrawalId.slice(0, 8) : 'N/A'}</code></td>
+        <tr data-withdrawal-id="${escapeHtml(withdrawalId)}" data-user-id="${escapeHtml(String(userId))}">
+            <td><code>${withdrawalId ? escapeHtml(withdrawalId.slice(0, 8)) : 'N/A'}</code></td>
             <td>${escapeHtml(withdrawal.userName)}</td>
             <td>${escapeHtml(withdrawal.userEmail)}</td>
             <td>${Number(withdrawal.amount).toFixed(2)} USDT</td>
             <td>${escapeHtml(withdrawal.network || 'Unknown')}</td>
             <td>${escapeHtml(withdrawal.address || 'N/A')}</td>
             <td>${new Date(withdrawal.created).toLocaleString()}</td>
-            <td><span class="status-pending">Pending</span></td>
-            <td>
-                <button class="btn-small btn-approve" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'approve')">Approve</button>
-                <button class="btn-small btn-reject" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'reject')">Reject</button>
+            <td>${statusHtml}</td>
+            <td class="withdrawal-actions">
+                <button type="button" class="btn-small btn-approve wd-action-btn" data-action="approve">Approve</button>
+                <button type="button" class="btn-small btn-reject wd-action-btn" data-action="reject">Reject</button>
+                <button type="button" class="btn-small btn-clear wd-action-btn" data-action="clear">Clear</button>
             </td>
         </tr>
     `;
     }).join('');
+
+    tbody.querySelectorAll('.wd-action-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const row = btn.closest('tr');
+            const uid = row?.getAttribute('data-user-id') || '';
+            const wid = row?.getAttribute('data-withdrawal-id') || '';
+            const act = btn.getAttribute('data-action') || '';
+            if (!uid || !wid || !act) return;
+            if (act === 'clear') {
+                clearWithdrawal(uid, wid);
+            } else {
+                approveWithdrawal(uid, wid, act);
+            }
+        });
+    });
     
     console.log('Withdrawals table rendered');
     var wc = document.getElementById('withdrawalSearchCount');
     if (wc) wc.textContent = allWithdrawals.length + ' withdrawal(s)';
+}
+
+async function clearWithdrawal(userId, withdrawalId) {
+    if (!confirm('Clear this withdrawal request? The amount will be returned to the user balance.')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/withdrawal/action`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ userId, withdrawalId, action: 'clear' })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message || 'Withdrawal cleared.');
+            loadWithdrawals();
+            refreshUsersQuietly();
+        } else {
+            alert(data.message || 'Failed to clear withdrawal.');
+        }
+    } catch (error) {
+        console.error('Failed to clear withdrawal:', error);
+        alert('Network error. Please try again.');
+    }
+}
+
+async function clearStuckWithdrawals() {
+    if (!confirm('Clear all STUCK withdrawal requests? These are requests that cannot be approved or rejected. Amounts will be returned to user balances.')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/withdrawals/clear-stuck`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message || 'Stuck withdrawals cleared.');
+            loadWithdrawals();
+            refreshUsersQuietly();
+        } else {
+            alert(data.message || 'Failed to clear stuck withdrawals.');
+        }
+    } catch (error) {
+        console.error('Failed to clear stuck withdrawals:', error);
+        alert('Network error. Please try again.');
+    }
 }
 
 async function clearAllPendingRequests() {
