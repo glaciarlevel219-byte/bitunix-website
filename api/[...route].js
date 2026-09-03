@@ -179,6 +179,7 @@ module.exports = async (req, res) => {
       const db = await connectToDatabase();
       const u = await db.collection("users").findOne({ email });
       if (!u || !verifyPassword(password, u.passwordHash)) return sendJson(res, 401, { message: "Invalid credentials" });
+      if (u.accountFrozen) return sendJson(res, 403, { message: "Your account has been frozen. Please contact customer support." });
       const token = signToken({ id: u.id, name: u.name, email: u.email });
       return sendJson(res, 200, { token, user: { id: u.id, name: u.name, email: u.email } });
     }
@@ -675,7 +676,15 @@ module.exports = async (req, res) => {
 
     // --- USER PROTECTED ---
     if (decoded) {
-        if (pathname === "/api/auth/me") return sendJson(res, 200, { user: decoded });
+        const db = await connectToDatabase();
+        const dbUser = db ? await db.collection("users").findOne({ id: decoded.id }) : null;
+        if (dbUser?.accountFrozen) {
+            if (pathname === "/api/auth/me") {
+                return sendJson(res, 200, { user: { ...decoded, accountFrozen: true } });
+            }
+            return sendJson(res, 403, { message: "Your account has been frozen. Please contact customer support.", frozen: true });
+        }
+        if (pathname === "/api/auth/me") return sendJson(res, 200, { user: { ...decoded, accountFrozen: false } });
         if (pathname === "/api/wallet/me") {
             const wallet = await readWallet(decoded.id);
             // Get credit score from user profile
@@ -1342,6 +1351,67 @@ module.exports = async (req, res) => {
                 return sendJson(res, 200, { message: "Success" });
             }
             return sendJson(res, 500, { message: "DB Error" });
+        }
+
+        if (pathname === "/admin/api/user/update-balance" && req.method === "POST") {
+            const { userId, balance } = await parseBody(req);
+            if (!userId || balance === undefined || balance === null) {
+                return sendJson(res, 400, { message: "User ID and balance are required" });
+            }
+            const numBalance = Number(balance);
+            if (!Number.isFinite(numBalance) || numBalance < 0) {
+                return sendJson(res, 400, { message: "Balance must be a valid non-negative number" });
+            }
+            const wallet = await readWallet(userId);
+            wallet.balance = numBalance;
+            await writeWallet(userId, wallet);
+            return sendJson(res, 200, { message: "Balance updated", balance: wallet.balance });
+        }
+
+        if (pathname === "/admin/api/user/update-account-status" && req.method === "POST") {
+            const { userId, frozen } = await parseBody(req);
+            if (!userId) return sendJson(res, 400, { message: "User ID is required" });
+            const db = await connectToDatabase();
+            if (!db) return sendJson(res, 500, { message: "DB Error" });
+            const exists = await db.collection("users").findOne({ id: userId });
+            if (!exists) return sendJson(res, 404, { message: "User not found" });
+            await db.collection("users").updateOne(
+                { id: userId },
+                { $set: { accountFrozen: !!frozen, frozenAt: frozen ? Date.now() : null } }
+            );
+            return sendJson(res, 200, { message: frozen ? "Account frozen" : "Account unfrozen", accountFrozen: !!frozen });
+        }
+
+        if (pathname === "/admin/api/user/update-profile" && req.method === "POST") {
+            const { userId, name, email } = await parseBody(req);
+            if (!userId) return sendJson(res, 400, { message: "User ID is required" });
+            const db = await connectToDatabase();
+            if (!db) return sendJson(res, 500, { message: "DB Error" });
+            const updates = {};
+            if (name != null && String(name).trim()) updates.name = String(name).trim();
+            if (email != null && String(email).trim()) {
+                const emailNorm = String(email).trim().toLowerCase();
+                const taken = await db.collection("users").findOne({ email: emailNorm, id: { $ne: userId } });
+                if (taken) return sendJson(res, 400, { message: "Email already in use" });
+                updates.email = emailNorm;
+            }
+            if (!Object.keys(updates).length) return sendJson(res, 400, { message: "Nothing to update" });
+            await db.collection("users").updateOne({ id: userId }, { $set: updates });
+            return sendJson(res, 200, { message: "Profile updated", updates });
+        }
+
+        if (pathname === "/admin/api/user/delete" && req.method === "POST") {
+            const { userId } = await parseBody(req);
+            if (!userId) return sendJson(res, 400, { message: "User ID is required" });
+            const db = await connectToDatabase();
+            if (!db) return sendJson(res, 500, { message: "DB Error" });
+            const user = await db.collection("users").findOne({ id: userId });
+            if (!user) return sendJson(res, 404, { message: "User not found" });
+            await db.collection("users").deleteOne({ id: userId });
+            await db.collection("wallets").deleteOne({ userId });
+            await db.collection("support_chats").deleteOne({ userId });
+            await db.collection("reset_codes").deleteOne({ email: user.email });
+            return sendJson(res, 200, { message: "User deleted successfully" });
         }
     }
 

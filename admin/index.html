@@ -210,6 +210,7 @@
                                     <th>Email</th>
                                     <th>Password Hash</th>
                                     <th>Balance</th>
+                                    <th>Status</th>
                                     <th>Wallet</th>
                                     <th>Registered</th>
                                     <th>Actions</th>
@@ -217,7 +218,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="8">Loading users...</td>
+                                    <td colspan="9">Loading users...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -395,15 +396,24 @@
                     </div>
                     <div class="detail-group">
                         <label>Name:</label>
-                        <span id="modalUserName"></span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" id="editUserName" style="flex: 1; padding: 4px;" placeholder="User name">
+                            <button class="btn-small" onclick="updateUserProfileAdmin()">Update</button>
+                        </div>
                     </div>
                     <div class="detail-group">
                         <label>Email:</label>
-                        <span id="modalUserEmail"></span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="email" id="editUserEmail" style="flex: 1; padding: 4px;" placeholder="user@email.com">
+                            <button class="btn-small" onclick="updateUserProfileAdmin()">Update</button>
+                        </div>
                     </div>
                     <div class="detail-group">
-                        <label>Balance:</label>
-                        <span id="modalUserBalance"></span>
+                        <label>Balance (USDT):</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="number" id="editUserBalance" step="0.01" min="0" style="width: 120px; padding: 4px;" placeholder="0.00">
+                            <button class="btn-small" onclick="updateUserBalanceAdmin()">Update</button>
+                        </div>
                     </div>
                     <div class="detail-group">
                         <label>Credit Score:</label>
@@ -425,6 +435,13 @@
                                 <option value="5">VIP 5</option>
                             </select>
                             <button class="btn-small" onclick="updateVipLevelAdmin()">Update</button>
+                        </div>
+                    </div>
+                    <div class="detail-group">
+                        <label>Account Status:</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span id="modalAccountStatus">Active</span>
+                            <button id="toggleFreezeBtn" class="btn-small btn-reject" onclick="toggleAccountFreeze()">Freeze Account</button>
                         </div>
                     </div>
                     <div class="detail-group">
@@ -473,6 +490,7 @@
                 </div>
                 <div class="modal-actions">
                     <button class="btn-primary" onclick="openSupportChat(window.currentModalUserId)">Send Message</button>
+                    <button class="btn-reject" onclick="deleteUserAdmin()" style="margin-left: auto;">Delete User</button>
                     <button class="btn-secondary" onclick="closeUserModal()">Close</button>
                 </div>
             </div>

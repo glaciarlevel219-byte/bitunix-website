@@ -330,7 +330,7 @@ async function loadUsers() {
     } catch (error) {
         console.error('Failed to load users:', error);
         document.querySelector('#usersTable tbody').innerHTML = 
-            '<tr><td colspan="8">Failed to load users</td></tr>';
+            '<tr><td colspan="9">Failed to load users</td></tr>';
     }
 }
 
@@ -339,26 +339,33 @@ function renderUsersTable(users) {
     const tbody = document.querySelector('#usersTable tbody');
     
     if (!users || users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No users found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">No users found</td></tr>';
         const countEl = document.getElementById('userSearchCount');
         if (countEl) countEl.textContent = '';
         return;
     }
     
-    tbody.innerHTML = users.map(user => `
+    tbody.innerHTML = users.map(user => {
+        const bal = user.balance != null ? Number(user.balance) : (user.wallet ? Number(user.wallet.balance) : 0);
+        const frozen = !!user.accountFrozen;
+        const statusHtml = frozen
+            ? '<span style="color:#ef4444;font-weight:600;">Frozen</span>'
+            : '<span style="color:#10b981;font-weight:600;">Active</span>';
+        return `
         <tr>
             <td><code class="clickable-user-id" onclick="viewUserDetails('${user.id}')" title="Click to view details">${user.id.slice(0, 8)}</code></td>
             <td>${escapeHtml(user.name)}</td>
             <td>${escapeHtml(user.email)}</td>
             <td><code>${user.passwordHash ? user.passwordHash.slice(0, 20) + '...' : 'N/A'}</code></td>
-            <td>${user.wallet ? user.wallet.balance.toFixed(2) + ' USDT' : '0.00 USDT'}</td>
+            <td>${bal.toFixed(2)} USDT</td>
+            <td>${statusHtml}</td>
             <td>${user.wallet ? 'Active' : 'No Wallet'}</td>
             <td>${new Date(user.createdAt).toLocaleDateString()}</td>
             <td>
-                <button class="btn-small" onclick="viewUserDetails('${user.id}')">View</button>
+                <button class="btn-small" onclick="viewUserDetails('${user.id}')">Manage</button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
     
     const countEl = document.getElementById('userSearchCount');
     if (countEl) countEl.textContent = `${users.length} user(s)`;
@@ -714,16 +721,20 @@ function showUserModal(user) {
     
     // Store current user ID globally for support buttons
     window.currentModalUserId = user.id;
+    window.currentModalUserEmail = user.email || '';
     console.log('Stored user ID:', window.currentModalUserId);
     
     // Populate user information
     console.log('Populating user info...');
     
-    // Basic user info
+    const bal = user.balance != null ? Number(user.balance) : (user.wallet ? Number(user.wallet.balance) : 0);
     document.getElementById('modalUserId').textContent = user.id;
-    document.getElementById('modalUserName').textContent = user.name || 'N/A';
-    document.getElementById('modalUserEmail').textContent = user.email || 'N/A';
-    document.getElementById('modalUserBalance').textContent = (user.balance || 0).toFixed(2) + ' USDT';
+    const nameInput = document.getElementById('editUserName');
+    const emailInput = document.getElementById('editUserEmail');
+    const balanceInput = document.getElementById('editUserBalance');
+    if (nameInput) nameInput.value = user.name || '';
+    if (emailInput) emailInput.value = user.email || '';
+    if (balanceInput) balanceInput.value = bal.toFixed(2);
     const scoreInput = document.getElementById('editCreditScore');
     if (scoreInput) scoreInput.value = user.creditScore || '100';
     document.getElementById('modalUserRegistered').textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
@@ -739,6 +750,17 @@ function showUserModal(user) {
         withdrawBtn.textContent = isEnabled ? 'Disable' : 'Enable';
         withdrawBtn.className = isEnabled ? 'btn-small btn-reject' : 'btn-small btn-approve';
         window.currentUserWithdrawalEnabled = isEnabled;
+    }
+
+    const accountStatusEl = document.getElementById('modalAccountStatus');
+    const freezeBtn = document.getElementById('toggleFreezeBtn');
+    if (accountStatusEl && freezeBtn) {
+        const isFrozen = !!user.accountFrozen;
+        accountStatusEl.textContent = isFrozen ? 'Frozen' : 'Active';
+        accountStatusEl.style.color = isFrozen ? '#ef4444' : '#10b981';
+        freezeBtn.textContent = isFrozen ? 'Unfreeze Account' : 'Freeze Account';
+        freezeBtn.className = isFrozen ? 'btn-small btn-approve' : 'btn-small btn-reject';
+        window.currentUserAccountFrozen = isFrozen;
     }
 
     const vipSelect = document.getElementById('editVipLevel');
@@ -1475,18 +1497,136 @@ async function toggleUserWithdrawal() {
         const data = await response.json();
         if (response.ok) {
             alert(`Withdrawals ${newStatus ? 'enabled' : 'disabled'} successfully`);
-            loadUsers(); // Refresh list to get updated status
-            // Update modal UI immediately
             window.currentUserWithdrawalEnabled = newStatus;
-            document.getElementById('modalWithdrawalStatus').textContent = newStatus ? 'Enabled' : 'Disabled';
-            document.getElementById('modalWithdrawalStatus').style.color = newStatus ? '#10b981' : '#ef4444';
-            document.getElementById('toggleWithdrawBtn').textContent = newStatus ? 'Disable' : 'Enable';
-            document.getElementById('toggleWithdrawBtn').className = newStatus ? 'btn-small btn-reject' : 'btn-small btn-approve';
+            viewUserDetails(userId);
+            loadUsers();
         } else {
             alert(data.message || 'Update failed');
         }
     } catch (error) {
         alert('Network error while updating withdrawal status');
+    }
+}
+
+async function updateUserBalanceAdmin() {
+    const userId = window.currentModalUserId;
+    const balance = document.getElementById('editUserBalance')?.value;
+    if (!userId || balance === '' || balance == null) return;
+    if (!confirm(`Set balance to ${Number(balance).toFixed(2)} USDT for this user?`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/user/update-balance`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, balance: Number(balance) })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('Balance updated successfully');
+            viewUserDetails(userId);
+            loadUsers();
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating balance');
+    }
+}
+
+async function updateUserProfileAdmin() {
+    const userId = window.currentModalUserId;
+    const name = document.getElementById('editUserName')?.value?.trim();
+    const email = document.getElementById('editUserEmail')?.value?.trim();
+    if (!userId) return;
+    if (!name && !email) {
+        alert('Enter a name or email to update');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/user/update-profile`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, name, email })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('Profile updated successfully');
+            viewUserDetails(userId);
+            loadUsers();
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating profile');
+    }
+}
+
+async function toggleAccountFreeze() {
+    const userId = window.currentModalUserId;
+    const isFrozen = !!window.currentUserAccountFrozen;
+    if (!userId) return;
+    const newFrozen = !isFrozen;
+    const action = newFrozen ? 'FREEZE' : 'UNFREEZE';
+    if (!confirm(`Are you sure you want to ${action} this account?\n${newFrozen ? 'User will not be able to login or trade.' : 'User will regain full access.'}`)) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/user/update-account-status`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId, frozen: newFrozen })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(newFrozen ? 'Account frozen successfully' : 'Account unfrozen successfully');
+            viewUserDetails(userId);
+            loadUsers();
+        } else {
+            alert(data.message || 'Update failed');
+        }
+    } catch (error) {
+        alert('Network error while updating account status');
+    }
+}
+
+async function deleteUserAdmin() {
+    const userId = window.currentModalUserId;
+    const email = window.currentModalUserEmail || '';
+    if (!userId) return;
+    const typed = prompt(`DELETE USER PERMANENTLY?\n\nThis removes the account, wallet, and chat history.\nType the user email to confirm:\n${email}`);
+    if (typed !== email) {
+        if (typed != null) alert('Email did not match. Delete cancelled.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/user/delete`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert('User deleted successfully');
+            closeUserModal();
+            loadUsers();
+        } else {
+            alert(data.message || 'Delete failed');
+        }
+    } catch (error) {
+        alert('Network error while deleting user');
     }
 }
 async function updateTradeMode(mode) {
