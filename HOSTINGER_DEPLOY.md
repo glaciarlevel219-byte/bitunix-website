@@ -23,7 +23,7 @@ Site ab **Hostinger** par chalani hai (Vercel ki jagah).
 ### One command (SSH par — purani site safe)
 
 ```bash
-ssh root@YOUR_VPS_IP
+ssh root@2.24.197.24
 git clone https://github.com/glaciarlevel219-byte/bitunix-website.git /var/www/bitunix-website
 cd /var/www/bitunix-website
 chmod +x scripts/*.sh
@@ -90,7 +90,7 @@ cd /var/www/bitunix-website && bash scripts/vps-update.sh
 ### 1. SSH se server par login (fresh VPS)
 
 ```bash
-ssh root@YOUR_VPS_IP
+ssh root@2.24.197.24
 ```
 
 ### 2. Node.js install (agar nahi hai)
@@ -142,8 +142,8 @@ Domain → **DNS / Nameservers** → **A record**:
 
 | Type | Name | Value        |
 |------|------|--------------|
-| A    | @    | YOUR_VPS_IP  |
-| A    | www  | YOUR_VPS_IP  |
+| A    | @    | 2.24.197.24  |
+| A    | www  | 2.24.197.24  |
 
 **Purani Vercel A record (64.29.17.1) delete karo.**
 
