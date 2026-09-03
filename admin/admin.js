@@ -1675,6 +1675,42 @@ async function deleteUserAdmin() {
         alert('Network error while deleting user');
     }
 }
+async function changeAdminPassword() {
+    const currentPassword = document.getElementById('adminCurrentPassword')?.value || '';
+    const newPassword = document.getElementById('adminNewPassword')?.value || '';
+    const confirmPassword = document.getElementById('adminConfirmPassword')?.value || '';
+    const msgEl = document.getElementById('adminPasswordMessage');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        if (msgEl) { msgEl.textContent = 'Please fill all password fields.'; msgEl.style.color = '#ef4444'; }
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        if (msgEl) { msgEl.textContent = 'New passwords do not match.'; msgEl.style.color = '#ef4444'; }
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/change-password`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ currentPassword, newPassword })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            if (msgEl) { msgEl.textContent = data.message || 'Password updated.'; msgEl.style.color = '#10b981'; }
+            document.getElementById('adminCurrentPassword').value = '';
+            document.getElementById('adminNewPassword').value = '';
+            document.getElementById('adminConfirmPassword').value = '';
+        } else {
+            if (msgEl) { msgEl.textContent = data.message || 'Update failed.'; msgEl.style.color = '#ef4444'; }
+        }
+    } catch (_) {
+        if (msgEl) { msgEl.textContent = 'Network error while updating password.'; msgEl.style.color = '#ef4444'; }
+    }
+}
+
 async function updateTradeMode(mode) {
     const userId = window.currentModalUserId;
     if (!userId) return;

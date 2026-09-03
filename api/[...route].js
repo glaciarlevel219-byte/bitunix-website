@@ -290,6 +290,92 @@ function verifyToken(token) {
   } catch { return null; }
 }
 
+const DEFAULT_ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_PASSWORD_HASH =
+  "6a04a72813611322e3848469ed2299fc:3043d576147f9b99e110d39da99d4649677943302a8606a1f621a90ab4b8f61d634efb30349b45b93d94a5184b7886758d3dd83f00e2efeb6924157afd81bb2d";
+
+const adminLoginAttempts = new Map();
+const ADMIN_MAX_LOGIN_ATTEMPTS = 5;
+const ADMIN_LOCKOUT_MS = 15 * 60 * 1000;
+const ADMIN_SESSION_MS = 8 * 60 * 60 * 1000;
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  return req.headers["x-real-ip"] || "unknown";
+}
+
+function isAdminLoginLocked(ip) {
+  const rec = adminLoginAttempts.get(ip);
+  if (!rec?.lockedUntil) return false;
+  if (Date.now() >= rec.lockedUntil) {
+    adminLoginAttempts.delete(ip);
+    return false;
+  }
+  return true;
+}
+
+function recordAdminLoginFailure(ip) {
+  const rec = adminLoginAttempts.get(ip) || { fails: 0 };
+  rec.fails += 1;
+  if (rec.fails >= ADMIN_MAX_LOGIN_ATTEMPTS) {
+    rec.lockedUntil = Date.now() + ADMIN_LOCKOUT_MS;
+    rec.fails = 0;
+  }
+  adminLoginAttempts.set(ip, rec);
+}
+
+function clearAdminLoginFailures(ip) {
+  adminLoginAttempts.delete(ip);
+}
+
+function isStrongAdminPassword(password) {
+  const s = String(password || "");
+  return (
+    s.length >= 12 &&
+    /[A-Z]/.test(s) &&
+    /[a-z]/.test(s) &&
+    /[0-9]/.test(s) &&
+    /[^A-Za-z0-9]/.test(s)
+  );
+}
+
+async function getAdminRecord() {
+  const db = await connectToDatabase();
+  if (db) {
+    const doc = await db.collection("admin_users").findOne({ role: "admin" });
+    if (doc?.passwordHash) {
+      return { username: String(doc.username || DEFAULT_ADMIN_USERNAME), passwordHash: doc.passwordHash, fromDb: true };
+    }
+  }
+  const username = String(process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME).trim();
+  if (process.env.ADMIN_PASSWORD_HASH) {
+    return { username, passwordHash: process.env.ADMIN_PASSWORD_HASH, fromDb: false };
+  }
+  if (process.env.ADMIN_PASSWORD) {
+    return { username, passwordHash: hashPassword(process.env.ADMIN_PASSWORD), fromDb: false };
+  }
+  return { username: DEFAULT_ADMIN_USERNAME, passwordHash: DEFAULT_ADMIN_PASSWORD_HASH, fromDb: false };
+}
+
+async function saveAdminPassword(username, passwordHash) {
+  const db = await connectToDatabase();
+  if (!db) return false;
+  await db.collection("admin_users").updateOne(
+    { role: "admin" },
+    { $set: { username, passwordHash, role: "admin", updatedAt: Date.now() }, $setOnInsert: { createdAt: Date.now() } },
+    { upsert: true }
+  );
+  return true;
+}
+
+function verifyAdminSession(token) {
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.role !== "admin") return null;
+  if (decoded.exp && Date.now() > decoded.exp) return null;
+  return decoded;
+}
+
 // --- DB HELPERS ---
 async function readWallet(userId) {
   const db = await connectToDatabase();
@@ -1052,22 +1138,65 @@ module.exports = async (req, res) => {
 
     // --- ADMIN ---
     if ((pathname === "/admin/api/login" || pathname === "/api/admin/login") && req.method === "POST") {
-        const { username, password } = await parseBody(req);
-        if(username === "admin" && password === "admin123") {
-            const token = signToken({ role: "admin", user: "admin" });
-            return sendJson(res, 200, { token, user: { username: "admin" } });
+        const ip = getClientIp(req);
+        if (isAdminLoginLocked(ip)) {
+            return sendJson(res, 429, { message: "Too many failed attempts. Try again in 15 minutes." });
         }
-        return sendJson(res, 401, { message: "Invalid credentials" });
+        const { username, password } = await parseBody(req);
+        const inputUser = String(username || "").trim();
+        const inputPass = String(password || "");
+        if (!inputUser || !inputPass) {
+            return sendJson(res, 400, { message: "Username and password are required." });
+        }
+        const adminRec = await getAdminRecord();
+        const okUser = inputUser === adminRec.username;
+        const okPass = verifyPassword(inputPass, adminRec.passwordHash);
+        if (!okUser || !okPass) {
+            recordAdminLoginFailure(ip);
+            return sendJson(res, 401, { message: "Invalid credentials" });
+        }
+        clearAdminLoginFailures(ip);
+        if (!adminRec.fromDb) {
+            await saveAdminPassword(adminRec.username, adminRec.passwordHash);
+        }
+        const token = signToken({
+            role: "admin",
+            user: adminRec.username,
+            iat: Date.now(),
+            exp: Date.now() + ADMIN_SESSION_MS,
+        });
+        return sendJson(res, 200, { token, user: { username: adminRec.username } });
     }
 
     if (pathname.startsWith("/admin/api")) {
-        const admin = verifyToken(token);
-        if(!admin || admin.role !== "admin") {
-            // Allow login and verify without check if token is invalid but it's a login attempt
+        const admin = verifyAdminSession(token);
+        if(!admin) {
             if(pathname !== "/admin/api/login") return sendJson(res, 401, { message: "Unauthorized" });
         }
 
-        if (pathname === "/admin/api/verify") return sendJson(res, 200, { user: { username: "admin" } });
+        if (pathname === "/admin/api/verify") {
+            return sendJson(res, 200, { user: { username: admin?.user || DEFAULT_ADMIN_USERNAME } });
+        }
+
+        if (pathname === "/admin/api/change-password" && req.method === "POST") {
+            const { currentPassword, newPassword } = await parseBody(req);
+            if (!currentPassword || !newPassword) {
+                return sendJson(res, 400, { message: "Current and new password are required." });
+            }
+            if (!isStrongAdminPassword(newPassword)) {
+                return sendJson(res, 400, {
+                    message: "New password must be at least 12 characters and include uppercase, lowercase, number, and symbol.",
+                });
+            }
+            const adminRec = await getAdminRecord();
+            if (!verifyPassword(String(currentPassword), adminRec.passwordHash)) {
+                return sendJson(res, 401, { message: "Current password is incorrect." });
+            }
+            const nextHash = hashPassword(String(newPassword));
+            const saved = await saveAdminPassword(adminRec.username, nextHash);
+            if (!saved) return sendJson(res, 500, { message: "Could not save new password." });
+            return sendJson(res, 200, { message: "Admin password updated successfully." });
+        }
 
         if (pathname === "/admin/api/stats") {
             const db = await connectToDatabase();
