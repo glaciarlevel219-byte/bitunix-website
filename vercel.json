@@ -9,11 +9,15 @@
   },
   "headers": [
     {
-      "source": "/admin/(.*)",
+      "source": "/admin/:path*",
       "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     },
     {
-      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|webp|ico|svg))",
+      "source": "/:path*.js",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
+    },
+    {
+      "source": "/:path*.css",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
     },
     {
