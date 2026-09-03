@@ -6,17 +6,21 @@ const { MongoClient, ObjectId } = require("mongodb");
 const nodemailer = require("nodemailer");
 
 const MONGODB_URI = process.env.MONGODB_URI;
+let cachedClient = null;
 let cachedDb = null;
 
 async function connectToDatabase() {
   if (cachedDb) return cachedDb;
   if (!MONGODB_URI) return null;
-  const client = new MongoClient(MONGODB_URI, {
-    serverSelectionTimeoutMS: 8000,
-    connectTimeoutMS: 8000,
-  });
-  await client.connect();
-  cachedDb = client.db();
+  if (!cachedClient) {
+    cachedClient = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 4000,
+      connectTimeoutMS: 4000,
+      maxPoolSize: 10,
+    });
+    await cachedClient.connect();
+    cachedDb = cachedClient.db();
+  }
   return cachedDb;
 }
 
@@ -1078,15 +1082,20 @@ module.exports = async (req, res) => {
         if (pathname === "/admin/api/users") {
             const db = await connectToDatabase();
             if (!db) return sendJson(res, 200, { users: [] });
-            const users = await db.collection("users").find({}).sort({ createdAt: -1 }).toArray();
-            const userIds = users.map((u) => String(u.id));
-            const wallets = userIds.length
-                ? await db.collection("wallets").find({ userId: { $in: userIds } }).toArray()
-                : [];
+            const userProj = {
+                id: 1, name: 1, email: 1, passwordHash: 1, createdAt: 1,
+                creditScore: 1, manualVipLevel: 1, withdrawalEnabled: 1,
+                accountFrozen: 1, tradeOutcomeMode: 1,
+            };
+            const walletProj = { userId: 1, balance: 1, "profile.kycStatus": 1, transactionPassword: 1 };
+            const [users, wallets] = await Promise.all([
+                db.collection("users").find({}, { projection: userProj }).sort({ createdAt: -1 }).limit(500).toArray(),
+                db.collection("wallets").find({}, { projection: walletProj }).toArray(),
+            ]);
             const walletMap = new Map(wallets.map((w) => [String(w.userId), w]));
             const out = users.map((u) => {
                 const id = String(u.id);
-                const w = walletMap.get(id) || { userId: id, balance: 0, pendingDeposits: [], transactions: [] };
+                const w = walletMap.get(id);
                 return {
                     id,
                     name: u.name || "",
@@ -1098,22 +1107,67 @@ module.exports = async (req, res) => {
                     withdrawalEnabled: u.withdrawalEnabled,
                     accountFrozen: !!u.accountFrozen,
                     tradeOutcomeMode: u.tradeOutcomeMode || "random",
-                    balance: Number(w.balance) || 0,
-                    wallet: w,
+                    balance: Number(w?.balance) || 0,
+                    hasWallet: !!w,
+                    kycStatus: w?.profile?.kycStatus || "none",
                 };
             });
+            res.setHeader("Cache-Control", "private, max-age=5");
             return sendJson(res, 200, { users: out });
+        }
+
+        if (pathname.startsWith("/admin/api/user/") && pathname !== "/admin/api/user-wallet/" && !pathname.includes("update-")) {
+            // single user quick lookup: /admin/api/user/:id
+            const parts = pathname.split("/");
+            const userId = parts[parts.length - 1];
+            if (userId && userId !== "user" && req.method === "GET") {
+                const db = await connectToDatabase();
+                if (!db) return sendJson(res, 404, { message: "Not found" });
+                const u = await db.collection("users").findOne(
+                    { id: userId },
+                    { projection: { id: 1, name: 1, email: 1, passwordHash: 1, createdAt: 1, creditScore: 1, manualVipLevel: 1, withdrawalEnabled: 1, accountFrozen: 1, tradeOutcomeMode: 1 } }
+                );
+                if (!u) return sendJson(res, 404, { message: "User not found" });
+                const w = await db.collection("wallets").findOne(
+                    { userId },
+                    { projection: { userId: 1, balance: 1, "profile.kycStatus": 1, transactionPassword: 1 } }
+                );
+                return sendJson(res, 200, {
+                    user: {
+                        id: String(u.id),
+                        name: u.name || "",
+                        email: u.email || "",
+                        passwordHash: u.passwordHash || "",
+                        createdAt: u.createdAt || 0,
+                        creditScore: u.creditScore,
+                        manualVipLevel: u.manualVipLevel,
+                        withdrawalEnabled: u.withdrawalEnabled,
+                        accountFrozen: !!u.accountFrozen,
+                        tradeOutcomeMode: u.tradeOutcomeMode || "random",
+                        balance: Number(w?.balance) || 0,
+                        hasWallet: !!w,
+                        kycStatus: w?.profile?.kycStatus || "none",
+                    },
+                });
+            }
         }
 
         if (pathname === "/admin/api/deposits") {
             const db = await connectToDatabase();
-            const users = db ? await db.collection("users").find({}).toArray() : [];
+            if (!db) return sendJson(res, 200, { deposits: [] });
+            const [users, wallets] = await Promise.all([
+                db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, pendingDeposits: 1 } }).toArray(),
+            ]);
+            const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
-            for(const u of users) {
-                const w = await readWallet(u.id);
-                (w.pendingDeposits || []).forEach(d => out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email }));
+            for (const w of wallets) {
+                const u = userMap.get(String(w.userId));
+                if (!u) continue;
+                (w.pendingDeposits || []).forEach((d) => out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email }));
             }
-            return sendJson(res, 200, { deposits: out.sort((a,b) => b.created - a.created) });
+            out.sort((a, b) => (b.created || 0) - (a.created || 0));
+            return sendJson(res, 200, { deposits: out });
         }
 
         if (pathname === "/admin/api/deposit/action" && req.method === "POST") {
@@ -1159,13 +1213,21 @@ module.exports = async (req, res) => {
 
         if (pathname === "/admin/api/withdrawals") {
             const db = await connectToDatabase();
-            const users = db ? await db.collection("users").find({}).toArray() : [];
+            if (!db) return sendJson(res, 200, { withdrawals: [] });
+            const [users, wallets] = await Promise.all([
+                db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, withdrawals: 1, pendingWithdrawals: 1 } }).toArray(),
+            ]);
+            const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
-            for(const u of users) {
-                const w = await readWallet(u.id);
-                (w.withdrawals || []).forEach(wd => out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email }));
+            for (const w of wallets) {
+                const u = userMap.get(String(w.userId));
+                if (!u) continue;
+                const all = [...(w.withdrawals || []), ...(w.pendingWithdrawals || [])];
+                all.forEach((wd) => out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email }));
             }
-            return sendJson(res, 200, { withdrawals: out.sort((a,b) => b.created - a.created) });
+            out.sort((a, b) => (b.created || 0) - (a.created || 0));
+            return sendJson(res, 200, { withdrawals: out });
         }
 
         if (pathname === "/admin/api/withdrawal/action" && req.method === "POST") {

@@ -7,6 +7,9 @@ let activeChatUserId = null;
 let chatRefreshInterval = null;
 let currentUser = null;
 let allUsers = [];       // global store for client-side user search
+let usersLoadedAt = 0;
+const USERS_CACHE_TTL = 12000;
+let usersFetchPromise = null;
 let allDeposits = [];    // global store for deposit search
 let allWithdrawals = []; // global store for withdrawal search
 let allSupportItems = []; // global store for support list search
@@ -202,6 +205,7 @@ function switchTab(tabName) {
 async function loadDashboard() {
     document.getElementById('adminUser').textContent = `Welcome, ${currentUser.username}`;
     loadOverview();
+    loadUsers({ silent: true });
 }
 
 async function loadOverview() {
@@ -315,34 +319,70 @@ async function handleConfigSave(e) {
     }
 }
 
-async function loadUsers() {
+async function loadUsers(options = {}) {
+    const { force = false, silent = false } = typeof options === 'object' ? options : { force: !!options };
     const tbody = document.querySelector('#usersTable tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9">Loading users...</td></tr>';
-    try {
-        const response = await fetch(`${API_BASE}/users`, {
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            }
-        });
-        const data = await response.json().catch(() => ({}));
-        if (response.ok) {
-            renderUsersTable(data.users);
-            return;
-        }
-        if (response.status === 401) {
-            handleLogout();
-            showMessage('loginMessage', 'Session expired. Please login again.', 'error');
-            return;
-        }
-        if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="9" style="color:#ef4444;">Failed to load users: ${escapeHtml(data.message || response.statusText || 'Unknown error')}</td></tr>`;
-        }
-    } catch (error) {
-        console.error('Failed to load users:', error);
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="9" style="color:#ef4444;">Failed to load users. Check connection and try again.</td></tr>';
-        }
+    const cacheFresh = allUsers.length && (Date.now() - usersLoadedAt < USERS_CACHE_TTL);
+
+    if (cacheFresh && !force) {
+        renderUsersTable(allUsers);
+        return allUsers;
     }
+
+    if (allUsers.length && silent) {
+        renderUsersTable(allUsers);
+    } else if (tbody && !allUsers.length) {
+        tbody.innerHTML = '<tr><td colspan="9">Loading users...</td></tr>';
+    }
+
+    if (usersFetchPromise && !force) {
+        try { return await usersFetchPromise; } catch (_) {}
+    }
+
+    usersFetchPromise = (async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        try {
+            const response = await fetch(`${API_BASE}/users`, {
+                headers: { 'Authorization': `Bearer ${authToken}` },
+                signal: controller.signal,
+            });
+            const data = await response.json().catch(() => ({}));
+            if (response.ok) {
+                allUsers = data.users || [];
+                usersLoadedAt = Date.now();
+                renderUsersTable(allUsers);
+                return allUsers;
+            }
+            if (response.status === 401) {
+                handleLogout();
+                showMessage('loginMessage', 'Session expired. Please login again.', 'error');
+                return allUsers;
+            }
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="9" style="color:#ef4444;">Failed to load users: ${escapeHtml(data.message || response.statusText || 'Unknown error')}</td></tr>`;
+            }
+            return allUsers;
+        } catch (error) {
+            console.error('Failed to load users:', error);
+            if (allUsers.length) {
+                renderUsersTable(allUsers);
+            } else if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="9" style="color:#ef4444;">Failed to load users. Check connection and try again.</td></tr>';
+            }
+            return allUsers;
+        } finally {
+            clearTimeout(timer);
+            usersFetchPromise = null;
+        }
+    })();
+
+    return usersFetchPromise;
+}
+
+function refreshUsersQuietly() {
+    usersLoadedAt = 0;
+    return loadUsers({ force: true, silent: true });
 }
 
 function renderUsersTable(users) {
@@ -374,7 +414,7 @@ function renderUsersTable(users) {
             <td><code>${user.passwordHash ? user.passwordHash.slice(0, 20) + '...' : 'N/A'}</code></td>
             <td>${Number.isFinite(bal) ? bal.toFixed(2) : '0.00'} USDT</td>
             <td>${statusHtml}</td>
-            <td>${user.wallet ? 'Active' : 'No Wallet'}</td>
+            <td>${user.hasWallet ? 'Active' : 'No Wallet'}</td>
             <td>${regDate}</td>
             <td>
                 <button class="btn-small" onclick="viewUserDetails('${safeId}')">Manage</button>
@@ -610,7 +650,7 @@ async function approveDeposit(userId, depositId, action) {
             alert(`Deposit ${action}d successfully!`);
             showMessage('depositMessage', `Deposit ${action}d successfully!`, 'success');
             loadDeposits(); // Refresh deposits list
-            loadUsers(); // Refresh users list to update balances
+            refreshUsersQuietly();
             // Also refresh user details to update deposit history
             if (window.currentUserDetails && window.currentUserDetails.userId === userId) {
                 viewUserDetails(userId);
@@ -662,7 +702,7 @@ async function approveWithdrawal(userId, withdrawalId, action) {
             alert(`Withdrawal ${action}ed successfully!`);
             showMessage('withdrawalMessage', `Withdrawal ${action}ed successfully!`, 'success');
             loadWithdrawals(); // Refresh withdrawals list
-            loadUsers(); // Refresh users list to update balances
+            refreshUsersQuietly();
             // Also refresh user details to update withdrawal history
             if (window.currentUserDetails && window.currentUserDetails.userId === userId) {
                 viewUserDetails(userId);
@@ -680,46 +720,37 @@ async function approveWithdrawal(userId, withdrawalId, action) {
 }
 
 function viewUserDetails(userId) {
-    console.log('View user details called for:', userId);
-    
-    // Find user data from the current users list
-    fetch(`${API_BASE}/users`, {
-        headers: {
-            'Authorization': `Bearer ${authToken}`
+    const uid = String(userId);
+    const cached = allUsers.find((u) => String(u.id) === uid);
+
+    function openWithWallet(user) {
+        const modal = document.getElementById('userModal');
+        if (modal) {
+            modal.hidden = false;
+            modal.style.display = 'flex';
         }
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        return response.json();
-    })
-    .then(data => {
-        console.log('Users data:', data);
-        const user = data.users.find(u => u.id === userId);
-        console.log('Found user:', user);
-        if (user) {
-            // Fetch user wallet data to get complete deposit history
-            fetch(`${API_BASE}/user-wallet/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${authToken}`
-                }
-            })
-            .then(response => response.json())
-            .then(walletData => {
-                console.log('Wallet data:', walletData);
-                user.wallet = walletData.wallet;
+        showUserModal({ ...user, wallet: null, _walletLoading: true });
+
+        fetch(`${API_BASE}/user-wallet/${uid}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        })
+            .then((r) => r.json())
+            .then((walletData) => {
+                user.wallet = walletData.wallet || null;
                 showUserModal(user);
             })
-            .catch(error => {
-                console.error('Error fetching wallet data:', error);
-                showUserModal(user); // Still show user modal even if wallet data fails
-            });
-        } else {
-            alert('User not found');
-        }
-    })
-    .catch(error => {
-        console.error('Error fetching user details:', error);
-        alert('Failed to load user details');
+            .catch(() => showUserModal(user));
+    }
+
+    if (cached) {
+        openWithWallet({ ...cached });
+        return;
+    }
+
+    loadUsers({ force: true }).then(() => {
+        const user = allUsers.find((u) => String(u.id) === uid);
+        if (user) openWithWallet({ ...user });
+        else alert('User not found');
     });
 }
 
@@ -753,7 +784,7 @@ function showUserModal(user) {
     const scoreInput = document.getElementById('editCreditScore');
     if (scoreInput) scoreInput.value = user.creditScore || '100';
     document.getElementById('modalUserRegistered').textContent = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
-    document.getElementById('modalUserWalletStatus').textContent = user.wallet ? 'Active' : 'No Wallet';
+    document.getElementById('modalUserWalletStatus').textContent = user._walletLoading ? 'Loading...' : (user.wallet || user.hasWallet ? 'Active' : 'No Wallet');
     
     // Withdrawal status
     const withdrawStatusEl = document.getElementById('modalWithdrawalStatus');
@@ -782,7 +813,7 @@ function showUserModal(user) {
     if (vipSelect) {
         vipSelect.value = (user.manualVipLevel !== undefined && user.manualVipLevel !== null) ? user.manualVipLevel : "-1";
     }
-    const kycStatus = user.wallet?.profile?.kycStatus || 'none';
+    const kycStatus = user.wallet?.profile?.kycStatus || user.kycStatus || 'none';
     const kycEl = document.getElementById('modalUserKyc');
     if (kycEl) kycEl.textContent = kycStatus;
     
@@ -907,7 +938,7 @@ async function kycAction(action) {
         }
         alert(`KYC ${action}ed successfully`);
         viewUserDetails(userId);
-        loadUsers();
+        refreshUsersQuietly();
     } catch (error) {
         alert('Network error while KYC action');
     }
@@ -1459,7 +1490,7 @@ async function updateCreditScore() {
         const data = await response.json();
         if (response.ok) {
             alert('Credit score updated successfully');
-            loadUsers(); // Refresh list
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1484,7 +1515,7 @@ async function updateVipLevelAdmin() {
         const data = await response.json();
         if (response.ok) {
             alert('VIP level updated successfully');
-            loadUsers(); // Refresh list
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1514,7 +1545,7 @@ async function toggleUserWithdrawal() {
             alert(`Withdrawals ${newStatus ? 'enabled' : 'disabled'} successfully`);
             window.currentUserWithdrawalEnabled = newStatus;
             viewUserDetails(userId);
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1542,7 +1573,7 @@ async function updateUserBalanceAdmin() {
         if (response.ok) {
             alert('Balance updated successfully');
             viewUserDetails(userId);
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1574,7 +1605,7 @@ async function updateUserProfileAdmin() {
         if (response.ok) {
             alert('Profile updated successfully');
             viewUserDetails(userId);
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1604,7 +1635,7 @@ async function toggleAccountFreeze() {
         if (response.ok) {
             alert(newFrozen ? 'Account frozen successfully' : 'Account unfrozen successfully');
             viewUserDetails(userId);
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Update failed');
         }
@@ -1636,7 +1667,7 @@ async function deleteUserAdmin() {
         if (response.ok) {
             alert('User deleted successfully');
             closeUserModal();
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             alert(data.message || 'Delete failed');
         }
@@ -1667,7 +1698,7 @@ async function updateTradeMode(mode) {
             else if (mode === 'random') document.getElementById('modeRandomBtn').style.background = '#007bff';
             
             // Refresh users list to update stored data
-            loadUsers();
+            refreshUsersQuietly();
         } else {
             const data = await response.json();
             alert(data.message || 'Failed to update trade mode');
