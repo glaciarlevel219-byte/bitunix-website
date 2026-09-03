@@ -1,20 +1,36 @@
 # Bitunix Deployment Guide
 
-## Current Setup
+## Current hosting (recommended): **Hostinger**
+
+Full guide: **[HOSTINGER_DEPLOY.md](./HOSTINGER_DEPLOY.md)**
+
+- Start command: `node hostinger-server.js` (or `npm start`)
+- Same MongoDB + API as Vercel (`api/[...route].js`)
+- DNS: point `bitunixpk.com` A record to Hostinger VPS IP (remove Vercel 64.29.17.1)
+
+---
+
+## Legacy: Vercel (optional)
+
+Git push + `npx vercel deploy --prod` — `vercel.json` must be valid or deploy fails.
+
+---
+
+## Local development
 
 **Main Website:**
 - Port: 5608
-- URL: http://localhost:5608
-- File: `server.js`
+- Command: `npm start` → runs `hostinger-server.js`
+- Needs `.env` with `MONGODB_URI` (copy from `.env.example`)
 
-**Admin Panel:**
-- Port: 5618
-- URL: http://localhost:5618
-- File: `admin-server-fixed.js`
+**Old local server (JSON files, no MongoDB):**
+- Command: `npm run start:legacy` → `server.js`
 
-**Important:** Admin panel and website are separate applications that need to be deployed separately.
+**Admin Panel:** `https://yoursite.com/admin` (same server on Hostinger)
 
-## Deployment Steps
+---
+
+## Old notes (archive)
 
 ### Step 1: Deploy Admin Panel to Vercel
 

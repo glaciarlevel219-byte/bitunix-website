@@ -4,8 +4,10 @@
   "description": "Bitunix crypto trading platform website",
   "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node hostinger-server.js",
+    "start:vercel-api": "node hostinger-server.js",
+    "start:legacy": "node server.js",
+    "dev": "node hostinger-server.js"
   },
   "keywords": ["crypto", "trading", "bitunix"],
   "author": "",
