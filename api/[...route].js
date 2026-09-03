@@ -11,7 +11,10 @@ let cachedDb = null;
 async function connectToDatabase() {
   if (cachedDb) return cachedDb;
   if (!MONGODB_URI) return null;
-  const client = new MongoClient(MONGODB_URI);
+  const client = new MongoClient(MONGODB_URI, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+  });
   await client.connect();
   cachedDb = client.db();
   return cachedDb;
@@ -675,7 +678,7 @@ module.exports = async (req, res) => {
 
 
     // --- USER PROTECTED ---
-    if (decoded) {
+    if (decoded && decoded.role !== "admin" && decoded.id) {
         const db = await connectToDatabase();
         const dbUser = db ? await db.collection("users").findOne({ id: decoded.id }) : null;
         if (dbUser?.accountFrozen) {
@@ -1074,17 +1077,31 @@ module.exports = async (req, res) => {
 
         if (pathname === "/admin/api/users") {
             const db = await connectToDatabase();
-            const users = db ? await db.collection("users").find({}).toArray() : [];
-            const out = [];
-            for(const u of users) {
-                const w = await readWallet(u.id);
-                out.push({ 
-                    ...u, 
-                    balance: w.balance, 
+            if (!db) return sendJson(res, 200, { users: [] });
+            const users = await db.collection("users").find({}).sort({ createdAt: -1 }).toArray();
+            const userIds = users.map((u) => String(u.id));
+            const wallets = userIds.length
+                ? await db.collection("wallets").find({ userId: { $in: userIds } }).toArray()
+                : [];
+            const walletMap = new Map(wallets.map((w) => [String(w.userId), w]));
+            const out = users.map((u) => {
+                const id = String(u.id);
+                const w = walletMap.get(id) || { userId: id, balance: 0, pendingDeposits: [], transactions: [] };
+                return {
+                    id,
+                    name: u.name || "",
+                    email: u.email || "",
+                    passwordHash: u.passwordHash || "",
+                    createdAt: u.createdAt || 0,
+                    creditScore: u.creditScore,
+                    manualVipLevel: u.manualVipLevel,
+                    withdrawalEnabled: u.withdrawalEnabled,
+                    accountFrozen: !!u.accountFrozen,
+                    tradeOutcomeMode: u.tradeOutcomeMode || "random",
+                    balance: Number(w.balance) || 0,
                     wallet: w,
-                    tradeOutcomeMode: u.tradeOutcomeMode || "random" 
-                });
-            }
+                };
+            });
             return sendJson(res, 200, { users: out });
         }
 

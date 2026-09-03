@@ -316,21 +316,32 @@ async function handleConfigSave(e) {
 }
 
 async function loadUsers() {
+    const tbody = document.querySelector('#usersTable tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9">Loading users...</td></tr>';
     try {
         const response = await fetch(`${API_BASE}/users`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`
             }
         });
-        
+        const data = await response.json().catch(() => ({}));
         if (response.ok) {
-            const data = await response.json();
             renderUsersTable(data.users);
+            return;
+        }
+        if (response.status === 401) {
+            handleLogout();
+            showMessage('loginMessage', 'Session expired. Please login again.', 'error');
+            return;
+        }
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="9" style="color:#ef4444;">Failed to load users: ${escapeHtml(data.message || response.statusText || 'Unknown error')}</td></tr>`;
         }
     } catch (error) {
         console.error('Failed to load users:', error);
-        document.querySelector('#usersTable tbody').innerHTML = 
-            '<tr><td colspan="9">Failed to load users</td></tr>';
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="9" style="color:#ef4444;">Failed to load users. Check connection and try again.</td></tr>';
+        }
     }
 }
 
@@ -346,23 +357,27 @@ function renderUsersTable(users) {
     }
     
     tbody.innerHTML = users.map(user => {
+        const uid = String(user.id || '');
+        const uidShort = uid.length > 8 ? uid.slice(0, 8) : uid;
         const bal = user.balance != null ? Number(user.balance) : (user.wallet ? Number(user.wallet.balance) : 0);
         const frozen = !!user.accountFrozen;
         const statusHtml = frozen
             ? '<span style="color:#ef4444;font-weight:600;">Frozen</span>'
             : '<span style="color:#10b981;font-weight:600;">Active</span>';
+        const regDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A';
+        const safeId = uid.replace(/'/g, "\\'");
         return `
         <tr>
-            <td><code class="clickable-user-id" onclick="viewUserDetails('${user.id}')" title="Click to view details">${user.id.slice(0, 8)}</code></td>
-            <td>${escapeHtml(user.name)}</td>
-            <td>${escapeHtml(user.email)}</td>
+            <td><code class="clickable-user-id" onclick="viewUserDetails('${safeId}')" title="Click to view details">${uidShort}</code></td>
+            <td>${escapeHtml(user.name || '')}</td>
+            <td>${escapeHtml(user.email || '')}</td>
             <td><code>${user.passwordHash ? user.passwordHash.slice(0, 20) + '...' : 'N/A'}</code></td>
-            <td>${bal.toFixed(2)} USDT</td>
+            <td>${Number.isFinite(bal) ? bal.toFixed(2) : '0.00'} USDT</td>
             <td>${statusHtml}</td>
             <td>${user.wallet ? 'Active' : 'No Wallet'}</td>
-            <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+            <td>${regDate}</td>
             <td>
-                <button class="btn-small" onclick="viewUserDetails('${user.id}')">Manage</button>
+                <button class="btn-small" onclick="viewUserDetails('${safeId}')">Manage</button>
             </td>
         </tr>`;
     }).join('');
@@ -387,7 +402,7 @@ function filterUsersTable() {
     });
     const tbody = document.querySelector('#usersTable tbody');
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#f87171;">No users match your search.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#f87171;">No users match your search.</td></tr>';
         const countEl = document.getElementById('userSearchCount');
         if (countEl) countEl.textContent = '0 users found';
         return;
