@@ -694,6 +694,32 @@ async function clearStuckWithdrawals() {
     }
 }
 
+async function forceClearAllWithdrawals() {
+    if (!confirm('Force clear ALL pending withdrawal requests (including stuck ones)? Amounts will be returned to user balances.')) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/withdrawals/force-clear-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message || 'All pending withdrawals cleared.');
+            loadWithdrawals();
+            refreshUsersQuietly();
+        } else {
+            alert(data.message || 'Failed to force clear withdrawals.');
+        }
+    } catch (error) {
+        console.error('Failed to force clear withdrawals:', error);
+        alert('Network error. Please try again.');
+    }
+}
+
 async function clearAllPendingRequests() {
     if (!confirm('Clear ALL pending deposits and withdrawals? Withdrawal amounts will be returned to user balances.')) {
         return;

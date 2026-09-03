@@ -456,15 +456,46 @@ function verifyAdminSession(token) {
 }
 
 // --- DB HELPERS ---
-async function readWallet(userId) {
-  const db = await connectToDatabase();
-  if (db) return (await db.collection("wallets").findOne({ userId })) || { userId, balance: 0, pendingDeposits: [], transactions: [] };
-  return { userId, balance: 0, pendingDeposits: [], transactions: [] };
-}
-
 async function writeWallet(userId, wallet) {
   const db = await connectToDatabase();
-  if (db) await db.collection("wallets").updateOne({ userId }, { $set: wallet }, { upsert: true });
+  if (!db) return;
+  const existing = await findWalletDoc(userId);
+  const key = existing?.userId ?? normalizeUserId(userId);
+  wallet.userId = key;
+  await db.collection("wallets").updateOne({ userId: key }, { $set: wallet }, { upsert: true });
+}
+
+function normalizeUserId(userId) {
+  if (userId === null || userId === undefined || userId === "") return userId;
+  const s = String(userId).trim();
+  const n = Number(s);
+  if (!Number.isNaN(n) && String(n) === s) return n;
+  return s;
+}
+
+async function findWalletDoc(userId) {
+  const db = await connectToDatabase();
+  if (!db) return null;
+  const candidates = new Set([userId, String(userId).trim()]);
+  const n = Number(userId);
+  if (!Number.isNaN(n)) candidates.add(n);
+  for (const c of candidates) {
+    const w = await db.collection("wallets").findOne({ userId: c });
+    if (w) return w;
+  }
+  return null;
+}
+
+async function readWallet(userId) {
+  const w = await findWalletDoc(userId);
+  if (w) return w;
+  return {
+    userId: normalizeUserId(userId),
+    balance: 0,
+    pendingDeposits: [],
+    pendingWithdrawals: [],
+    transactions: [],
+  };
 }
 
 async function clearAllPendingRequests() {
@@ -475,9 +506,8 @@ async function clearAllPendingRequests() {
   let clearedWithdrawals = 0;
   for (const w of wallets) {
     const pendingDeposits = w.pendingDeposits || [];
-    const pendingWithdrawals = w.pendingWithdrawals || [];
-    const stuckWithdrawals = getStuckWithdrawals(w);
-    if (!pendingDeposits.length && !pendingWithdrawals.length && !stuckWithdrawals.length) continue;
+    const pendingList = collectPendingWithdrawals(w);
+    if (!pendingDeposits.length && !pendingList.length) continue;
 
     const wallet = { ...w };
     wallet.pendingDeposits = [];
@@ -495,24 +525,15 @@ async function clearAllPendingRequests() {
       clearedDeposits++;
     }
 
-    for (const wd of pendingWithdrawals) {
-      wallet.balance = (wallet.balance || 0) + Number(wd.amount || 0);
-      const histIdx = wallet.withdrawals.findIndex((x) => x.id === wd.id);
-      const cancelled = {
-        ...wd,
-        status: "cancelled",
-        processedAt: Date.now(),
-        cancelledReason: "cleared_by_admin",
-      };
-      if (histIdx >= 0) wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...cancelled };
-      else wallet.withdrawals.push(cancelled);
-      clearedWithdrawals++;
-    }
-
-    for (const wd of getStuckWithdrawals(w)) {
+    const processed = new Set();
+    for (const wd of pendingList) {
+      const key = withdrawalKey(wd);
+      if (processed.has(key)) continue;
+      processed.add(key);
       finalizeWithdrawalRecord(wallet, { ...wd }, "clear");
       clearedWithdrawals++;
     }
+    wallet.pendingWithdrawals = [];
 
     await db.collection("wallets").updateOne(
       { userId: wallet.userId },
@@ -535,9 +556,45 @@ function isPendingWithdrawalStatus(status) {
   return s === "pending" || s === "";
 }
 
+function withdrawalKey(wd) {
+  if (!wd) return "";
+  if (wd.id) return String(wd.id);
+  return `${wd.created || 0}:${wd.amount || 0}:${wd.address || ""}`;
+}
+
+function collectPendingWithdrawals(wallet) {
+  const out = [];
+  const seen = new Set();
+  const add = (wd, stuck) => {
+    const key = withdrawalKey(wd);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ ...wd, stuck: Boolean(stuck) });
+  };
+  for (const wd of wallet.pendingWithdrawals || []) add(wd, false);
+  for (const wd of wallet.withdrawals || []) {
+    if (!isPendingWithdrawalStatus(wd.status)) continue;
+    const inPending = (wallet.pendingWithdrawals || []).some((p) => withdrawalKey(p) === withdrawalKey(wd));
+    add(wd, !inPending);
+  }
+  return out;
+}
+
 function getStuckWithdrawals(wallet) {
-  const pendingIds = new Set((wallet.pendingWithdrawals || []).map((w) => w.id).filter(Boolean));
-  return (wallet.withdrawals || []).filter((w) => w?.id && isPendingWithdrawalStatus(w.status) && !pendingIds.has(w.id));
+  return collectPendingWithdrawals(wallet).filter((w) => w.stuck);
+}
+
+function markWithdrawalCancelledInHistory(wallet, withdrawal) {
+  wallet.withdrawals = wallet.withdrawals || [];
+  let matched = false;
+  wallet.withdrawals = wallet.withdrawals.map((w) => {
+    if (withdrawalKey(w) === withdrawalKey(withdrawal) && isPendingWithdrawalStatus(w.status)) {
+      matched = true;
+      return { ...w, ...withdrawal };
+    }
+    return w;
+  });
+  if (!matched) wallet.withdrawals.push({ ...withdrawal });
 }
 
 function finalizeWithdrawalRecord(wallet, withdrawal, action) {
@@ -549,11 +606,42 @@ function finalizeWithdrawalRecord(wallet, withdrawal, action) {
   withdrawal.processedAt = Date.now();
   if (action === "clear") withdrawal.cancelledReason = "cleared_by_admin";
 
-  wallet.pendingWithdrawals = (wallet.pendingWithdrawals || []).filter((w) => w.id !== withdrawal.id);
-  wallet.withdrawals = wallet.withdrawals || [];
-  const histIdx = wallet.withdrawals.findIndex((w) => w.id === withdrawal.id);
-  if (histIdx >= 0) wallet.withdrawals[histIdx] = { ...wallet.withdrawals[histIdx], ...withdrawal };
-  else wallet.withdrawals.push({ ...withdrawal });
+  const key = withdrawalKey(withdrawal);
+  wallet.pendingWithdrawals = (wallet.pendingWithdrawals || []).filter((w) => withdrawalKey(w) !== key);
+  markWithdrawalCancelledInHistory(wallet, withdrawal);
+}
+
+async function forceClearAllPendingWithdrawals() {
+  const db = await connectToDatabase();
+  if (!db) return { clearedWithdrawals: 0 };
+  const wallets = await db.collection("wallets").find({}).toArray();
+  let clearedWithdrawals = 0;
+  for (const w of wallets) {
+    const pendingList = collectPendingWithdrawals(w);
+    if (!pendingList.length) continue;
+    const wallet = { ...w };
+    wallet.pendingWithdrawals = wallet.pendingWithdrawals || [];
+    wallet.withdrawals = wallet.withdrawals || [];
+    const processed = new Set();
+    for (const wd of pendingList) {
+      const key = withdrawalKey(wd);
+      if (processed.has(key)) continue;
+      processed.add(key);
+      finalizeWithdrawalRecord(wallet, { ...wd }, "clear");
+      clearedWithdrawals++;
+    }
+    await db.collection("wallets").updateOne(
+      { userId: w.userId },
+      {
+        $set: {
+          pendingWithdrawals: wallet.pendingWithdrawals,
+          balance: wallet.balance,
+          withdrawals: wallet.withdrawals,
+        },
+      }
+    );
+  }
+  return { clearedWithdrawals };
 }
 
 async function clearStuckWithdrawalsOnly() {
@@ -586,16 +674,15 @@ async function clearStuckWithdrawalsOnly() {
 }
 
 function findPendingWithdrawal(wallet, withdrawalId) {
-  const pendingIdx = (wallet.pendingWithdrawals || []).findIndex((w) => w.id === withdrawalId);
-  if (pendingIdx >= 0) {
-    return { withdrawal: wallet.pendingWithdrawals[pendingIdx], source: "pending" };
-  }
-  const histIdx = (wallet.withdrawals || []).findIndex(
-    (w) => w.id === withdrawalId && isPendingWithdrawalStatus(w.status)
+  const target = String(withdrawalId || "");
+  const fromPending = (wallet.pendingWithdrawals || []).find(
+    (w) => String(w.id || "") === target || withdrawalKey(w) === target
   );
-  if (histIdx >= 0) {
-    return { withdrawal: wallet.withdrawals[histIdx], source: "history" };
-  }
+  if (fromPending) return { withdrawal: fromPending, source: "pending" };
+  const fromHistory = (wallet.withdrawals || []).find(
+    (w) => isPendingWithdrawalStatus(w.status) && (String(w.id || "") === target || withdrawalKey(w) === target)
+  );
+  if (fromHistory) return { withdrawal: fromHistory, source: "history" };
   return null;
 }
 
@@ -1563,19 +1650,17 @@ module.exports = async (req, res) => {
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
-            const seen = new Set();
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                for (const wd of w.pendingWithdrawals || []) {
-                    if (!wd?.id || seen.has(wd.id)) continue;
-                    seen.add(wd.id);
-                    out.push({ ...wd, status: "pending", stuck: false, userId: u.id, userName: u.name, userEmail: u.email });
-                }
-                for (const wd of getStuckWithdrawals(w)) {
-                    if (!wd?.id || seen.has(wd.id)) continue;
-                    seen.add(wd.id);
-                    out.push({ ...wd, status: "pending", stuck: true, userId: u.id, userName: u.name, userEmail: u.email });
+                for (const wd of collectPendingWithdrawals(w)) {
+                    out.push({
+                        ...wd,
+                        status: "pending",
+                        userId: u.id,
+                        userName: u.name,
+                        userEmail: u.email,
+                    });
                 }
             }
             out.sort((a, b) => (b.created || 0) - (a.created || 0));
@@ -1586,6 +1671,14 @@ module.exports = async (req, res) => {
             const result = await clearStuckWithdrawalsOnly();
             return sendJson(res, 200, {
                 message: `Cleared ${result.clearedWithdrawals} stuck withdrawal request(s). Amounts returned to user balances.`,
+                ...result,
+            });
+        }
+
+        if (pathname === "/admin/api/withdrawals/force-clear-all" && req.method === "POST") {
+            const result = await forceClearAllPendingWithdrawals();
+            return sendJson(res, 200, {
+                message: `Force cleared ${result.clearedWithdrawals} pending withdrawal request(s). Amounts returned to user balances.`,
                 ...result,
             });
         }

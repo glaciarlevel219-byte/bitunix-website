@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Bitunix</title>
-    <link rel="stylesheet" href="/admin/admin.css">
+    <link rel="stylesheet" href="/admin/admin.css?v=3.9">
     <script>
       window.onerror = function(msg, url, line) {
         console.error('ADMIN ERROR:', msg, 'at', url, 'line', line);
@@ -306,8 +306,9 @@
                         />
                         <button onclick="filterWithdrawalsTable()" class="btn-primary" style="padding: 8px 18px; white-space: nowrap;">🔍 Search</button>
                         <button onclick="clearWithdrawalSearch()" class="btn-secondary" style="padding: 8px 14px; white-space: nowrap;">✕ Clear</button>
-                        <button onclick="clearStuckWithdrawals()" class="btn-reject" style="padding: 8px 18px; white-space: nowrap;">Clear Stuck Withdrawals</button>
-                        <button onclick="clearAllPendingRequests()" class="btn-reject" style="padding: 8px 18px; white-space: nowrap;">Clear All Pending</button>
+                        <button onclick="clearStuckWithdrawals()" class="btn-reject" style="padding: 8px 18px; white-space: nowrap;">Clear Stuck</button>
+                        <button onclick="forceClearAllWithdrawals()" class="btn-reject" style="padding: 8px 18px; white-space: nowrap; font-weight:700;">Force Clear All Withdrawals</button>
+                        <button onclick="clearAllPendingRequests()" class="btn-secondary" style="padding: 8px 18px; white-space: nowrap;">Clear Deposits + Withdrawals</button>
                         <span id="withdrawalSearchCount" style="font-size: 13px; color: #9ca3af;"></span>
                     </div>
 
@@ -523,6 +524,6 @@
         </div>
     </div>
 
-    <script src="/admin/admin.js?v=3.8"></script>
+    <script src="/admin/admin.js?v=3.9"></script>
 </body>
 </html>
