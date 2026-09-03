@@ -18,7 +18,55 @@ Site ab **Hostinger** par chalani hai (Vercel ki jagah).
 
 ## Option A: Hostinger VPS (recommended)
 
-### 1. SSH se server par login
+### Same VPS par pehle se website hai? (Multi-site)
+
+**Koi masla nahi** — ek VPS par **multiple websites** chal sakti hain.
+
+| Website | Domain | Node port | Nginx file |
+|---------|--------|-----------|------------|
+| Purani site | `otherdomain.com` | e.g. `5600` | pehle se configured — **mat chhedo** |
+| **Bitunix** | `bitunixpk.com` | **`5608`** | naya file add karo |
+
+**Steps (purani site safe rehti hai):**
+
+1. Bitunix alag folder mein clone karo — purani site ke folder ko mat overwrite karo:
+   ```bash
+   cd /var/www
+   git clone https://github.com/glaciarlevel219-byte/bitunix-website.git bitunix-website
+   cd bitunix-website
+   npm install
+   cp .env.example .env && nano .env
+   ```
+
+2. PM2 par **alag process** (dusri site chalti rahegi):
+   ```bash
+   pm2 start ecosystem.config.js --name bitunix
+   pm2 save
+   pm2 list   # dono apps dikhengi
+   ```
+
+3. Nginx mein **sirf naya config add** karo — purani `.conf` file edit mat karo:
+   ```bash
+   sudo cp nginx-hostinger.conf /etc/nginx/sites-available/bitunixpk.com
+   sudo ln -sf /etc/nginx/sites-available/bitunixpk.com /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo certbot --nginx -d bitunixpk.com -d www.bitunixpk.com
+   ```
+
+4. DNS: sirf **bitunixpk.com** ka A record VPS IP par point karo.  
+   Purani website ka domain apne IP/DNS par hi rahega.
+
+5. Vercel se **bitunixpk.com domain hatao**, taake conflict na ho.
+
+**Port clash check:** agar `5608` busy ho:
+   ```bash
+   ss -tlnp | grep 5608
+   ```
+   `.env` mein `PORT=5610` set karo aur `nginx-hostinger.conf` mein bhi `5610` likho.
+
+---
+
+### 1. SSH se server par login (fresh VPS)
 
 ```bash
 ssh root@YOUR_VPS_IP

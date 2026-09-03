@@ -13,6 +13,8 @@ module.exports = {
         HOST: "127.0.0.1",
         PORT: 5608,
       },
+      // VPS par pehle se website ho to alag naam + port use karo:
+      // pm2 start ecosystem.config.js --name bitunix
     },
   ],
 };
