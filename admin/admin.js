@@ -499,6 +499,13 @@ async function loadWithdrawals() {
     }
 }
 
+function renderAdminStatus(status) {
+  const s = String(status || "pending").toLowerCase();
+  if (s === "approved" || s === "completed") return '<span class="status-approved">Approved</span>';
+  if (s === "rejected") return '<span class="status-rejected">Rejected</span>';
+  return '<span class="status-pending">Pending</span>';
+}
+
 function renderDepositsTable(deposits) {
     allDeposits = deposits ? deposits : [];
     const tbody = document.querySelector('#depositsTable tbody');
@@ -506,12 +513,14 @@ function renderDepositsTable(deposits) {
     console.log('Rendering deposits table with:', deposits);
     
     if (!deposits || deposits.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9">No pending deposits found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">No deposits found</td></tr>';
         return;
     }
     
     tbody.innerHTML = deposits.map(deposit => {
         const depositId = deposit.id || deposit.rechargeId || '';
+        const status = String(deposit.status || 'pending').toLowerCase();
+        const isPending = status === 'pending';
         console.log('Creating buttons for deposit:', { userId: deposit.userId, depositId });
         
         // Receipt column HTML
@@ -519,6 +528,11 @@ function renderDepositsTable(deposits) {
         if (deposit.receipt) {
             receiptHtml = `<button class="btn-small" onclick="viewReceipt('${escapeHtml(depositId)}')">View Receipt</button>`;
         }
+        
+        const actionsHtml = isPending
+            ? `<button class="btn-small btn-approve" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'approve')">Approve</button>
+               <button class="btn-small btn-reject" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'reject')">Reject</button>`
+            : '<span class="muted">—</span>';
         
         return `
         <tr>
@@ -528,12 +542,9 @@ function renderDepositsTable(deposits) {
             <td>${Number(deposit.amount).toFixed(2)} USDT</td>
             <td>${escapeHtml(deposit.network || 'Unknown')}</td>
             <td>${new Date(deposit.created).toLocaleString()}</td>
-            <td><span class="status-pending">Pending</span></td>
+            <td>${renderAdminStatus(deposit.status)}</td>
             <td>${receiptHtml}</td>
-            <td>
-                <button class="btn-small btn-approve" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'approve')">Approve</button>
-                <button class="btn-small btn-reject" onclick="approveDeposit('${deposit.userId}', '${depositId}', 'reject')">Reject</button>
-            </td>
+            <td>${actionsHtml}</td>
         </tr>
     `;
     }).join('');
@@ -584,13 +595,20 @@ function renderWithdrawalsTable(withdrawals) {
     console.log('Rendering withdrawals table with:', withdrawals);
     
     if (!withdrawals || withdrawals.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">No pending withdrawals found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">No withdrawals found</td></tr>';
         return;
     }
     
     tbody.innerHTML = withdrawals.map(withdrawal => {
         const withdrawalId = withdrawal.id || '';
+        const status = String(withdrawal.status || 'pending').toLowerCase();
+        const isPending = status === 'pending';
         console.log('Creating buttons for withdrawal:', { userId: withdrawal.userId, withdrawalId });
+        
+        const actionsHtml = isPending
+            ? `<button class="btn-small btn-approve" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'approve')">Approve</button>
+               <button class="btn-small btn-reject" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'reject')">Reject</button>`
+            : '<span class="muted">—</span>';
         
         return `
         <tr>
@@ -601,11 +619,8 @@ function renderWithdrawalsTable(withdrawals) {
             <td>${escapeHtml(withdrawal.network || 'Unknown')}</td>
             <td>${escapeHtml(withdrawal.address || 'N/A')}</td>
             <td>${new Date(withdrawal.created).toLocaleString()}</td>
-            <td><span class="status-pending">Pending</span></td>
-            <td>
-                <button class="btn-small btn-approve" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'approve')">Approve</button>
-                <button class="btn-small btn-reject" onclick="approveWithdrawal('${withdrawal.userId}', '${withdrawalId}', 'reject')">Reject</button>
-            </td>
+            <td>${renderAdminStatus(withdrawal.status)}</td>
+            <td>${actionsHtml}</td>
         </tr>
     `;
     }).join('');

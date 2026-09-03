@@ -58,6 +58,143 @@ async function fetchBinanceTickers(symbols) {
   return map;
 }
 
+const CRYPTO_BINANCE_SYMS = [
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT",
+  "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT", "LINKUSDT", "AVAXUSDT", "MATICUSDT",
+  "TRXUSDT", "SHIBUSDT", "ATOMUSDT", "NEARUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT", "HYPEUSDT",
+];
+
+const CRYPTO_PAIR_NAMES = {
+  BTCUSDT: "Bitcoin", ETHUSDT: "Ethereum", BNBUSDT: "BNB", SOLUSDT: "Solana", XRPUSDT: "XRP",
+  DOGEUSDT: "Dogecoin", ADAUSDT: "Cardano", DOTUSDT: "Polkadot", LTCUSDT: "Litecoin", BCHUSDT: "Bitcoin Cash",
+  ETCUSDT: "Ethereum Classic", FILUSDT: "Filecoin", EOSUSDT: "EOS", LINKUSDT: "Chainlink", AVAXUSDT: "Avalanche",
+  MATICUSDT: "Polygon", TRXUSDT: "TRON", SHIBUSDT: "Shiba Inu", ATOMUSDT: "Cosmos", NEARUSDT: "NEAR",
+  ARBUSDT: "Arbitrum", OPUSDT: "Optimism", SUIUSDT: "Sui", HYPEUSDT: "Hyperliquid",
+};
+
+const FX_PAIRS = [
+  { l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" },
+  { l: "AUD/USD", s: "AUDUSDT" }, { l: "JPY/USD", t: "JPY" }, { l: "AED/USD", t: "AED" },
+  { l: "SAR/USD", t: "SAR" }, { l: "PKR/USD", t: "PKR" }, { l: "TRY/USD", t: "TRY" },
+  { l: "CAD/USD", t: "CAD" }, { l: "CHF/USD", t: "CHF" }, { l: "NZD/USD", t: "NZD" },
+  { l: "SGD/USD", t: "SGD" }, { l: "HKD/USD", t: "HKD" }, { l: "CNY/USD", t: "CNY" },
+];
+
+async function fetchSparklineForSymbol(symbol) {
+  return withCache(`spark:${symbol}`, 60000, async () => {
+    const opts = {};
+    if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(5000);
+    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=24`, opts);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data) ? data.map((k) => Number(k[4])) : [];
+  });
+}
+
+async function fetchTradeRows(cat) {
+  const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: String(chg || "0.00") });
+  const rows = [];
+  if (cat === "crypto") {
+    const syms = CRYPTO_BINANCE_SYMS;
+    try {
+      const tickerMap = await fetchBinanceTickers(syms);
+      for (const s of syms) {
+        const t = tickerMap.get(s);
+        if (t) rows.push(toRow(s.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent));
+      }
+    } catch (_) {}
+    if (!rows.length) {
+      try {
+        const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true");
+        const d = await r.json();
+        const map = { bitcoin: "BTC/USD", ethereum: "ETH/USD", binancecoin: "BNB/USD", solana: "SOL/USD", ripple: "XRP/USD", dogecoin: "DOGE/USD", cardano: "ADA/USD", polkadot: "DOT/USD", litecoin: "LTC/USD", "bitcoin-cash": "BCH/USD", "ethereum-classic": "ETC/USD", filecoin: "FIL/USD", eos: "EOS/USD" };
+        for (const [id, label] of Object.entries(map)) {
+          if (d[id]) rows.push(toRow(label, d[id].usd, d[id].usd_24h_change));
+        }
+      } catch (_) {}
+    }
+  } else if (cat === "metal") {
+    try {
+      const tickerMap = await fetchBinanceTickers(["PAXGUSDT", "XAUTUSDT"]);
+      const pax = tickerMap.get("PAXGUSDT");
+      const xau = tickerMap.get("XAUTUSDT");
+      if (pax) rows.push(toRow("PAXG/USD", pax.lastPrice, pax.priceChangePercent));
+      if (xau) rows.push(toRow("XAU/USD", xau.lastPrice, xau.priceChangePercent));
+    } catch (_) {}
+    if (!rows.length) rows.push(toRow("PAXG/USD", 2320.5, 0.45), toRow("XAU/USD", 2325.1, -0.12));
+  } else if (cat === "fx") {
+    let fxData = null;
+    try {
+      const fr = await fetch("https://open.er-api.com/v6/latest/USD");
+      if (fr.ok) fxData = await fr.json();
+    } catch (_) {}
+    let tickerMap = new Map();
+    try {
+      tickerMap = await fetchBinanceTickers(FX_PAIRS.filter((p) => p.s).map((p) => p.s));
+    } catch (_) {}
+    for (const p of FX_PAIRS) {
+      if (p.s) {
+        const t = tickerMap.get(p.s);
+        if (t) {
+          rows.push(toRow(p.l, t.lastPrice, t.priceChangePercent));
+          continue;
+        }
+      }
+      const rate = fxData?.rates?.[p.t];
+      if (rate) rows.push(toRow(p.l, (1 / rate).toFixed(6), (Math.random() * 0.2 - 0.1).toFixed(2)));
+      else rows.push(toRow(p.l, "0.00", "0.00"));
+    }
+  }
+  return rows;
+}
+
+async function fetchTradingBoard(cat) {
+  if (cat === "crypto" || cat === "metal") {
+    const syms = cat === "crypto" ? CRYPTO_BINANCE_SYMS : ["PAXGUSDT", "XAUTUSDT"];
+    let tickerMap = new Map();
+    try { tickerMap = await fetchBinanceTickers(syms); } catch (_) {}
+    const active = syms.filter((s) => tickerMap.has(s));
+    const sparkEntries = await Promise.all(
+      active.slice(0, 18).map(async (sym) => [sym, await fetchSparklineForSymbol(sym)])
+    );
+    const sparkMap = new Map(sparkEntries);
+    return active.map((sym) => {
+      const t = tickerMap.get(sym);
+      const base = sym.replace("USDT", "");
+      return {
+        label: `${base}/USD`,
+        pair: `${base}/USDT`,
+        symbol: sym,
+        name: CRYPTO_PAIR_NAMES[sym] || base,
+        price: Number(t.lastPrice),
+        change: Number(t.priceChangePercent),
+        high: Number(t.highPrice),
+        volume: Number(t.quoteVolume || t.volume || 0),
+        sparkline: sparkMap.get(sym) || [],
+        cat,
+      };
+    });
+  }
+  const rows = await fetchTradeRows("fx");
+  return rows.map((r) => {
+    const price = Number(r.last) || 0;
+    const chg = Number(r.chg) || 0;
+    const parts = String(r.label || "").split("/");
+    return {
+      label: r.label,
+      pair: r.label,
+      symbol: r.label,
+      name: parts[0] || r.label,
+      price,
+      change: chg,
+      high: price * (1 + Math.abs(chg) / 200),
+      volume: 0,
+      sparkline: [],
+      cat: "fx",
+    };
+  });
+}
+
 async function fetchLiveMarketRows() {
   const toRow = (label, now_price, change) => ({
     label,
@@ -66,8 +203,8 @@ async function fetchLiveMarketRows() {
     now_price: Number(now_price || 0),
     change: Number(change || 0),
   });
-  const cryptoSyms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
-  const fxPairs = [{ l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" }, { l: "AUD/USD", s: "AUDUSDT" }, { l: "JPY/USD", t: "JPY" }, { l: "AED/USD", t: "AED" }, { l: "SAR/USD", t: "SAR" }, { l: "PKR/USD", t: "PKR" }, { l: "TRY/USD", t: "TRY" }, { l: "CAD/USD", t: "CAD" }];
+  const cryptoSyms = CRYPTO_BINANCE_SYMS;
+  const fxPairs = FX_PAIRS;
   const metalSyms = ["PAXGUSDT", "XAUTUSDT"];
   const binanceSyms = [...cryptoSyms, ...fxPairs.filter((p) => p.s).map((p) => p.s), ...metalSyms];
   const results = [];
@@ -121,64 +258,6 @@ async function fetchLiveMarketRows() {
   }
 
   return results;
-}
-
-async function fetchTradeRows(cat) {
-  const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: String(chg || "0.00") });
-  const rows = [];
-  if (cat === "crypto") {
-    const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
-    try {
-      const tickerMap = await fetchBinanceTickers(syms);
-      for (const s of syms) {
-        const t = tickerMap.get(s);
-        if (t) rows.push(toRow(s.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent));
-      }
-    } catch (_) {}
-    if (!rows.length) {
-      try {
-        const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true");
-        const d = await r.json();
-        const map = { bitcoin: "BTC/USD", ethereum: "ETH/USD", binancecoin: "BNB/USD", solana: "SOL/USD", ripple: "XRP/USD", dogecoin: "DOGE/USD", cardano: "ADA/USD", polkadot: "DOT/USD", litecoin: "LTC/USD", "bitcoin-cash": "BCH/USD", "ethereum-classic": "ETC/USD", filecoin: "FIL/USD", eos: "EOS/USD" };
-        for (const [id, label] of Object.entries(map)) {
-          if (d[id]) rows.push(toRow(label, d[id].usd, d[id].usd_24h_change));
-        }
-      } catch (_) {}
-    }
-  } else if (cat === "metal") {
-    try {
-      const tickerMap = await fetchBinanceTickers(["PAXGUSDT", "XAUTUSDT"]);
-      const pax = tickerMap.get("PAXGUSDT");
-      const xau = tickerMap.get("XAUTUSDT");
-      if (pax) rows.push(toRow("PAXG/USD", pax.lastPrice, pax.priceChangePercent));
-      if (xau) rows.push(toRow("XAU/USD", xau.lastPrice, xau.priceChangePercent));
-    } catch (_) {}
-    if (!rows.length) rows.push(toRow("PAXG/USD", 2320.5, 0.45), toRow("XAU/USD", 2325.1, -0.12));
-  } else if (cat === "fx") {
-    const pairs = [{ l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" }, { l: "AUD/USD", s: "AUDUSDT" }, { l: "JPY/USD", t: "JPY" }, { l: "AED/USD", t: "AED" }, { l: "SAR/USD", t: "SAR" }, { l: "PKR/USD", t: "PKR" }, { l: "TRY/USD", t: "TRY" }, { l: "CAD/USD", t: "CAD" }];
-    let fxData = null;
-    try {
-      const fr = await fetch("https://open.er-api.com/v6/latest/USD");
-      if (fr.ok) fxData = await fr.json();
-    } catch (_) {}
-    let tickerMap = new Map();
-    try {
-      tickerMap = await fetchBinanceTickers(pairs.filter((p) => p.s).map((p) => p.s));
-    } catch (_) {}
-    for (const p of pairs) {
-      if (p.s) {
-        const t = tickerMap.get(p.s);
-        if (t) {
-          rows.push(toRow(p.l, t.lastPrice, t.priceChangePercent));
-          continue;
-        }
-      }
-      const rate = fxData?.rates?.[p.t];
-      if (rate) rows.push(toRow(p.l, (1 / rate).toFixed(6), (Math.random() * 0.2 - 0.1).toFixed(2)));
-      else rows.push(toRow(p.l, "0.00", "0.00"));
-    }
-  }
-  return rows;
 }
 
 // --- UTILS ---
@@ -493,6 +572,17 @@ module.exports = async (req, res) => {
         try {
             const rows = await withCache(`trade:rows:${cat}`, 8000, () => fetchTradeRows(cat));
             res.setHeader("Cache-Control", "public, s-maxage=8, stale-while-revalidate=30");
+            return sendJson(res, 200, { rows });
+        } catch (e) {
+            return sendJson(res, 200, { rows: [] });
+        }
+    }
+
+    if (pathname === "/api/market/trading-board") {
+        const cat = String(url.searchParams.get("cat") || "crypto");
+        try {
+            const rows = await withCache(`trading-board:${cat}`, 10000, () => fetchTradingBoard(cat));
+            res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
             return sendJson(res, 200, { rows });
         } catch (e) {
             return sendJson(res, 200, { rows: [] });
@@ -1282,16 +1372,17 @@ module.exports = async (req, res) => {
             if (!db) return sendJson(res, 200, { deposits: [] });
             const [users, wallets] = await Promise.all([
                 db.collection("users").find({}, { projection: { id: 1, name: 1, email: 1 } }).toArray(),
-                db.collection("wallets").find({}, { projection: { userId: 1, pendingDeposits: 1 } }).toArray(),
+                db.collection("wallets").find({}, { projection: { userId: 1, pendingDeposits: 1, deposits: 1 } }).toArray(),
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                (w.pendingDeposits || []).forEach((d) => out.push({ ...d, userId: u.id, userName: u.name, userEmail: u.email }));
+                (w.pendingDeposits || []).forEach((d) => out.push({ ...d, status: d.status || "pending", userId: u.id, userName: u.name, userEmail: u.email }));
+                (w.deposits || []).forEach((d) => out.push({ ...d, status: d.status || "completed", userId: u.id, userName: u.name, userEmail: u.email }));
             }
-            out.sort((a, b) => (b.created || 0) - (a.created || 0));
+            out.sort((a, b) => (b.created || b.processedAt || 0) - (a.created || a.processedAt || 0));
             return sendJson(res, 200, { deposits: out });
         }
 
@@ -1345,13 +1436,19 @@ module.exports = async (req, res) => {
             ]);
             const userMap = new Map(users.map((u) => [String(u.id), u]));
             const out = [];
+            const seen = new Set();
             for (const w of wallets) {
                 const u = userMap.get(String(w.userId));
                 if (!u) continue;
-                const all = [...(w.withdrawals || []), ...(w.pendingWithdrawals || [])];
-                all.forEach((wd) => out.push({ ...wd, userId: u.id, userName: u.name, userEmail: u.email }));
+                const all = [...(w.pendingWithdrawals || []), ...(w.withdrawals || [])];
+                for (const wd of all) {
+                    const key = `${u.id}:${wd.id}`;
+                    if (!wd.id || seen.has(key)) continue;
+                    seen.add(key);
+                    out.push({ ...wd, status: wd.status || "pending", userId: u.id, userName: u.name, userEmail: u.email });
+                }
             }
-            out.sort((a, b) => (b.created || 0) - (a.created || 0));
+            out.sort((a, b) => (b.created || b.processedAt || 0) - (a.created || a.processedAt || 0));
             return sendJson(res, 200, { withdrawals: out });
         }
 

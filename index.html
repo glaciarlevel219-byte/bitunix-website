@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=3.7">
+  <link rel="stylesheet" href="./styles.css?v=3.8">
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=3.7"></script>
+  <script defer src="./app.js?v=3.8"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -72,10 +72,34 @@
         <div id="topPairs" class="top-pairs"></div>
       </article>
 
-      <article class="panel">
-        <h3>Market Currencies</h3>
-        <p class="muted">Live market pairs on home page.</p>
-        <div id="homeMarketList" class="market-list"></div>
+      <article class="panel home-trading-panel">
+        <div class="home-board-head">
+          <h3>Live Trading</h3>
+          <div class="home-board-tabs">
+            <button type="button" class="tab-btn active" data-home-board-cat="crypto">Cryptocurrency</button>
+            <button type="button" class="tab-btn" data-home-board-cat="fx">Foreign Exchange</button>
+            <button type="button" class="tab-btn" data-home-board-cat="metal">Precious Metals</button>
+            <button type="button" class="tab-btn" data-home-board-cat="fav">★ Favorites</button>
+          </div>
+        </div>
+        <div class="trading-board-wrap">
+          <table class="trading-board">
+            <thead>
+              <tr>
+                <th>Trading Pairs</th>
+                <th>Last Traded Price</th>
+                <th>24H Change</th>
+                <th>24H High</th>
+                <th>24H Volume</th>
+                <th>Chart</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="homeTradingBoard">
+              <tr><td colspan="7" class="muted">Loading market data...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </article>
     </section>
 
@@ -93,6 +117,7 @@
           <button type="button" class="tab-btn active" data-market-cat="fx">Foreign Exchange</button>
           <button type="button" class="tab-btn" data-market-cat="crypto">Cryptocurrency</button>
           <button type="button" class="tab-btn" data-market-cat="metal">Precious Metals</button>
+          <button type="button" class="tab-btn" data-market-cat="fav">★ Favorites</button>
         </div>
         <div id="marketList" class="market-list"></div>
       </article>
@@ -764,7 +789,6 @@
     </div>
   </footer>
 
-  <script src="./app.js?v=2.6" defer></script>
   <script>
     // Admin Panel Access - Click 5 times on the dot to access admin
     (function() {

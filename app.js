@@ -13,6 +13,7 @@ const endpoints = {
   chartMarket: "/api/chart/market",
   tradeKlines: "/api/trade/klines",
   tradeRows: "/api/trade/rows",
+  tradingBoard: "/api/market/trading-board",
   verifySubmit: "/api/verification/submit",
   withdrawCreate: "/api/withdraw/create",
   depositCreate: "/api/deposit/create",
@@ -97,6 +98,11 @@ const TRADE_CATALOGS = {
     { label: "PKR/USD", k: { source: "frank", from: "USD", to: "PKR", inv: 1, days: 90 } },
     { label: "TRY/USD", k: { source: "frank", from: "USD", to: "TRY", inv: 1, days: 90 } },
     { label: "CAD/USD", k: { source: "frank", from: "USD", to: "CAD", inv: 1, days: 90 } },
+    { label: "CHF/USD", k: { source: "frank", from: "USD", to: "CHF", inv: 1, days: 90 } },
+    { label: "NZD/USD", k: { source: "frank", from: "USD", to: "NZD", inv: 1, days: 90 } },
+    { label: "SGD/USD", k: { source: "frank", from: "USD", to: "SGD", inv: 1, days: 90 } },
+    { label: "HKD/USD", k: { source: "frank", from: "USD", to: "HKD", inv: 1, days: 90 } },
+    { label: "CNY/USD", k: { source: "frank", from: "USD", to: "CNY", inv: 1, days: 90 } },
   ],
   crypto: [
     { label: "BTC/USD", k: { source: "binance", symbol: "BTCUSDT" } },
@@ -112,6 +118,17 @@ const TRADE_CATALOGS = {
     { label: "ETC/USD", k: { source: "binance", symbol: "ETCUSDT" } },
     { label: "FIL/USD", k: { source: "binance", symbol: "FILUSDT" } },
     { label: "EOS/USD", k: { source: "binance", symbol: "EOSUSDT" } },
+    { label: "LINK/USD", k: { source: "binance", symbol: "LINKUSDT" } },
+    { label: "AVAX/USD", k: { source: "binance", symbol: "AVAXUSDT" } },
+    { label: "MATIC/USD", k: { source: "binance", symbol: "MATICUSDT" } },
+    { label: "TRX/USD", k: { source: "binance", symbol: "TRXUSDT" } },
+    { label: "SHIB/USD", k: { source: "binance", symbol: "SHIBUSDT" } },
+    { label: "ATOM/USD", k: { source: "binance", symbol: "ATOMUSDT" } },
+    { label: "NEAR/USD", k: { source: "binance", symbol: "NEARUSDT" } },
+    { label: "ARB/USD", k: { source: "binance", symbol: "ARBUSDT" } },
+    { label: "OP/USD", k: { source: "binance", symbol: "OPUSDT" } },
+    { label: "SUI/USD", k: { source: "binance", symbol: "SUIUSDT" } },
+    { label: "HYPE/USD", k: { source: "binance", symbol: "HYPEUSDT" } },
     { label: "XMR/USD", k: { source: "binance", symbol: "XMRUSDT" } },
     { label: "YFI/USD", k: { source: "binance", symbol: "YFIUSDT" } },
     { label: "MKR/USD", k: { source: "binance", symbol: "MKRUSDT" } },
@@ -126,6 +143,240 @@ const TRADE_CATALOGS = {
 };
 
 const TRADE_TF_MAP = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "60m": "1h", "1d": "1d" };
+
+const FAVORITES_KEY = "bitunix_fav_pairs";
+const homeBoard = { cat: "crypto", rows: [], ws: null, reconnectTimer: null, pollTimer: null };
+
+function getFavoritePairs() {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const list = JSON.parse(raw || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function toggleFavoritePair(label) {
+  if (!label) return;
+  const favs = getFavoritePairs();
+  const i = favs.indexOf(label);
+  if (i >= 0) favs.splice(i, 1);
+  else favs.push(label);
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+  renderTradingBoard(homeBoard.rows);
+  if (document.querySelector("#market")?.classList.contains("active")) {
+    refreshMarketTabList().catch(() => {});
+  }
+}
+
+function formatBoardPrice(price) {
+  const n = Number(price) || 0;
+  if (n >= 1000) return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(2);
+  if (n >= 0.01) return n.toFixed(4);
+  return n.toFixed(6);
+}
+
+function formatBoardVolume(vol) {
+  const n = Number(vol) || 0;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(2)}K`;
+  return n.toFixed(2);
+}
+
+function sparklineSvg(points, positive) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return `<svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"></svg>`;
+  }
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const coords = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * 80;
+      const y = 26 - ((Number(p) - min) / range) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const color = positive ? "#1a7f5f" : "#c62828";
+  return `<svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${coords}"/></svg>`;
+}
+
+function renderTradingBoard(rows) {
+  const tbody = document.querySelector("#homeTradingBoard");
+  if (!tbody) return;
+  let display = rows || [];
+  const favSet = new Set(getFavoritePairs());
+  if (homeBoard.cat === "fav") {
+    display = display.filter((r) => favSet.has(r.label));
+    if (!display.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">No favorites yet. Click ☆ on any pair to save it here.</td></tr>`;
+      return;
+    }
+  }
+  if (!display.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">Loading market data...</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = display
+    .map((row) => {
+      const chg = Number(row.change || 0);
+      const cls = chg >= 0 ? "positive" : "negative";
+      const label = row.label || row.pair || "";
+      const base = label.split("/")[0] || label;
+      const price = Number(row.price || 0);
+      const high = Number(row.high || price);
+      const cat = row.cat || (homeBoard.cat === "fav" ? findCategoryForLabel(label) || "crypto" : homeBoard.cat);
+      const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      const isFav = favSet.has(label);
+      return `
+      <tr data-board-label="${esc}" data-board-cat="${cat}">
+        <td class="tb-pair">
+          <button type="button" class="fav-btn ${isFav ? "is-fav" : ""}" data-fav="${esc}" aria-label="Favorite">${isFav ? "★" : "☆"}</button>
+          <span class="coin-icon">${safeText(base.slice(0, 1))}</span>
+          <div class="tb-pair-meta"><strong>${safeText(label)}</strong><small>${safeText(row.name || base)}</small></div>
+        </td>
+        <td class="tb-price"><strong>$${formatBoardPrice(price)}</strong></td>
+        <td class="${cls}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</td>
+        <td>$${formatBoardPrice(high)}</td>
+        <td>${formatBoardVolume(row.volume)}</td>
+        <td class="tb-chart">${sparklineSvg(row.sparkline, chg >= 0)}</td>
+        <td><button type="button" class="trade-btn" data-trade-label="${esc}" data-trade-cat="${cat}">Trade</button></td>
+      </tr>`;
+    })
+    .join("");
+
+  tbody.querySelectorAll(".fav-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFavoritePair(btn.getAttribute("data-fav"));
+    });
+  });
+  tbody.querySelectorAll(".trade-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openTradeFromMarketList(btn.getAttribute("data-trade-cat"), btn.getAttribute("data-trade-label"));
+    });
+  });
+}
+
+function patchTradingBoardRow(symbol, price, change, high) {
+  const sym = String(symbol || "").toUpperCase();
+  const row = homeBoard.rows.find((r) => String(r.symbol || "").toUpperCase() === sym);
+  if (!row) return;
+  row.price = Number(price);
+  row.change = Number(change);
+  if (high) row.high = Number(high);
+  if (Array.isArray(row.sparkline)) {
+    row.sparkline.push(row.price);
+    if (row.sparkline.length > 24) row.sparkline.shift();
+  }
+  const esc = String(row.label || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  const tr = document.querySelector(`#homeTradingBoard tr[data-board-label="${esc}"]`);
+  if (!tr) return;
+  const chg = Number(change);
+  const cls = chg >= 0 ? "positive" : "negative";
+  const priceCell = tr.querySelector(".tb-price strong");
+  if (priceCell) priceCell.textContent = `$${formatBoardPrice(row.price)}`;
+  const chgCell = tr.children[2];
+  if (chgCell) {
+    chgCell.textContent = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`;
+    chgCell.className = cls;
+  }
+  const chartCell = tr.querySelector(".tb-chart");
+  if (chartCell) chartCell.innerHTML = sparklineSvg(row.sparkline, chg >= 0);
+}
+
+function stopHomeBoardWs() {
+  if (homeBoard.reconnectTimer) {
+    clearTimeout(homeBoard.reconnectTimer);
+    homeBoard.reconnectTimer = null;
+  }
+  if (homeBoard.ws) {
+    homeBoard.ws.onclose = null;
+    homeBoard.ws.close();
+    homeBoard.ws = null;
+  }
+}
+
+function startHomeBoardWs() {
+  stopHomeBoardWs();
+  if (!document.querySelector("#home")?.classList.contains("active")) return;
+  if (homeBoard.cat === "fx" || homeBoard.cat === "fav") return;
+  const symbols = homeBoard.rows
+    .map((r) => String(r.symbol || "").toUpperCase())
+    .filter((s) => s.endsWith("USDT"));
+  if (!symbols.length) return;
+  const streams = symbols.slice(0, 20).map((s) => `${s.toLowerCase()}@miniTicker`).join("/");
+  try {
+    const ws = new WebSocket(`${BINANCE_WS_BASE}/stream?streams=${streams}`);
+    homeBoard.ws = ws;
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        const d = msg.data || msg;
+        patchTradingBoardRow(d.s, d.c, d.P, d.h);
+      } catch (_) {}
+    };
+    ws.onclose = () => {
+      homeBoard.ws = null;
+      if (document.querySelector("#home")?.classList.contains("active")) {
+        homeBoard.reconnectTimer = setTimeout(startHomeBoardWs, 3000);
+      }
+    };
+    ws.onerror = () => {
+      try { ws.close(); } catch (_) {}
+    };
+  } catch (_) {}
+}
+
+async function loadAllTradingBoardRows() {
+  const [cryptoRes, fxRes, metalRes] = await Promise.all([
+    fetchJsonCached(`${endpoints.tradingBoard}?cat=crypto`, 10000),
+    fetchJsonCached(`${endpoints.tradingBoard}?cat=fx`, 10000),
+    fetchJsonCached(`${endpoints.tradingBoard}?cat=metal`, 10000),
+  ]);
+  return [...(cryptoRes.rows || []), ...(fxRes.rows || []), ...(metalRes.rows || [])];
+}
+
+async function loadHomeTradingBoard() {
+  if (!document.querySelector("#homeTradingBoard")) return;
+  try {
+    if (homeBoard.cat === "fav") {
+      homeBoard.rows = await loadAllTradingBoardRows();
+    } else {
+      const res = await fetchJsonCached(`${endpoints.tradingBoard}?cat=${encodeURIComponent(homeBoard.cat)}`, 10000);
+      homeBoard.rows = res.rows || [];
+    }
+    renderTradingBoard(homeBoard.rows);
+    startHomeBoardWs();
+  } catch (_) {
+    renderTradingBoard([]);
+  }
+}
+
+function bindHomeBoardTabs() {
+  const tabs = document.querySelectorAll(".home-board-tabs .tab-btn[data-home-board-cat]");
+  if (!tabs.length) return;
+  tabs.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.getAttribute("data-home-board-cat");
+      if (!cat) return;
+      homeBoard.cat = cat;
+      tabs.forEach((b) => b.classList.toggle("active", b === btn));
+      loadHomeTradingBoard().catch(() => {});
+    });
+  });
+}
+
+function startHomeBoardPoll() {
+  if (homeBoard.pollTimer) clearInterval(homeBoard.pollTimer);
+  homeBoard.pollTimer = setInterval(() => {
+    if (!document.querySelector("#home")?.classList.contains("active")) return;
+    loadHomeTradingBoard().catch(() => {});
+  }, 60000);
+}
 
 const CRYPTO_LIST = [
   { symbol: "BTC", sub: "BTC/USD", id: "bitcoin", usdt: "BTCUSDT" },
@@ -217,12 +468,16 @@ function showToast(message, isError = false) {
 function switchToTab(next) {
   const prev = document.querySelector(".view.active")?.id;
   if (prev === "trade" && next !== "trade") stopTradeRealtime();
+  if (prev === "home" && next !== "home") stopHomeBoardWs();
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === next);
   });
   document.querySelectorAll("[data-tab]").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-tab") === next);
   });
+  if (next === "home") {
+    loadHomeTradingBoard().catch(() => {});
+  }
   if (next === "user" && !state.token) {
     showAuthView("login");
   }
@@ -1690,47 +1945,98 @@ async function refreshMarketTabList() {
   const root = document.querySelector("#marketList");
   if (!root) return;
   const cat = state.marketCategory || "fx";
+  if (cat === "fav") {
+    const favSet = new Set(getFavoritePairs());
+    if (!favSet.size) {
+      root.innerHTML = `<p class="muted">No favorites yet. Click ☆ on any pair.</p>`;
+      return;
+    }
+    try {
+      const allRows = await loadAllTradingBoardRows();
+      const tradeRes = await Promise.all(
+        ["fx", "crypto", "metal"].map((c) => fetchJsonCached(`${endpoints.tradeRows}?cat=${encodeURIComponent(c)}`, 12000))
+      );
+      const merged = [
+        ...allRows,
+        ...tradeRes.flatMap((r) => (r.rows || []).map((row) => ({
+          label: row.label,
+          price: Number(row.last || 0),
+          change: Number(row.chg || 0),
+          cat: findCategoryForLabel(row.label) || "crypto",
+        }))),
+      ];
+      const seen = new Set();
+      const rows = merged.filter((r) => {
+        if (!favSet.has(r.label) || seen.has(r.label)) return false;
+        seen.add(r.label);
+        return true;
+      });
+      renderMarketListRows(root, rows, "fav");
+    } catch {
+      root.innerHTML = `<p class="muted">Could not load favorites.</p>`;
+    }
+    return;
+  }
   try {
     const res = await fetchJsonCached(`${endpoints.tradeRows}?cat=${encodeURIComponent(cat)}`, 12000);
-    const rows = res.rows || [];
+    const rows = (res.rows || []).map((r) => ({
+      label: r.label,
+      price: Number(r.last || 0),
+      change: Number(r.chg || 0),
+      cat,
+    }));
     if (!rows.length) {
       root.innerHTML = `<p class="muted">No market records available.</p>`;
       return;
     }
-    root.innerHTML = rows
-      .map((r) => {
-        const chg = Number(r.chg || 0);
-        const cls = chg >= 0 ? "positive" : "negative";
-        const label = safeText(r.label);
-        const parts = label.split("/");
-        const legal = parts[0] || label;
-        const curr = parts[1] || "USD";
-        const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-        return `
-      <div class="market-row market-row-clickable" role="button" tabindex="0" data-mk-label="${esc}" data-mk-cat="${cat}">
-        <div class="pair">${safeText(legal)}/${safeText(curr)}</div>
-        <div>${Number(r.last || 0).toFixed(6)}</div>
-        <div class="badge ${cls}">${chg.toFixed(2)}%</div>
-      </div>`;
-      })
-      .join("");
-    root.querySelectorAll(".market-row-clickable").forEach((row) => {
-      const go = () => {
-        const label = row.getAttribute("data-mk-label");
-        const c = row.getAttribute("data-mk-cat") || cat;
-        if (label) openTradeFromMarketList(c, label);
-      };
-      row.addEventListener("click", go);
-      row.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      });
-    });
+    renderMarketListRows(root, rows, cat);
   } catch {
     root.innerHTML = `<p class="muted">Could not load markets.</p>`;
   }
+}
+
+function renderMarketListRows(root, rows, cat) {
+  const favSet = new Set(getFavoritePairs());
+  root.innerHTML = rows
+    .map((r) => {
+      const chg = Number(r.change ?? r.chg ?? 0);
+      const cls = chg >= 0 ? "positive" : "negative";
+      const label = safeText(r.label);
+      const parts = label.split("/");
+      const legal = parts[0] || label;
+      const curr = parts[1] || "USD";
+      const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      const rowCat = r.cat || cat;
+      const isFav = favSet.has(label);
+      return `
+      <div class="market-row market-row-clickable" role="button" tabindex="0" data-mk-label="${esc}" data-mk-cat="${rowCat}">
+        <button type="button" class="fav-btn market-fav ${isFav ? "is-fav" : ""}" data-fav="${esc}" aria-label="Favorite">${isFav ? "★" : "☆"}</button>
+        <div class="pair">${safeText(legal)}/${safeText(curr)}</div>
+        <div>${Number(r.price ?? r.last ?? 0).toFixed(6)}</div>
+        <div class="badge ${cls}">${chg.toFixed(2)}%</div>
+      </div>`;
+    })
+    .join("");
+  root.querySelectorAll(".market-fav").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFavoritePair(btn.getAttribute("data-fav"));
+    });
+  });
+  root.querySelectorAll(".market-row-clickable").forEach((row) => {
+    const go = () => {
+      const label = row.getAttribute("data-mk-label");
+      const c = row.getAttribute("data-mk-cat") || cat;
+      if (label) openTradeFromMarketList(c, label);
+    };
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        go();
+      }
+    });
+  });
 }
 
 function renderMeta(configData, countryData) {
@@ -3687,6 +3993,9 @@ async function init() {
     toggleLive().catch((err) => showMessage("#authMessage", err.message, true));
   });
   bindMarketTabs();
+  bindHomeBoardTabs();
+  startHomeBoardPoll();
+  loadHomeTradingBoard().catch(() => {});
   await bindAuth();
   await refreshAuthUser();
   applyLoginState();
