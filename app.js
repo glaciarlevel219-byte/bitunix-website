@@ -169,6 +169,21 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
+const jsonCache = new Map();
+async function fetchJsonCached(url, ttlMs = 10000, options) {
+  const authKey = options?.headers?.Authorization ? "|auth" : "";
+  const key = `${url}${authKey}`;
+  const hit = jsonCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.data;
+  const data = await fetchJson(url, options);
+  jsonCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+function isPageVisible() {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
 async function postJson(url, body, extra = {}) {
   const headers = { "Content-Type": "application/json", ...(extra.headers || {}) };
   const response = await fetch(url, {
@@ -1676,7 +1691,7 @@ async function refreshMarketTabList() {
   if (!root) return;
   const cat = state.marketCategory || "fx";
   try {
-    const res = await fetchJson(`${endpoints.tradeRows}?cat=${encodeURIComponent(cat)}`);
+    const res = await fetchJsonCached(`${endpoints.tradeRows}?cat=${encodeURIComponent(cat)}`, 12000);
     const rows = res.rows || [];
     if (!rows.length) {
       root.innerHTML = `<p class="muted">No market records available.</p>`;
@@ -1789,7 +1804,8 @@ function renderLiveState() {
 }
 
 async function pullLiveMarket() {
-  const res = await fetchJson(endpoints.liveMarket);
+  if (!isPageVisible()) return;
+  const res = await fetchJsonCached(endpoints.liveMarket, 12000);
   const rows = res?.data || [];
   state.liveTickerRows = rows;
   renderTopPairs(rows);
@@ -1818,8 +1834,9 @@ function stopLiveMarketLoop() {
 function startLiveMarketLoop() {
   stopLiveMarketLoop();
   state.liveTimer = setInterval(() => {
+    if (!isPageVisible()) return;
     pullLiveMarket().catch(() => {});
-  }, 5000);
+  }, 20000);
 }
 
 async function setLiveMarketEnabled(on) {
@@ -2477,10 +2494,20 @@ async function pullCoinMarketOnce() {
     if (d) state.coinDepth = d;
   } catch (_) {}
 
-  // Fallback: derive price/change from the existing live market endpoint
+  // Fallback: derive price from cached live rows if available
+  if (!updated && state.liveTickerRows?.length) {
+    const base = sym.replace(/USDT$/i, "");
+    const hit = state.liveTickerRows.find((x) => String(x.legal_name || "").toUpperCase() === base);
+    const p = Number(hit?.now_price || 0);
+    if (p > 0) {
+      state.coin = { ...state.coin, price: p, change: Number(hit?.change || 0) };
+      updated = true;
+    }
+  }
+
   if (!updated) {
     try {
-      const r = await fetchJson(`/api/market/live`);
+      const r = await fetchJsonCached(endpoints.liveMarket, 15000);
       const rows = r?.data || r;
       const base = sym.replace(/USDT$/i, "");
       const hit = Array.isArray(rows) ? rows.find((x) => String(x.legal_name || "").toUpperCase() === base) : null;
@@ -2505,13 +2532,15 @@ function startCoinMarketLoop() {
   pullCoinMarketOnce().catch(() => {});
   state.coinMarketTimer = setInterval(() => {
     const active = document.querySelector("#coin")?.classList.contains("active");
-    if (!active) {
-      clearInterval(state.coinMarketTimer);
-      state.coinMarketTimer = null;
+    if (!active || !isPageVisible()) {
+      if (!active) {
+        clearInterval(state.coinMarketTimer);
+        state.coinMarketTimer = null;
+      }
       return;
     }
     pullCoinMarketOnce().catch(() => {});
-  }, 3000);
+  }, 10000);
 }
 
 
@@ -2791,10 +2820,10 @@ function initCoinView() {
 
   // Refresh orders periodically
   setInterval(() => {
-    if (document.querySelector("#coin")?.classList.contains("active")) {
+    if (document.querySelector("#coin")?.classList.contains("active") && isPageVisible()) {
       refreshCoinHistory();
     }
-  }, 10000);
+  }, 30000);
 }
 
 function getCoinMarkPrice(symbol) {
@@ -3311,7 +3340,7 @@ function getFilteredTradePairs() {
 
 async function loadTradeRowTable() {
   const cat = state.tradeCat === "metal" ? "metal" : state.tradeCat;
-  const res = await fetchJson(`${endpoints.tradeRows}?cat=${cat}`);
+  const res = await fetchJsonCached(`${endpoints.tradeRows}?cat=${cat}`, 12000);
   tradeLastRowMap = new Map((res.rows || []).map((r) => [r.label, r]));
   const pairs = getFilteredTradePairs();
   const root = document.querySelector("#tradePairList");
@@ -3538,15 +3567,19 @@ function onTradeTabShown() {
   bindTradeTfRowOnce();
   if (state.tradeTimer) clearInterval(state.tradeTimer);
   state._tradeKlineFallbackAt = 0;
+  state._tradeRowsFallbackAt = 0;
   state.tradeTimer = setInterval(() => {
-    if (!document.querySelector("#trade")?.classList.contains("active")) return;
-    loadTradeRowTable().catch(() => {});
+    if (!document.querySelector("#trade")?.classList.contains("active") || !isPageVisible()) return;
     const now = Date.now();
-    if (!state._tradeKlineFallbackAt || now - state._tradeKlineFallbackAt > 60000) {
+    if (!state._tradeRowsFallbackAt || now - state._tradeRowsFallbackAt > 45000) {
+      state._tradeRowsFallbackAt = now;
+      loadTradeRowTable().catch(() => {});
+    }
+    if (!state._tradeKlineFallbackAt || now - state._tradeKlineFallbackAt > 120000) {
       state._tradeKlineFallbackAt = now;
       loadTradeKlines();
     }
-  }, 10000);
+  }, 30000);
   loadTradeRowTable()
     .then(() => {
       loadTradeKlines();
@@ -3704,8 +3737,16 @@ async function init() {
   // Now enable live market (will use backup if live fails)
   setLiveMarketEnabled(true).catch(() => {});
 
-  refreshMarketTabList().catch(() => {});
+  if (document.querySelector("#market")?.classList.contains("active")) {
+    refreshMarketTabList().catch(() => {});
+  }
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.liveEnabled) {
+    pullLiveMarket().catch(() => {});
+  }
+});
 
 // Help Center (user messages → admin panel Customer Support)
 function openHelpCenter() {
@@ -3992,8 +4033,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     observer.observe(loginForm, { attributes: true });
   }
-
-  setInterval(bindCustomerCareButtons, 3000);
 });
 
 // Transaction Password functionality
@@ -4086,8 +4125,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Start slider dot updates
-setInterval(updateSliderDots, 100);
+// Start slider dot updates (low frequency — CSS handles animation)
+setInterval(updateSliderDots, 500);
 
 init();
 

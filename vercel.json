@@ -3,9 +3,24 @@
   "cleanUrls": true,
   "functions": {
     "api/[...route].js": {
-      "includeFiles": "web/**"
+      "includeFiles": "web/**",
+      "maxDuration": 30
     }
   },
+  "headers": [
+    {
+      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|webp|ico|svg))",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
+    },
+    {
+      "source": "/api/market/live",
+      "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=8, stale-while-revalidate=30" }]
+    },
+    {
+      "source": "/api/trade/rows",
+      "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=8, stale-while-revalidate=30" }]
+    }
+  ],
   "rewrites": [
     { "source": "/admin/api/:path*", "destination": "/api/[...route].js" },
     { "source": "/api/:path*", "destination": "/api/[...route].js" },

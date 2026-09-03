@@ -30,6 +30,157 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const SITE_CONFIG_FILE = path.join(DATA_DIR, "site_config.json");
 const JWT_SECRET = process.env.JWT_SECRET || "local-secret";
 
+const apiCache = new Map();
+
+async function withCache(key, ttlMs, fn) {
+  const hit = apiCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.data;
+  const data = await fn();
+  apiCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+async function fetchBinanceTickers(symbols) {
+  const list = [...new Set(symbols.map((s) => String(s).toUpperCase()))].filter(Boolean);
+  if (!list.length) return new Map();
+  const param = encodeURIComponent(JSON.stringify(list));
+  const opts = {};
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
+    opts.signal = AbortSignal.timeout(6000);
+  }
+  const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${param}`, opts);
+  if (!r.ok) throw new Error("Binance unavailable");
+  const arr = await r.json();
+  const map = new Map();
+  if (Array.isArray(arr)) {
+    for (const t of arr) map.set(t.symbol, t);
+  }
+  return map;
+}
+
+async function fetchLiveMarketRows() {
+  const toRow = (label, now_price, change) => ({
+    label,
+    legal_name: label.split("/")[0],
+    currency_name: label.split("/")[1] || "USD",
+    now_price: Number(now_price || 0),
+    change: Number(change || 0),
+  });
+  const cryptoSyms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
+  const fxPairs = [{ l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" }, { l: "AUD/USD", s: "AUDUSDT" }, { l: "JPY/USD", t: "JPY" }, { l: "AED/USD", t: "AED" }, { l: "SAR/USD", t: "SAR" }, { l: "PKR/USD", t: "PKR" }, { l: "TRY/USD", t: "TRY" }, { l: "CAD/USD", t: "CAD" }];
+  const metalSyms = ["PAXGUSDT", "XAUTUSDT"];
+  const binanceSyms = [...cryptoSyms, ...fxPairs.filter((p) => p.s).map((p) => p.s), ...metalSyms];
+  const results = [];
+  let tickerMap = new Map();
+  try {
+    tickerMap = await fetchBinanceTickers(binanceSyms);
+  } catch (_) {}
+
+  for (const s of cryptoSyms) {
+    const t = tickerMap.get(s);
+    if (t) results.push(toRow(s.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent));
+  }
+
+  if (!results.length) {
+    try {
+      const cgUrl = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true";
+      const cg = await fetch(cgUrl);
+      if (cg.ok) {
+        const d = await cg.json();
+        const map = { bitcoin: "BTC", ethereum: "ETH", binancecoin: "BNB", solana: "SOL", ripple: "XRP", dogecoin: "DOGE", cardano: "ADA", polkadot: "DOT", litecoin: "LTC", "bitcoin-cash": "BCH", "ethereum-classic": "ETC", filecoin: "FIL", eos: "EOS" };
+        for (const [id, sym] of Object.entries(map)) {
+          const price = Number(d?.[id]?.usd || 0);
+          const chg = Number(d?.[id]?.usd_24h_change || 0);
+          if (price > 0) results.push(toRow(`${sym}/USD`, price, chg));
+        }
+      }
+    } catch (_) {}
+  }
+
+  let fxData = null;
+  try {
+    const fr = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (fr.ok) fxData = await fr.json();
+  } catch (_) {}
+
+  for (const p of fxPairs) {
+    if (p.s) {
+      const t = tickerMap.get(p.s);
+      if (t) {
+        results.push(toRow(p.l, t.lastPrice, t.priceChangePercent));
+        continue;
+      }
+    }
+    const rate = fxData?.rates?.[p.t];
+    if (rate) results.push(toRow(p.l, (1 / rate).toFixed(6), (Math.random() * 0.2 - 0.1).toFixed(2)));
+  }
+
+  for (const s of metalSyms) {
+    const t = tickerMap.get(s);
+    if (t) results.push(toRow(s === "PAXGUSDT" ? "PAXG/USD" : "XAU/USD", t.lastPrice, t.priceChangePercent));
+  }
+
+  return results;
+}
+
+async function fetchTradeRows(cat) {
+  const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: String(chg || "0.00") });
+  const rows = [];
+  if (cat === "crypto") {
+    const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
+    try {
+      const tickerMap = await fetchBinanceTickers(syms);
+      for (const s of syms) {
+        const t = tickerMap.get(s);
+        if (t) rows.push(toRow(s.replace("USDT", "/USD"), t.lastPrice, t.priceChangePercent));
+      }
+    } catch (_) {}
+    if (!rows.length) {
+      try {
+        const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true");
+        const d = await r.json();
+        const map = { bitcoin: "BTC/USD", ethereum: "ETH/USD", binancecoin: "BNB/USD", solana: "SOL/USD", ripple: "XRP/USD", dogecoin: "DOGE/USD", cardano: "ADA/USD", polkadot: "DOT/USD", litecoin: "LTC/USD", "bitcoin-cash": "BCH/USD", "ethereum-classic": "ETC/USD", filecoin: "FIL/USD", eos: "EOS/USD" };
+        for (const [id, label] of Object.entries(map)) {
+          if (d[id]) rows.push(toRow(label, d[id].usd, d[id].usd_24h_change));
+        }
+      } catch (_) {}
+    }
+  } else if (cat === "metal") {
+    try {
+      const tickerMap = await fetchBinanceTickers(["PAXGUSDT", "XAUTUSDT"]);
+      const pax = tickerMap.get("PAXGUSDT");
+      const xau = tickerMap.get("XAUTUSDT");
+      if (pax) rows.push(toRow("PAXG/USD", pax.lastPrice, pax.priceChangePercent));
+      if (xau) rows.push(toRow("XAU/USD", xau.lastPrice, xau.priceChangePercent));
+    } catch (_) {}
+    if (!rows.length) rows.push(toRow("PAXG/USD", 2320.5, 0.45), toRow("XAU/USD", 2325.1, -0.12));
+  } else if (cat === "fx") {
+    const pairs = [{ l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" }, { l: "AUD/USD", s: "AUDUSDT" }, { l: "JPY/USD", t: "JPY" }, { l: "AED/USD", t: "AED" }, { l: "SAR/USD", t: "SAR" }, { l: "PKR/USD", t: "PKR" }, { l: "TRY/USD", t: "TRY" }, { l: "CAD/USD", t: "CAD" }];
+    let fxData = null;
+    try {
+      const fr = await fetch("https://open.er-api.com/v6/latest/USD");
+      if (fr.ok) fxData = await fr.json();
+    } catch (_) {}
+    let tickerMap = new Map();
+    try {
+      tickerMap = await fetchBinanceTickers(pairs.filter((p) => p.s).map((p) => p.s));
+    } catch (_) {}
+    for (const p of pairs) {
+      if (p.s) {
+        const t = tickerMap.get(p.s);
+        if (t) {
+          rows.push(toRow(p.l, t.lastPrice, t.priceChangePercent));
+          continue;
+        }
+      }
+      const rate = fxData?.rates?.[p.t];
+      if (rate) rows.push(toRow(p.l, (1 / rate).toFixed(6), (Math.random() * 0.2 - 0.1).toFixed(2)));
+      else rows.push(toRow(p.l, "0.00", "0.00"));
+    }
+  }
+  return rows;
+}
+
 // --- UTILS ---
 function sendJson(res, status, data) {
   res.setHeader("Content-Type", "application/json");
@@ -253,58 +404,13 @@ module.exports = async (req, res) => {
     // --- MARKET (Unified Route) ---
     if (pathname === "/api/trade/rows") {
         const cat = url.searchParams.get("cat") || "crypto";
-        const toRow = (label, last, chg) => ({ label, last: Number(last || 0), chg: String(chg || "0.00") });
-        const rows = [];
-        
-        if (cat === "crypto") {
-            const syms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
-            try {
-                const results = await Promise.all(syms.map(async s => {
-                    try {
-                        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`);
-                        if(!r.ok) return null;
-                        const t = await r.json();
-                        return toRow(s.replace("USDT","/USD"), t.lastPrice, t.priceChangePercent);
-                    } catch { return null; }
-                }));
-                rows.push(...results.filter(Boolean));
-            } catch(e){}
-            // Fallback for Crypto
-            if(rows.length === 0) {
-                try {
-                    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos&vs_currencies=usd&include_24hr_change=true");
-                    const d = await r.json();
-                    const map = { bitcoin:"BTC/USD", ethereum:"ETH/USD", binancecoin:"BNB/USD", solana:"SOL/USD", ripple:"XRP/USD", dogecoin:"DOGE/USD", cardano:"ADA/USD", polkadot:"DOT/USD", litecoin:"LTC/USD", "bitcoin-cash":"BCH/USD", "ethereum-classic":"ETC/USD", filecoin:"FIL/USD", eos:"EOS/USD" };
-                    Object.keys(d).forEach(id => rows.push(toRow(map[id], d[id].usd, d[id].usd_24h_change)));
-                } catch(e){}
-            }
-        } else if (cat === "metal") {
-            try {
-                const syms = ["PAXGUSDT", "XAUTUSDT"];
-                const results = await Promise.all(syms.map(async s => {
-                    try {
-                        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`);
-                        if(!r.ok) return null;
-                        const t = await r.json();
-                        return toRow(s === "PAXGUSDT" ? "PAXG/USD" : "XAU/USD", t.lastPrice, t.priceChangePercent);
-                    } catch { return null; }
-                }));
-                rows.push(...results.filter(Boolean));
-            } catch(e){}
-            if(rows.length === 0) rows.push(toRow("PAXG/USD", 2320.50, 0.45), toRow("XAU/USD", 2325.10, -0.12));
-        } else if (cat === "fx") {
-            const pairs = [{l:"INR/USD",t:"INR"},{l:"EUR/USD",s:"EURUSDT"},{l:"GBP/USD",s:"GBPUSDT"},{l:"AUD/USD",s:"AUDUSDT"},{l:"JPY/USD",t:"JPY"},{l:"AED/USD",t:"AED"},{l:"SAR/USD",t:"SAR"},{l:"PKR/USD",t:"PKR"},{l:"TRY/USD",t:"TRY"},{l:"CAD/USD",t:"CAD"}];
-            let fxData = null; try { const fr = await fetch("https://open.er-api.com/v6/latest/USD"); if(fr.ok) fxData = await fr.json(); } catch(e){}
-            for(const p of pairs) {
-                if(p.s) {
-                    try { const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.s}`); if(r.ok) { const t=await r.json(); rows.push(toRow(p.l, t.lastPrice, t.priceChangePercent)); continue; } } catch(e){}
-                }
-                const rate = fxData?.rates?.[p.t];
-                if(rate) rows.push(toRow(p.l, (1/rate).toFixed(6), (Math.random()*0.2-0.1).toFixed(2)));
-                else rows.push(toRow(p.l, "0.00", "0.00"));
-            }
+        try {
+            const rows = await withCache(`trade:rows:${cat}`, 8000, () => fetchTradeRows(cat));
+            res.setHeader("Cache-Control", "public, s-maxage=8, stale-while-revalidate=30");
+            return sendJson(res, 200, { rows });
+        } catch (e) {
+            return sendJson(res, 200, { rows: [] });
         }
-        return sendJson(res, 200, { rows });
     }
 
     if (pathname === "/api/chart/market") {
@@ -351,9 +457,10 @@ module.exports = async (req, res) => {
     if (pathname === "/api/coin/ticker") {
         const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
         try {
-            const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
-            if (!r.ok) throw new Error("binance ticker failed");
-            const t = await r.json();
+            const tickerMap = await withCache(`coin:ticker:${symbol}`, 5000, () => fetchBinanceTickers([symbol]));
+            const t = tickerMap.get(symbol);
+            if (!t) throw new Error("binance ticker failed");
+            res.setHeader("Cache-Control", "public, s-maxage=5, stale-while-revalidate=20");
             return sendJson(res, 200, {
                 symbol,
                 lastPrice: Number(t.lastPrice || 0),
@@ -366,71 +473,43 @@ module.exports = async (req, res) => {
                 source: "binance",
             });
         } catch (e) {
-            // Fallback: reuse our live market aggregator if possible
             try {
-                const rowsRes = await fetch(`http://${req.headers.host}/api/market/live`);
-                const rowsJson = rowsRes.ok ? await rowsRes.json() : null;
-                const rows = rowsJson?.data || [];
+                const rows = await withCache("market:live", 8000, fetchLiveMarketRows);
                 const base = symbol.replace("USDT", "");
                 const row = rows.find((x) => String(x.legal_name || "").toUpperCase() === base) || null;
-                const last = Number(row?.now_price || 0);
-                const chg = Number(row?.change || 0);
-                return sendJson(res, 200, {
-                    symbol,
-                    lastPrice: last,
-                    priceChangePercent: chg,
-                    source: "fallback",
-                });
+                if (row && Number(row.now_price) > 0) {
+                    return sendJson(res, 200, {
+                        symbol,
+                        lastPrice: Number(row.now_price),
+                        priceChangePercent: Number(row.change || 0),
+                        source: "fallback",
+                    });
+                }
             } catch (_) {}
 
-            // Fallback: CoinGecko (works in many regions where Binance is blocked)
             try {
                 const base = symbol.replace(/USDT$/i, "");
                 const map = {
-                    BTC: "bitcoin",
-                    ETH: "ethereum",
-                    BNB: "binancecoin",
-                    SOL: "solana",
-                    XRP: "ripple",
-                    DOGE: "dogecoin",
-                    ADA: "cardano",
-                    DOT: "polkadot",
-                    LTC: "litecoin",
-                    BCH: "bitcoin-cash",
-                    ETC: "ethereum-classic",
-                    FIL: "filecoin",
-                    EOS: "eos",
-                    SHIB: "shiba-inu",
-                    TON: "the-open-network",
+                    BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin", SOL: "solana", XRP: "ripple",
+                    DOGE: "dogecoin", ADA: "cardano", DOT: "polkadot", LTC: "litecoin", BCH: "bitcoin-cash",
+                    ETC: "ethereum-classic", FIL: "filecoin", EOS: "eos", SHIB: "shiba-inu", TON: "the-open-network",
                 };
                 const id = map[base];
                 if (id) {
-                    const cg = await fetch(
-                        `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`
-                    );
+                    const cg = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`);
                     if (cg.ok) {
                         const data = await cg.json();
                         const price = Number(data?.[id]?.usd || 0);
                         const chg = Number(data?.[id]?.usd_24h_change || 0);
                         if (price > 0) {
-                            return sendJson(res, 200, {
-                                symbol,
-                                lastPrice: price,
-                                priceChangePercent: chg,
-                                source: "coingecko",
-                            });
+                            return sendJson(res, 200, { symbol, lastPrice: price, priceChangePercent: chg, source: "coingecko" });
                         }
                     }
                 }
             } catch (_) {}
 
             const mock = 65000 + (Math.random() * 1000 - 500);
-            return sendJson(res, 200, {
-                symbol,
-                lastPrice: mock,
-                priceChangePercent: Math.random() * 2 - 1,
-                source: "simulated",
-            });
+            return sendJson(res, 200, { symbol, lastPrice: mock, priceChangePercent: Math.random() * 2 - 1, source: "simulated" });
         }
     }
 
@@ -575,95 +654,12 @@ module.exports = async (req, res) => {
 
     if (pathname === "/api/market/live") {
         try {
-            const toRow = (label, now_price, change) => ({ 
-                label, 
-                legal_name: label.split("/")[0], 
-                currency_name: label.split("/")[1] || "USD", 
-                now_price: Number(now_price || 0), 
-                change: Number(change || 0) 
-            });
-            const results = [];
-            
-            // 1. Crypto
-            const cryptoSyms = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT", "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT"];
-            try {
-                const cryptoRes = await Promise.all(cryptoSyms.map(async s => {
-                    try {
-                        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`);
-                        if(!r.ok) return null;
-                        const t = await r.json();
-                        return toRow(s.replace("USDT","/USD"), t.lastPrice, t.priceChangePercent);
-                    } catch { return null; }
-                }));
-                const cryptoRows = cryptoRes.filter(Boolean);
-                results.push(...cryptoRows);
-
-                // If Binance is blocked and we got no crypto rows, fallback to CoinGecko
-                if (!cryptoRows.length) {
-                    try {
-                        const cgUrl =
-                            "https://api.coingecko.com/api/v3/simple/price?ids=" +
-                            "bitcoin,ethereum,binancecoin,solana,ripple,dogecoin,cardano,polkadot,litecoin,bitcoin-cash,ethereum-classic,filecoin,eos" +
-                            "&vs_currencies=usd&include_24hr_change=true";
-                        const cg = await fetch(cgUrl);
-                        if (cg.ok) {
-                            const d = await cg.json();
-                            const map = [
-                                ["bitcoin", "BTC"],
-                                ["ethereum", "ETH"],
-                                ["binancecoin", "BNB"],
-                                ["solana", "SOL"],
-                                ["ripple", "XRP"],
-                                ["dogecoin", "DOGE"],
-                                ["cardano", "ADA"],
-                                ["polkadot", "DOT"],
-                                ["litecoin", "LTC"],
-                                ["bitcoin-cash", "BCH"],
-                                ["ethereum-classic", "ETC"],
-                                ["filecoin", "FIL"],
-                                ["eos", "EOS"],
-                            ];
-                            for (const [id, sym] of map) {
-                                const price = Number(d?.[id]?.usd || 0);
-                                const chg = Number(d?.[id]?.usd_24h_change || 0);
-                                if (price > 0) results.push(toRow(`${sym}/USD`, price, chg));
-                            }
-                        }
-                    } catch (e) {}
-                }
-            } catch(e){}
-
-            // 2. FX
-            try {
-                const fxPairs = [{l:"INR/USD",t:"INR"},{l:"EUR/USD",s:"EURUSDT"},{l:"GBP/USD",s:"GBPUSDT"},{l:"AUD/USD",s:"AUDUSDT"},{l:"JPY/USD",t:"JPY"},{l:"AED/USD",t:"AED"},{l:"SAR/USD",t:"SAR"},{l:"PKR/USD",t:"PKR"},{l:"TRY/USD",t:"TRY"},{l:"CAD/USD",t:"CAD"}];
-                let fxData = null; try { const fr = await fetch("https://open.er-api.com/v6/latest/USD"); if(fr.ok) fxData = await fr.json(); } catch(e){}
-                for(const p of fxPairs) {
-                    if(p.s) {
-                        try { const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${p.s}`); if(r.ok) { const t=await r.json(); results.push(toRow(p.l, t.lastPrice, t.priceChangePercent)); continue; } } catch(e){}
-                    }
-                    const rate = fxData?.rates?.[p.t];
-                    if(rate) results.push(toRow(p.l, (1/rate).toFixed(6), (Math.random()*0.2-0.1).toFixed(2)));
-                }
-            } catch(e){}
-
-            // 3. Metals
-            try {
-                const metalSyms = ["PAXGUSDT", "XAUTUSDT"];
-                const metalRes = await Promise.all(metalSyms.map(async s => {
-                    try {
-                        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${s}`);
-                        if(!r.ok) return null;
-                        const t = await r.json();
-                        return toRow(s === "PAXGUSDT" ? "PAXG/USD" : "XAU/USD", t.lastPrice, t.priceChangePercent);
-                    } catch { return null; }
-                }));
-                results.push(...metalRes.filter(Boolean));
-            } catch(e){}
-
+            const results = await withCache("market:live", 8000, fetchLiveMarketRows);
+            res.setHeader("Cache-Control", "public, s-maxage=8, stale-while-revalidate=30");
             return sendJson(res, 200, { data: results });
-        } catch (err) { 
+        } catch (err) {
             console.error("Live market error:", err);
-            return sendJson(res, 200, { data: [] }); 
+            return sendJson(res, 200, { data: [] });
         }
     }
 
