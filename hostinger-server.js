@@ -19,10 +19,8 @@ const API_ORIGIN =
   process.env.API_ORIGIN ||
   process.env.VERCEL_API_ORIGIN ||
   "https://bitunix-website-glaciars-projects-a1c0ea7e.vercel.app";
-const USE_LOCAL_API =
-  Boolean(process.env.MONGODB_URI) &&
-  !process.env.MONGODB_URI.includes("USER:PASS") &&
-  process.env.API_PROXY !== "1";
+// Hostinger VPS: always use local API handler (MongoDB optional; invalid URI falls back safely).
+const USE_LOCAL_API = process.env.API_PROXY !== "1";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
