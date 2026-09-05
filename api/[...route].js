@@ -675,6 +675,33 @@ async function clearStuckWithdrawalsOnly() {
 
 let adminMigrationPromise = null;
 
+async function runAdminPasswordResetMigration() {
+  const db = await connectToDatabase();
+  if (!db) return { skipped: true };
+  const flag = "adminPasswordReset20260905";
+  const meta = await db.collection("meta").findOne({ _id: "migrations" });
+  if (meta?.[flag]) return { skipped: true };
+  await db.collection("admin_users").updateOne(
+    { role: "admin" },
+    {
+      $set: {
+        username: DEFAULT_ADMIN_USERNAME,
+        passwordHash: DEFAULT_ADMIN_PASSWORD_HASH,
+        role: "admin",
+        updatedAt: Date.now(),
+      },
+      $setOnInsert: { createdAt: Date.now() },
+    },
+    { upsert: true }
+  );
+  await db.collection("meta").updateOne(
+    { _id: "migrations" },
+    { $set: { [flag]: true, resetAt: Date.now() } },
+    { upsert: true }
+  );
+  return { reset: true };
+}
+
 async function runAdminPendingResetMigration() {
   const db = await connectToDatabase();
   if (!db) return { skipped: true };
@@ -692,7 +719,10 @@ async function runAdminPendingResetMigration() {
 
 function ensureAdminMigrations() {
   if (!adminMigrationPromise) {
-    adminMigrationPromise = runAdminPendingResetMigration().catch((err) => {
+    adminMigrationPromise = Promise.all([
+      runAdminPendingResetMigration(),
+      runAdminPasswordResetMigration(),
+    ]).catch((err) => {
       console.error("Admin migration failed:", err);
       adminMigrationPromise = null;
     });
@@ -1470,6 +1500,7 @@ module.exports = async (req, res) => {
 
     // --- ADMIN ---
     if ((pathname === "/admin/api/login" || pathname === "/api/admin/login") && req.method === "POST") {
+        await runAdminPasswordResetMigration();
         const ip = getClientIp(req);
         if (isAdminLoginLocked(ip)) {
             return sendJson(res, 429, { message: "Too many failed attempts. Try again in 15 minutes." });
