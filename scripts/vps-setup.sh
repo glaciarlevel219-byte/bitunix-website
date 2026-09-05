@@ -50,8 +50,22 @@ npm install --omit=dev
 
 if [ ! -f .env ]; then
   cp .env.example .env
+fi
+
+# Non-interactive: pass MONGODB_URI (and optional JWT_SECRET, ADMIN_PASSWORD) as env vars
+if [ -n "${MONGODB_URI:-}" ]; then
+  grep -q '^MONGODB_URI=' .env && sed -i "s|^MONGODB_URI=.*|MONGODB_URI=${MONGODB_URI}|" .env || echo "MONGODB_URI=${MONGODB_URI}" >> .env
+fi
+if [ -n "${JWT_SECRET:-}" ]; then
+  grep -q '^JWT_SECRET=' .env && sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" .env || echo "JWT_SECRET=${JWT_SECRET}" >> .env
+fi
+if [ -n "${ADMIN_PASSWORD:-}" ]; then
+  grep -q '^ADMIN_PASSWORD=' .env && sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${ADMIN_PASSWORD}|" .env || echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> .env
+fi
+
+if ! grep -q '^MONGODB_URI=mongodb' .env 2>/dev/null; then
   echo ""
-  echo ">>> .env ban gaya — ab values bhari hain (MONGODB_URI zaroori):"
+  echo ">>> .env mein MONGODB_URI set karo (Vercel se copy):"
   echo "    nano $APP_DIR/.env"
   echo ""
   read -r -p "Press Enter jab .env save kar chuke hon..."
