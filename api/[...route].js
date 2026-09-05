@@ -11,15 +11,24 @@ let cachedDb = null;
 
 async function connectToDatabase() {
   if (cachedDb) return cachedDb;
-  if (!MONGODB_URI) return null;
+  if (!MONGODB_URI || MONGODB_URI.includes("USER:PASS")) {
+    return null;
+  }
   if (!cachedClient) {
     cachedClient = new MongoClient(MONGODB_URI, {
       serverSelectionTimeoutMS: 4000,
       connectTimeoutMS: 4000,
       maxPoolSize: 10,
     });
-    await cachedClient.connect();
-    cachedDb = cachedClient.db();
+    try {
+      await cachedClient.connect();
+      cachedDb = cachedClient.db();
+    } catch (err) {
+      console.error("MongoDB connect failed:", err.message);
+      cachedClient = null;
+      cachedDb = null;
+      return null;
+    }
   }
   return cachedDb;
 }
