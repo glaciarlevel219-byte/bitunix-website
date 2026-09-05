@@ -27,6 +27,7 @@ module.exports = {
         SMTP_PORT: process.env.SMTP_PORT || "",
         SMTP_USER: process.env.SMTP_USER || "",
         SMTP_PASS: process.env.SMTP_PASS || "",
+        API_ORIGIN: process.env.API_ORIGIN || "https://bitunix-website-glaciars-projects-a1c0ea7e.vercel.app",
       },
     },
   ],

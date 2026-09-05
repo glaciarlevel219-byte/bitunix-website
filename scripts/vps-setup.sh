@@ -62,13 +62,20 @@ fi
 if [ -n "${ADMIN_PASSWORD:-}" ]; then
   grep -q '^ADMIN_PASSWORD=' .env && sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${ADMIN_PASSWORD}|" .env || echo "ADMIN_PASSWORD=${ADMIN_PASSWORD}" >> .env
 fi
+if [ -n "${API_ORIGIN:-}" ]; then
+  grep -q '^API_ORIGIN=' .env && sed -i "s|^API_ORIGIN=.*|API_ORIGIN=${API_ORIGIN}|" .env || echo "API_ORIGIN=${API_ORIGIN}" >> .env
+fi
 
 if ! grep -q '^MONGODB_URI=mongodb' .env 2>/dev/null; then
-  echo ""
-  echo ">>> .env mein MONGODB_URI set karo (Vercel se copy):"
-  echo "    nano $APP_DIR/.env"
-  echo ""
-  read -r -p "Press Enter jab .env save kar chuke hon..."
+  if [ -n "${API_ORIGIN:-}" ]; then
+    echo "MongoDB skip — API proxy mode: ${API_ORIGIN}"
+  else
+    echo ""
+    echo ">>> .env mein MONGODB_URI set karo (Vercel se copy):"
+    echo "    nano $APP_DIR/.env"
+    echo ""
+    read -r -p "Press Enter jab .env save kar chuke hon..."
+  fi
 fi
 
 export PORT="$PORT"

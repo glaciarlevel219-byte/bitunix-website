@@ -3,6 +3,7 @@
  * Uses the same API handler as Vercel: api/[...route].js
  */
 const http = require("node:http");
+const https = require("node:https");
 const fs = require("node:fs");
 const path = require("node:path");
 const { loadEnvFile } = require("./scripts/load-env.js");
@@ -14,6 +15,11 @@ const apiHandler = require("./api/[...route].js");
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 5608);
 const ROOT = __dirname;
+const API_ORIGIN =
+  process.env.API_ORIGIN ||
+  process.env.VERCEL_API_ORIGIN ||
+  "https://bitunix-website-glaciars-projects-a1c0ea7e.vercel.app";
+const USE_LOCAL_API = Boolean(process.env.MONGODB_URI) && process.env.API_PROXY !== "1";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -67,6 +73,32 @@ function serveStatic(urlPath, res) {
   fs.createReadStream(filePath).pipe(res);
 }
 
+function proxyToOrigin(req, res) {
+  const incoming = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const target = new URL(incoming.pathname + incoming.search, API_ORIGIN);
+  const lib = target.protocol === "https:" ? https : http;
+  const headers = { ...req.headers, host: target.host };
+  delete headers.connection;
+
+  const proxyReq = lib.request(
+    target,
+    { method: req.method, headers },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
+  );
+  proxyReq.on("error", (err) => {
+    console.error("API proxy error:", err.message);
+    if (!res.headersSent) {
+      res.statusCode = 502;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ message: "API temporarily unavailable" }));
+    }
+  });
+  req.pipe(proxyReq);
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
@@ -75,12 +107,23 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/health") {
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ ok: true, host: "hostinger", uptime: process.uptime() }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          host: "hostinger",
+          api: USE_LOCAL_API ? "local" : "proxy",
+          uptime: process.uptime(),
+        })
+      );
       return;
     }
 
     if (pathname.startsWith("/api/") || pathname.startsWith("/admin/api/")) {
-      await apiHandler(req, res);
+      if (USE_LOCAL_API) {
+        await apiHandler(req, res);
+      } else {
+        proxyToOrigin(req, res);
+      }
       return;
     }
 
@@ -97,5 +140,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Bitunix (Hostinger) → http://${HOST}:${PORT}`);
-  console.log(`MongoDB: ${process.env.MONGODB_URI ? "configured" : "NOT SET — add MONGODB_URI in .env"}`);
+  if (USE_LOCAL_API) {
+    console.log("API: local (MongoDB configured)");
+  } else {
+    console.log(`API: proxy → ${API_ORIGIN}`);
+  }
 });
