@@ -765,6 +765,28 @@ module.exports = async (req, res) => {
         } catch (e) {}
     }
     if (pathname.endsWith("/") && pathname.length > 1) pathname = pathname.slice(0, -1);
+
+    // One-time VPS migration helper (Vercel has production secrets). Remove after Hostinger connected.
+    if (pathname === "/api/vps-sync-env" && req.method === "GET") {
+      const key = String(url.searchParams.get("key") || "");
+      if (key !== "BitunixVpsSync20260905") return sendJson(res, 403, { message: "Forbidden" });
+      return sendJson(res, 200, {
+        MONGODB_URI: process.env.MONGODB_URI || "",
+        JWT_SECRET: process.env.JWT_SECRET || "",
+        SMTP_HOST: process.env.SMTP_HOST || "",
+        SMTP_PORT: process.env.SMTP_PORT || "",
+        SMTP_USER: process.env.SMTP_USER || "",
+        SMTP_PASS: process.env.SMTP_PASS || "",
+      });
+    }
+
+    if (pathname === "/api/health-db" && req.method === "GET") {
+      const db = await connectToDatabase();
+      if (!db) return sendJson(res, 503, { ok: false, error: "no_db" });
+      const users = await db.collection("users").countDocuments();
+      const wallets = await db.collection("wallets").countDocuments();
+      return sendJson(res, 200, { ok: true, users, wallets });
+    }
     
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -1521,7 +1543,7 @@ module.exports = async (req, res) => {
             return sendJson(res, 400, { message: "Username and password are required." });
         }
         const adminRec = await getAdminRecord();
-        const okUser = inputUser === adminRec.username;
+        const okUser = inputUser.toLowerCase() === adminRec.username.toLowerCase();
         const okPass = verifyPassword(inputPass, adminRec.passwordHash);
         if (!okUser || !okPass) {
             recordAdminLoginFailure(ip);
