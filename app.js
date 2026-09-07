@@ -128,7 +128,6 @@ const TRADE_CATALOGS = {
     { label: "ARB/USD", k: { source: "binance", symbol: "ARBUSDT" } },
     { label: "OP/USD", k: { source: "binance", symbol: "OPUSDT" } },
     { label: "SUI/USD", k: { source: "binance", symbol: "SUIUSDT" } },
-    { label: "HYPE/USD", k: { source: "binance", symbol: "HYPEUSDT" } },
     { label: "XMR/USD", k: { source: "binance", symbol: "XMRUSDT" } },
     { label: "YFI/USD", k: { source: "binance", symbol: "YFIUSDT" } },
     { label: "MKR/USD", k: { source: "binance", symbol: "MKRUSDT" } },
@@ -188,20 +187,20 @@ function formatBoardVolume(vol) {
 
 function sparklineSvg(points, positive) {
   if (!Array.isArray(points) || points.length < 2) {
-    return `<svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"></svg>`;
+    return `<svg class="spark" viewBox="0 0 96 32" preserveAspectRatio="none"></svg>`;
   }
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
   const coords = points
     .map((p, i) => {
-      const x = (i / (points.length - 1)) * 80;
-      const y = 26 - ((Number(p) - min) / range) * 24;
+      const x = (i / (points.length - 1)) * 96;
+      const y = 30 - ((Number(p) - min) / range) * 28;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
   const color = positive ? "#1a7f5f" : "#c62828";
-  return `<svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${coords}"/></svg>`;
+  return `<svg class="spark" viewBox="0 0 96 32" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${coords}"/></svg>`;
 }
 
 function renderTradingBoard(rows) {

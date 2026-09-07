@@ -50,16 +50,35 @@ async function withCache(key, ttlMs, fn) {
   return data;
 }
 
+const BINANCE_API_BASES = [
+  "https://data-api.binance.vision",
+  "https://api.binance.com",
+];
+
+async function binanceApiFetch(path, opts = {}) {
+  let lastErr = null;
+  for (const base of BINANCE_API_BASES) {
+    try {
+      const r = await fetch(`${base}${path}`, opts);
+      if (r.ok) return r;
+      if (r.status === 451 || r.status === 403) continue;
+      lastErr = new Error(`Binance ${r.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Binance unavailable");
+}
+
 async function fetchBinanceTickers(symbols) {
   const list = [...new Set(symbols.map((s) => String(s).toUpperCase()))].filter(Boolean);
   if (!list.length) return new Map();
   const param = encodeURIComponent(JSON.stringify(list));
   const opts = {};
   if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
-    opts.signal = AbortSignal.timeout(6000);
+    opts.signal = AbortSignal.timeout(8000);
   }
-  const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${param}`, opts);
-  if (!r.ok) throw new Error("Binance unavailable");
+  const r = await binanceApiFetch(`/api/v3/ticker/24hr?symbols=${param}`, opts);
   const arr = await r.json();
   const map = new Map();
   if (Array.isArray(arr)) {
@@ -71,15 +90,27 @@ async function fetchBinanceTickers(symbols) {
 const CRYPTO_BINANCE_SYMS = [
   "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "DOTUSDT",
   "LTCUSDT", "BCHUSDT", "ETCUSDT", "FILUSDT", "EOSUSDT", "LINKUSDT", "AVAXUSDT", "MATICUSDT",
-  "TRXUSDT", "SHIBUSDT", "ATOMUSDT", "NEARUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT", "HYPEUSDT",
+  "TRXUSDT", "SHIBUSDT", "ATOMUSDT", "NEARUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT",
+  "XMRUSDT", "YFIUSDT", "MKRUSDT", "CVCUSDT", "SUSHIUSDT", "GALAUSDT",
 ];
+
+const COINGECKO_CRYPTO = {
+  BTCUSDT: "bitcoin", ETHUSDT: "ethereum", BNBUSDT: "binancecoin", SOLUSDT: "solana", XRPUSDT: "ripple",
+  DOGEUSDT: "dogecoin", ADAUSDT: "cardano", DOTUSDT: "polkadot", LTCUSDT: "litecoin", BCHUSDT: "bitcoin-cash",
+  ETCUSDT: "ethereum-classic", FILUSDT: "filecoin", EOSUSDT: "eos", LINKUSDT: "chainlink", AVAXUSDT: "avalanche-2",
+  MATICUSDT: "matic-network", TRXUSDT: "tron", SHIBUSDT: "shiba-inu", ATOMUSDT: "cosmos", NEARUSDT: "near",
+  ARBUSDT: "arbitrum", OPUSDT: "optimism", SUIUSDT: "sui", XMRUSDT: "monero", YFIUSDT: "yearn-finance",
+  MKRUSDT: "maker", CVCUSDT: "civic", SUSHIUSDT: "sushi", GALAUSDT: "gala",
+};
 
 const CRYPTO_PAIR_NAMES = {
   BTCUSDT: "Bitcoin", ETHUSDT: "Ethereum", BNBUSDT: "BNB", SOLUSDT: "Solana", XRPUSDT: "XRP",
   DOGEUSDT: "Dogecoin", ADAUSDT: "Cardano", DOTUSDT: "Polkadot", LTCUSDT: "Litecoin", BCHUSDT: "Bitcoin Cash",
   ETCUSDT: "Ethereum Classic", FILUSDT: "Filecoin", EOSUSDT: "EOS", LINKUSDT: "Chainlink", AVAXUSDT: "Avalanche",
   MATICUSDT: "Polygon", TRXUSDT: "TRON", SHIBUSDT: "Shiba Inu", ATOMUSDT: "Cosmos", NEARUSDT: "NEAR",
-  ARBUSDT: "Arbitrum", OPUSDT: "Optimism", SUIUSDT: "Sui", HYPEUSDT: "Hyperliquid",
+  ARBUSDT: "Arbitrum", OPUSDT: "Optimism", SUIUSDT: "Sui",
+  XMRUSDT: "Monero", YFIUSDT: "yearn.finance", MKRUSDT: "Maker", CVCUSDT: "Civic",
+  SUSHIUSDT: "SushiSwap", GALAUSDT: "Gala", PAXGUSDT: "Pax Gold", XAUTUSDT: "Tether Gold",
 };
 
 const FX_PAIRS = [
@@ -93,12 +124,76 @@ const FX_PAIRS = [
 async function fetchSparklineForSymbol(symbol) {
   return withCache(`spark:${symbol}`, 60000, async () => {
     const opts = {};
-    if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(5000);
-    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=24`, opts);
-    if (!r.ok) return [];
-    const data = await r.json();
-    return Array.isArray(data) ? data.map((k) => Number(k[4])) : [];
+    if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(6000);
+    const path = `/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=24`;
+    try {
+      const r = await binanceApiFetch(path, opts);
+      const data = await r.json();
+      return Array.isArray(data) ? data.map((k) => Number(k[4])) : [];
+    } catch (_) {
+      const cgId = COINGECKO_CRYPTO[symbol];
+      if (!cgId) return [];
+      try {
+        const cr = await fetch(
+          `https://api.coingecko.com/api/v3/coins/${cgId}/market_chart?vs_currency=usd&days=1`,
+          opts
+        );
+        if (!cr.ok) return [];
+        const cd = await cr.json();
+        const prices = cd?.prices;
+        if (!Array.isArray(prices)) return [];
+        const step = Math.max(1, Math.floor(prices.length / 24));
+        return prices.filter((_, i) => i % step === 0).slice(-24).map((p) => Number(p[1]));
+      } catch (_) {
+        return [];
+      }
+    }
   });
+}
+
+async function fetchFxSparklines(currencyCodes) {
+  const codes = [...new Set(currencyCodes.filter(Boolean))];
+  if (!codes.length) return new Map();
+  return withCache(`fx-spark:${codes.join(",")}`, 3600000, async () => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 7 * 86400000);
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    const opts = {};
+    if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(8000);
+    try {
+      const r = await fetch(
+        `https://api.frankfurter.app/${fmt(start)}..${fmt(end)}?from=USD&to=${codes.join(",")}`,
+        opts
+      );
+      if (!r.ok) return new Map();
+      const data = await r.json();
+      const map = new Map();
+      for (const code of codes) {
+        const pts = [];
+        for (const [day, rates] of Object.entries(data.rates || {})) {
+          const rate = Number(rates[code]);
+          if (rate > 0) pts.push(1 / rate);
+        }
+        if (pts.length >= 2) map.set(code, pts);
+      }
+      return map;
+    } catch (_) {
+      return new Map();
+    }
+  });
+}
+
+async function fetchCoinGeckoSimplePrices(ids) {
+  const list = [...new Set(ids.filter(Boolean))];
+  if (!list.length) return {};
+  const opts = {};
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) opts.signal = AbortSignal.timeout(8000);
+  const r = await fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${list.join(",")}&vs_currencies=usd&include_24hr_change=true`,
+    opts
+  );
+  if (!r.ok) return {};
+  return r.json();
 }
 
 async function fetchTradeRows(cat) {
@@ -162,44 +257,99 @@ async function fetchTradingBoard(cat) {
   if (cat === "crypto" || cat === "metal") {
     const syms = cat === "crypto" ? CRYPTO_BINANCE_SYMS : ["PAXGUSDT", "XAUTUSDT"];
     let tickerMap = new Map();
-    try { tickerMap = await fetchBinanceTickers(syms); } catch (_) {}
-    const active = syms.filter((s) => tickerMap.has(s));
+    try {
+      tickerMap = await fetchBinanceTickers(syms);
+    } catch (_) {}
+
+    let rows = syms
+      .filter((sym) => tickerMap.has(sym))
+      .map((sym) => {
+        const t = tickerMap.get(sym);
+        const base = sym.replace("USDT", "");
+        return {
+          label: `${base}/USD`,
+          pair: `${base}/USDT`,
+          symbol: sym,
+          name: CRYPTO_PAIR_NAMES[sym] || base,
+          price: Number(t.lastPrice),
+          change: Number(t.priceChangePercent),
+          high: Number(t.highPrice),
+          volume: Number(t.quoteVolume || t.volume || 0),
+          sparkline: [],
+          cat,
+        };
+      });
+
+    if (!rows.length) {
+      const cgMap =
+        cat === "crypto"
+          ? COINGECKO_CRYPTO
+          : { PAXGUSDT: "pax-gold", XAUTUSDT: "tether-gold" };
+      const ids = Object.values(cgMap);
+      try {
+        const prices = await fetchCoinGeckoSimplePrices(ids);
+        rows = syms
+          .filter((sym) => cgMap[sym] && prices[cgMap[sym]])
+          .map((sym) => {
+            const base = sym.replace("USDT", "");
+            const p = prices[cgMap[sym]];
+            return {
+              label: `${base}/USD`,
+              pair: `${base}/USDT`,
+              symbol: sym,
+              name: CRYPTO_PAIR_NAMES[sym] || base,
+              price: Number(p.usd),
+              change: Number(p.usd_24h_change || 0),
+              high: Number(p.usd) * 1.002,
+              volume: 0,
+              sparkline: [],
+              cat,
+            };
+          });
+      } catch (_) {}
+    }
+
     const sparkEntries = await Promise.all(
-      active.slice(0, 18).map(async (sym) => [sym, await fetchSparklineForSymbol(sym)])
+      rows.slice(0, 30).map(async (row) => [row.symbol, await fetchSparklineForSymbol(row.symbol)])
     );
     const sparkMap = new Map(sparkEntries);
-    return active.map((sym) => {
-      const t = tickerMap.get(sym);
-      const base = sym.replace("USDT", "");
-      return {
-        label: `${base}/USD`,
-        pair: `${base}/USDT`,
-        symbol: sym,
-        name: CRYPTO_PAIR_NAMES[sym] || base,
-        price: Number(t.lastPrice),
-        change: Number(t.priceChangePercent),
-        high: Number(t.highPrice),
-        volume: Number(t.quoteVolume || t.volume || 0),
-        sparkline: sparkMap.get(sym) || [],
-        cat,
-      };
-    });
+    return rows.map((row) => ({ ...row, sparkline: sparkMap.get(row.symbol) || [] }));
   }
-  const rows = await fetchTradeRows("fx");
-  return rows.map((r) => {
+
+  const fxRows = await fetchTradeRows("fx");
+  const fxCodes = FX_PAIRS.filter((p) => p.t).map((p) => p.t);
+  const fxBinanceSyms = FX_PAIRS.filter((p) => p.s).map((p) => p.s);
+  const [fxSparkMap, ...fxBinSpark] = await Promise.all([
+    fetchFxSparklines(fxCodes),
+    ...fxBinanceSyms.map(async (sym) => [sym, await fetchSparklineForSymbol(sym)]),
+  ]);
+  const fxBinSparkMap = new Map(fxBinSpark);
+
+  return fxRows.map((r) => {
     const price = Number(r.last) || 0;
     const chg = Number(r.chg) || 0;
     const parts = String(r.label || "").split("/");
+    const fxDef = FX_PAIRS.find((p) => p.l === r.label);
+    let sparkline = [];
+    if (fxDef?.s) {
+      sparkline = fxBinSparkMap.get(fxDef.s) || [];
+    } else if (fxDef?.t) {
+      sparkline = fxSparkMap.get(fxDef.t) || [];
+    }
+    if (sparkline.length < 2 && price > 0) {
+      const drift = price * (chg / 100) / 12;
+      sparkline = Array.from({ length: 16 }, (_, i) => price - drift * (15 - i));
+    }
     return {
       label: r.label,
       pair: r.label,
-      symbol: r.label,
+      symbol: fxDef?.s || r.label,
       name: parts[0] || r.label,
       price,
       change: chg,
       high: price * (1 + Math.abs(chg) / 200),
       volume: 0,
-      sparkline: [],
+      sparkline,
       cat: "fx",
     };
   });
@@ -892,8 +1042,7 @@ module.exports = async (req, res) => {
             // Try Binance first for spot symbols
             if (symbol) {
               const sym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, "");
-              const bUrl = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=100`;
-              const br = await fetch(bUrl);
+              const br = await binanceApiFetch(`/api/v3/klines?symbol=${sym}&interval=1h&limit=100`);
               if (br.ok) {
                 const bData = await br.json();
                 const prices = bData.map(k => [k[0], Number(k[4])]);
@@ -987,7 +1136,7 @@ module.exports = async (req, res) => {
         const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g, "");
         const limit = Math.min(100, Math.max(5, Number(url.searchParams.get("limit") || 20)));
         try {
-            const r = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`);
+            const r = await binanceApiFetch(`/api/v3/depth?symbol=${symbol}&limit=${limit}`);
             if (!r.ok) throw new Error("binance depth failed");
             const d = await r.json();
             const asks = Array.isArray(d.asks) ? d.asks.map((x) => ({ price: Number(x[0]), qty: Number(x[1]) })) : [];
@@ -1019,8 +1168,9 @@ module.exports = async (req, res) => {
             const interval = String(url.searchParams.get("interval") || "5m");
             const limit = Math.min(1000, Math.max(10, Number(url.searchParams.get("limit")) || 200));
             try {
-                const burl = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
-                const r = await fetch(burl);
+                const r = await binanceApiFetch(
+                  `/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`
+                );
                 if (!r.ok) throw new Error("Binance unavailable");
                 const raw = await r.json();
                 const candles = raw.map((k) => ({

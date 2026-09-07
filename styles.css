@@ -3292,7 +3292,7 @@ select {
 .fav-btn.is-fav { color: #ffc107; }
 .market-row .market-fav { margin-right: 0.35rem; }
 .tb-chart { width: 90px; }
-.tb-chart .spark { width: 80px; height: 28px; display: block; }
+.tb-chart .spark { width: 96px; height: 32px; display: block; }
 .trade-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; }
 .trade-btn:hover { background: rgba(255,255,255,0.18); }
 .trading-board .positive { color: #1a7f5f; }
