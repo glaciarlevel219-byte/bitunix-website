@@ -575,6 +575,13 @@ function showToast(message, isError = false) {
   }, 4200);
 }
 
+function updateSiteFooterVisibility(tab) {
+  const footer = document.querySelector("#siteFooter");
+  if (!footer) return;
+  const showFooter = tab === "home" || tab === "user";
+  footer.hidden = !showFooter;
+}
+
 function switchToTab(next) {
   const prev = document.querySelector(".view.active")?.id;
   if (prev === "trade" && next !== "trade") stopTradeRealtime();
@@ -585,6 +592,7 @@ function switchToTab(next) {
   document.querySelectorAll("[data-tab]").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-tab") === next);
   });
+  updateSiteFooterVisibility(next);
   if (next === "home") {
     loadHomeTradingBoard().catch(() => {});
   }
@@ -1963,8 +1971,34 @@ function renderTopPairs(rows) {
     `;
   }).join("");
 
-  const ticker = rows.slice(0, 5).map((r) => `${r.legal_name}/${r.currency_name} ${Number(r.now_price || 0).toFixed(4)}`).join(" | ");
-  document.querySelector("#tickerText").textContent = ticker || "No ticker available";
+  renderMarketTicker(rows);
+}
+
+function renderMarketTicker(rows) {
+  const main = document.querySelector("#tickerText");
+  const dup = document.querySelector("#tickerTextDup");
+  if (!main) return;
+
+  if (!rows || !rows.length) {
+    main.innerHTML = '<span class="ticker-item muted">Loading live market data...</span>';
+    if (dup) dup.innerHTML = "";
+    return;
+  }
+
+  const slice = rows.slice(0, 14);
+  const html = slice
+    .map((r) => {
+      const change = Number(r.change ?? 0);
+      const cls = change >= 0 ? "ticker-up" : "ticker-down";
+      const label = `${safeText(r.legal_name)}/${safeText(r.currency_name)}`;
+      const price = Number(r.now_price || 0).toFixed(4);
+      const pct = `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+      return `<span class="ticker-item ${cls}"><strong>${label}</strong> ${price} <em>${pct}</em></span>`;
+    })
+    .join("");
+
+  main.innerHTML = html;
+  if (dup) dup.innerHTML = html;
 }
 
 function renderHomeMarket(rows) {
@@ -4093,6 +4127,7 @@ function applyLoginState() {
 async function init() {
   // Always set up UI regardless of API success
   renderTabs();
+  updateSiteFooterVisibility(document.querySelector(".view.active")?.id || "home");
   bindQuickActions();
   state.wallet = loadWallet();
   initFeatureOverlays();

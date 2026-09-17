@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=4.2">
+  <link rel="stylesheet" href="./styles.css?v=4.3">
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=4.2"></script>
+  <script defer src="./app.js?v=4.3"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -53,7 +53,14 @@
 
       <article class="panel marquee-row">
         <span class="kicker">Market broadcast</span>
-        <p id="tickerText" class="muted">Loading live market data...</p>
+        <div class="market-ticker-wrap" aria-live="polite">
+          <div class="market-ticker-track">
+            <div class="market-ticker-content" id="tickerText">
+              <span class="ticker-item muted">Loading live market data...</span>
+            </div>
+            <div class="market-ticker-content market-ticker-dup" id="tickerTextDup" aria-hidden="true"></div>
+          </div>
+        </div>
       </article>
 
       <article class="panel">
@@ -499,14 +506,6 @@
           <span>Bitunix</span>
         </a>
         <p class="site-footer-tagline">Better Liquidity, Better Trading.</p>
-        <div class="site-footer-social" aria-label="Social links">
-          <a href="https://x.com/bitunixcom" target="_blank" rel="noopener noreferrer" title="X">X</a>
-          <a href="https://t.me/bitunixcom" target="_blank" rel="noopener noreferrer" title="Telegram">TG</a>
-          <a href="https://www.facebook.com/bitunixcom" target="_blank" rel="noopener noreferrer" title="Facebook">FB</a>
-          <a href="https://www.youtube.com/@bitunix" target="_blank" rel="noopener noreferrer" title="YouTube">YT</a>
-          <a href="https://www.linkedin.com/company/bitunix" target="_blank" rel="noopener noreferrer" title="LinkedIn">IN</a>
-          <a href="https://discord.gg/bitunix" target="_blank" rel="noopener noreferrer" title="Discord">DC</a>
-        </div>
       </div>
 
       <div class="site-footer-col">
