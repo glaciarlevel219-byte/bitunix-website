@@ -1,3 +1,16 @@
+:root {
+    --bu-bg: #000000;
+    --bu-panel: #121212;
+    --bu-panel-2: #19191a;
+    --bu-line: #333335;
+    --bu-text: #ffffff;
+    --bu-muted: rgba(255, 255, 255, 0.55);
+    --bu-accent: #b9f641;
+    --bu-accent-hover: #a6de3a;
+    --bu-accent-on: #000000;
+    --bu-danger: #f6465d;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -6,7 +19,8 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bu-bg);
+    color: var(--bu-text);
     min-height: 100vh;
 }
 
@@ -74,7 +88,7 @@ body {
 
 .form-group input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--bu-accent);
 }
 
 /* Navigation Tabs */
@@ -108,7 +122,7 @@ body {
 }
 
 .nav-tab.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bu-accent) 0%, #86bb00 100%);
     color: white;
     font-weight: 600;
 }
@@ -126,7 +140,7 @@ body {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bu-accent) 0%, #86bb00 100%);
     color: white;
 }
 
@@ -205,8 +219,8 @@ body {
 }
 
 .nav-btn.active {
-    color: #667eea;
-    border-bottom-color: #667eea;
+    color: var(--bu-accent);
+    border-bottom-color: var(--bu-accent);
 }
 
 /* Content */
@@ -528,11 +542,11 @@ td code.clickable-user-id {
     cursor: pointer;
     transition: all 0.3s ease;
     text-decoration: underline;
-    color: #667eea;
+    color: var(--bu-accent);
 }
 
 td code.clickable-user-id:hover {
-    background: #667eea;
+    background: var(--bu-accent);
     color: white;
     transform: scale(1.05);
 }
@@ -612,7 +626,7 @@ td code.clickable-user-id:hover {
     margin: 0 0 16px 0;
     color: #333;
     font-size: 16px;
-    border-bottom: 2px solid #667eea;
+    border-bottom: 2px solid var(--bu-accent);
     padding-bottom: 8px;
 }
 
@@ -656,7 +670,7 @@ td code.clickable-user-id:hover {
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 8px;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid var(--bu-accent);
 }
 
 .transaction-item.success,
@@ -692,7 +706,7 @@ td code.clickable-user-id:hover {
     margin: 0 0 16px 0;
     color: #333;
     font-size: 18px;
-    border-bottom: 2px solid #667eea;
+    border-bottom: 2px solid var(--bu-accent);
     padding-bottom: 8px;
 }
 
@@ -712,7 +726,7 @@ td code.clickable-user-id:hover {
 
 .customer-search input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--bu-accent);
 }
 
 .chat-history {
@@ -731,7 +745,7 @@ td code.clickable-user-id:hover {
 }
 
 .chat-message.admin {
-    background: #667eea;
+    background: var(--bu-accent);
     color: white;
     margin-left: 20%;
 }
@@ -852,12 +866,12 @@ td code.clickable-user-id:hover {
 .admin-conversation-item:hover {
     transform: translateX(4px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-left-color: #667eea;
+    border-left-color: var(--bu-accent);
 }
 
 .admin-conversation-item.unread-conv {
     background: #f0f4ff;
-    border-left-color: #667eea;
+    border-left-color: var(--bu-accent);
 }
 
 .conv-header {
@@ -956,7 +970,7 @@ td code.clickable-user-id:hover {
 }
 
 .chat-message.user {
-    background: #667eea;
+    background: var(--bu-accent);
     color: white;
     margin-left: auto;
 }
@@ -1000,7 +1014,7 @@ td code.clickable-user-id:hover {
 .chat-input-container input:focus,
 .chat-input-container .chat-reply-input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--bu-accent);
 }
 
 .chat-input-container .btn-primary {
@@ -1172,7 +1186,7 @@ td code.clickable-user-id:hover {
 
 .chat-input-box input:focus,
 .chat-input-box .chat-reply-input:focus {
-    border-color: #667eea;
+    border-color: var(--bu-accent);
 }
 
 .chat-input-box .btn-primary {
@@ -1195,7 +1209,7 @@ td code.clickable-user-id:hover {
     line-height: 1.2;
     border: none;
     border-radius: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bu-accent) 0%, #86bb00 100%);
     color: #fff;
     cursor: pointer;
     white-space: nowrap;

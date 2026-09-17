@@ -200,7 +200,7 @@ function sparklineSvg(points, positive) {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const color = positive ? "#1a7f5f" : "#c62828";
+  const color = positive ? "#0ecb81" : "#f6465d";
   return `<svg class="spark" viewBox="0 0 96 32" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${coords}"/></svg>`;
 }
 
@@ -356,16 +356,120 @@ async function loadHomeTradingBoard() {
   }
 }
 
+function setHomeBoardCategory(cat) {
+  if (!cat) return;
+  homeBoard.cat = cat;
+  const tabs = document.querySelectorAll(".home-board-tabs .tab-btn[data-home-board-cat]");
+  tabs.forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("data-home-board-cat") === cat);
+  });
+  loadHomeTradingBoard().catch(() => {});
+}
+
 function bindHomeBoardTabs() {
   const tabs = document.querySelectorAll(".home-board-tabs .tab-btn[data-home-board-cat]");
   if (!tabs.length) return;
   tabs.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const cat = btn.getAttribute("data-home-board-cat");
-      if (!cat) return;
-      homeBoard.cat = cat;
-      tabs.forEach((b) => b.classList.toggle("active", b === btn));
-      loadHomeTradingBoard().catch(() => {});
+      setHomeBoardCategory(btn.getAttribute("data-home-board-cat"));
+    });
+  });
+}
+
+function setMarketCategory(cat) {
+  if (!cat) return;
+  state.marketCategory = cat;
+  const tabs = document.querySelectorAll(".market-tabs .tab-btn[data-market-cat]");
+  tabs.forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("data-market-cat") === cat);
+  });
+  refreshMarketTabList().catch(() => {});
+}
+
+function runFooterQuickAction(action) {
+  if (action === "deposit") {
+    openWalletFlow("deposit");
+    return;
+  }
+  if (action === "c2c") {
+    openWalletFlow("c2c");
+    return;
+  }
+  if (action === "lock") {
+    openWalletFlow("lock");
+    return;
+  }
+  if (action === "withdraw") {
+    if (!state.token) {
+      promptAuthAndFocus();
+      showToast("Please sign in for withdrawal.", true);
+      return;
+    }
+    if (state.wallet?.balance < 1) {
+      showToast("Insufficient USDT balance. Deposit first.", true);
+      return;
+    }
+    openProfileModule("withdraw");
+    return;
+  }
+  if (action === "service") {
+    openHelpCenter();
+  }
+}
+
+function handleFooterNav(action, payload) {
+  switch (action) {
+    case "tab": {
+      const authOnly = new Set(["trade", "coin"]);
+      if (authOnly.has(payload) && !state.token) {
+        promptAuthAndFocus();
+        return;
+      }
+      switchToTab(payload);
+      if (payload === "market") refreshMarketTabList().catch(() => {});
+      if (payload === "coin") onCoinTabShown();
+      if (payload === "trade") onTradeTabShown();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      break;
+    }
+    case "home-board":
+      switchToTab("home");
+      setHomeBoardCategory(payload);
+      document.querySelector(".home-trading-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    case "market-cat":
+      switchToTab("market");
+      setMarketCategory(payload);
+      document.querySelector("#market")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    case "quick":
+      runFooterQuickAction(payload);
+      break;
+    case "profile":
+      openProfileModule(payload);
+      break;
+    case "vip":
+      if (typeof window.openVipLevels === "function") window.openVipLevels();
+      break;
+    case "help":
+      openHelpCenter();
+      break;
+    case "announcements":
+      switchToTab("user");
+      document.querySelector("#coverageNotices")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      break;
+    default:
+      break;
+  }
+}
+
+function bindSiteFooter() {
+  document.querySelectorAll("[data-footer-action]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const action = el.getAttribute("data-footer-action") || "";
+      const payload = el.getAttribute("data-footer-payload") || "";
+      handleFooterNav(action, payload);
     });
   });
 }
@@ -534,7 +638,7 @@ function renderTabs() {
 function showMessage(id, message, isError = false) {
   const el = document.querySelector(id);
   el.textContent = message;
-  el.style.color = isError ? "#f87171" : "#2dd4bf";
+  el.style.color = isError ? "#f6465d" : "#b9f641";
 }
 
 function formatCountryDial(idd) {
@@ -1899,11 +2003,7 @@ function bindMarketTabs() {
   if (!tabs.length) return;
   tabs.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const cat = btn.getAttribute("data-market-cat");
-      if (!cat) return;
-      state.marketCategory = cat;
-      tabs.forEach((b) => b.classList.toggle("active", b === btn));
-      refreshMarketTabList().catch(() => {});
+      setMarketCategory(btn.getAttribute("data-market-cat"));
     });
   });
 }
@@ -4003,6 +4103,7 @@ async function init() {
   });
   bindMarketTabs();
   bindHomeBoardTabs();
+  bindSiteFooter();
   startHomeBoardPoll();
   loadHomeTradingBoard().catch(() => {});
   await bindAuth();

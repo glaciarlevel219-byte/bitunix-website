@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=3.8">
+  <link rel="stylesheet" href="./styles.css?v=4.1">
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=3.8"></script>
+  <script defer src="./app.js?v=4.1"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -334,9 +334,9 @@
             <h3 id="welcomeLine">Welcome</h3>
             <p id="userMeta" class="muted">Welcome to Bitunix</p>
             <p id="userIdDisplay" class="muted" style="margin-top: 4px; font-size: 12px;"></p>
-            <p id="userVipDisplay" class="vip-level" style="margin-top: 4px; color: #f6b53b; font-weight: bold; font-size: 13px;"></p>
+            <p id="userVipDisplay" class="vip-level" style="margin-top: 4px; color: #b9f641; font-weight: bold; font-size: 13px;"></p>
             <div style="margin-top: 10px;">
-              <button id="transactionPasswordBtn" class="transaction-password-btn" style="padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;">
+              <button id="transactionPasswordBtn" class="transaction-password-btn" style="padding: 8px 12px; background: #b9f641; color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;">
                 <span>&#128274;</span>
                 <span>Transaction Password</span>
               </button>
@@ -479,7 +479,7 @@
 
 
 
-      <article class="panel collapsed-auth-panel">
+      <article id="coverageNotices" class="panel collapsed-auth-panel">
         <h3>Coverage & Notices</h3>
         <div class="stats">
           <div><p class="metric" id="countryCount">0</p><small>Countries</small></div>
@@ -490,6 +490,93 @@
       </article>
     </section>
   </main>
+
+  <footer class="site-footer" id="siteFooter">
+    <div class="container site-footer-inner">
+      <div class="site-footer-brand">
+        <a href="#" class="site-footer-logo" data-footer-action="tab" data-footer-payload="home" aria-label="Bitunix home">
+          <img src="./Bitunix.jpg" alt="" width="40" height="40">
+          <span>Bitunix</span>
+        </a>
+        <p class="site-footer-tagline">Better Liquidity, Better Trading.</p>
+        <div class="site-footer-social" aria-label="Social links">
+          <a href="https://x.com/bitunixcom" target="_blank" rel="noopener noreferrer" title="X">X</a>
+          <a href="https://t.me/bitunixcom" target="_blank" rel="noopener noreferrer" title="Telegram">TG</a>
+          <a href="https://www.facebook.com/bitunixcom" target="_blank" rel="noopener noreferrer" title="Facebook">FB</a>
+          <a href="https://www.youtube.com/@bitunix" target="_blank" rel="noopener noreferrer" title="YouTube">YT</a>
+          <a href="https://www.linkedin.com/company/bitunix" target="_blank" rel="noopener noreferrer" title="LinkedIn">IN</a>
+          <a href="https://discord.gg/bitunix" target="_blank" rel="noopener noreferrer" title="Discord">DC</a>
+        </div>
+      </div>
+
+      <div class="site-footer-col">
+        <h4 class="site-footer-heading">Platform</h4>
+        <ul class="site-footer-links">
+          <li><a href="#" data-footer-action="profile" data-footer-payload="intro">Platform Introduction</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="msb">MSB Certification</a></li>
+          <li><a href="#" data-footer-action="announcements">Announcements</a></li>
+          <li><a href="#" data-footer-action="vip">VIP Program</a></li>
+          <li><a href="#" data-footer-action="tab" data-footer-payload="home">Home &amp; Live Trading</a></li>
+        </ul>
+      </div>
+
+      <div class="site-footer-col">
+        <h4 class="site-footer-heading">Markets</h4>
+        <ul class="site-footer-links">
+          <li><a href="#" data-footer-action="home-board" data-footer-payload="crypto">Cryptocurrency</a></li>
+          <li><a href="#" data-footer-action="home-board" data-footer-payload="fx">Foreign Exchange</a></li>
+          <li><a href="#" data-footer-action="home-board" data-footer-payload="metal">Precious Metals</a></li>
+          <li><a href="#" data-footer-action="home-board" data-footer-payload="fav">Favorites</a></li>
+          <li><a href="#" data-footer-action="market-cat" data-footer-payload="crypto">All Markets</a></li>
+        </ul>
+      </div>
+
+      <div class="site-footer-col">
+        <h4 class="site-footer-heading">Trade</h4>
+        <ul class="site-footer-links">
+          <li><a href="#" data-footer-action="tab" data-footer-payload="coin">Spot Trading</a></li>
+          <li><a href="#" data-footer-action="tab" data-footer-payload="trade">Countdown Trade</a></li>
+          <li><a href="#" data-footer-action="quick" data-footer-payload="c2c">C2C Trading</a></li>
+          <li><a href="#" data-footer-action="quick" data-footer-payload="lock">Lock-up Mining</a></li>
+          <li><a href="#" data-footer-action="tab" data-footer-payload="market">Market Rates</a></li>
+        </ul>
+      </div>
+
+      <div class="site-footer-col">
+        <h4 class="site-footer-heading">Wallet</h4>
+        <ul class="site-footer-links">
+          <li><a href="#" data-footer-action="quick" data-footer-payload="deposit">Deposit</a></li>
+          <li><a href="#" data-footer-action="quick" data-footer-payload="withdraw">Withdrawal</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="funding">Funding Account</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="recharge">Recharge Record</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="withdrawal-record">Withdrawal Record</a></li>
+        </ul>
+      </div>
+
+      <div class="site-footer-col">
+        <h4 class="site-footer-heading">Support</h4>
+        <ul class="site-footer-links">
+          <li><a href="#" data-footer-action="help">Help Center</a></li>
+          <li><a href="#" data-footer-action="quick" data-footer-payload="service">Customer Service</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="verification">Verification</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="transactions">Transaction History</a></li>
+          <li><a href="#" data-footer-action="profile" data-footer-payload="settings">Account Settings</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="site-footer-bottom">
+      <div class="container site-footer-bottom-inner">
+        <p class="site-footer-copy">&copy; 2022 &ndash; 2026 Bitunix. All rights reserved.</p>
+        <div class="site-footer-legal">
+          <a href="#" data-footer-action="profile" data-footer-payload="intro">Terms &amp; Risk</a>
+          <a href="#" data-footer-action="profile" data-footer-payload="intro">Privacy</a>
+          <a href="#" data-footer-action="help">Contact Support</a>
+          <a href="/admin" class="site-footer-admin-link">Admin Panel</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <nav class="mobile-tabbar">
     <button data-tab="home" class="mobile-tab active"><span class="mobile-tab-icon">&#8962;</span><span>Home</span></button>
@@ -772,53 +859,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Admin Panel Access - Hidden link for administrators -->
-  <footer class="app-footer" style="padding: 20px; text-align: center; background: #1a1f2e; border-top: 1px solid #2d3748; margin-top: 40px;">
-    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-      <div style="color: #718096; font-size: 12px;">
-        &copy; 2024 Bitunix. All rights reserved.
-      </div>
-      <div style="display: flex; gap: 20px; align-items: center;">
-        <a href="#" class="footer-link">Terms</a>
-        <a href="#" class="footer-link">Privacy</a>
-        <a href="#" class="footer-link">Support</a>
-        <!-- Admin Panel Link - Click 5 times rapidly to access -->
-        <a href="#" id="adminAccessLink" style="color: #2d3748; font-size: 12px; text-decoration: none; user-select: none;" title="Admin Access">.</a>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-    // Admin Panel Access - Click 5 times on the dot to access admin
-    (function() {
-      let clickCount = 0;
-      let lastClickTime = 0;
-      const adminLink = document.getElementById('adminAccessLink');
-      
-      if (adminLink) {
-        adminLink.addEventListener('click', function(e) {
-          e.preventDefault();
-          const now = Date.now();
-          
-          // Reset if more than 2 seconds between clicks
-          if (now - lastClickTime > 2000) {
-            clickCount = 0;
-          }
-          
-          clickCount++;
-          lastClickTime = now;
-          
-          if (clickCount >= 5) {
-            clickCount = 0;
-            // Redirect to admin panel - update this URL after deployment
-            const adminUrl = localStorage.getItem('adminPanelUrl') || '/admin';
-            window.open(adminUrl, '_blank');
-          }
-        });
-      }
-    })();
-  </script>
 
   <!-- Countdown Trade Running Overlay -->
   <div id="tradeRunningOverlay" class="trade-running-overlay" hidden>
