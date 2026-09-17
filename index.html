@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=4.4">
+  <link rel="stylesheet" href="./styles.css?v=4.6">
+  <script defer src="./i18n.js?v=4.6"></script>
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=4.4"></script>
+  <script defer src="./app.js?v=4.6"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -24,12 +25,13 @@
         <span style="font-weight: 700; font-size: 1.2rem; letter-spacing: -0.5px;">Bitunix</span>
       </div>
       <nav class="desktop-nav">
-        <button data-tab="home" class="tab-btn active">Home</button>
-        <button data-tab="market" class="tab-btn">Market</button>
-        <button data-tab="trade" class="tab-btn">Trade</button>
-        <button data-tab="coin" class="tab-btn">Coin</button>
-        <button data-tab="user" class="tab-btn">User</button>
+        <button data-tab="home" class="tab-btn active" data-i18n="nav_home">Home</button>
+        <button data-tab="market" class="tab-btn" data-i18n="nav_market">Market</button>
+        <button data-tab="trade" class="tab-btn" data-i18n="nav_trade">Trade</button>
+        <button data-tab="coin" class="tab-btn" data-i18n="nav_coin">Coin</button>
+        <button data-tab="user" class="tab-btn" data-i18n="nav_user">User</button>
       </nav>
+      <button type="button" class="topbar-lang-btn" id="openLangPickerTop" aria-label="Language"><span data-lang-short>EN</span></button>
     </div>
   </header>
 
@@ -52,7 +54,7 @@
       </article>
 
       <article class="panel marquee-row">
-        <span class="kicker">Market broadcast</span>
+        <span class="kicker" data-i18n="market_broadcast">Market broadcast</span>
         <div class="market-ticker-wrap" aria-live="polite">
           <div class="market-ticker-track">
             <div class="market-ticker-content" id="tickerText">
@@ -64,29 +66,29 @@
       </article>
 
       <article class="panel">
-        <h3>Quick Services</h3>
+        <h3 data-i18n="quick_services">Quick Services</h3>
         <div class="quick-grid">
-          <button class="quick-action" data-quick="deposit">Deposit</button>
-          <button class="quick-action" data-quick="withdraw">Withdrawal</button>
-          <button class="quick-action" onclick="openVipLevels()">VIP Levels</button>
-          <button class="quick-action" data-quick="c2c">C2C</button>
-          <button class="quick-action" data-quick="service">Customer service</button>
+          <button class="quick-action" data-quick="deposit" data-i18n="deposit">Deposit</button>
+          <button class="quick-action" data-quick="withdraw" data-i18n="withdrawal">Withdrawal</button>
+          <button class="quick-action" onclick="openVipLevels()" data-i18n="vip_levels">VIP Levels</button>
+          <button class="quick-action" data-quick="c2c" data-i18n="c2c">C2C</button>
+          <button class="quick-action" data-quick="service" data-i18n="customer_service">Customer service</button>
         </div>
       </article>
 
       <article class="panel">
-        <h3>Top Snapshot</h3>
+        <h3 data-i18n="top_snapshot">Top Snapshot</h3>
         <div id="topPairs" class="top-pairs"></div>
       </article>
 
       <article class="panel home-trading-panel">
         <div class="home-board-head">
-          <h3>Live Trading</h3>
+          <h3 data-i18n="live_trading">Live Trading</h3>
           <div class="home-board-tabs">
-            <button type="button" class="tab-btn active" data-home-board-cat="crypto">Cryptocurrency</button>
-            <button type="button" class="tab-btn" data-home-board-cat="fx">Foreign Exchange</button>
-            <button type="button" class="tab-btn" data-home-board-cat="metal">Precious Metals</button>
-            <button type="button" class="tab-btn" data-home-board-cat="fav">★ Favorites</button>
+            <button type="button" class="tab-btn active" data-home-board-cat="crypto" data-i18n="cat_crypto">Cryptocurrency</button>
+            <button type="button" class="tab-btn" data-home-board-cat="fx" data-i18n="cat_fx">Foreign Exchange</button>
+            <button type="button" class="tab-btn" data-home-board-cat="metal" data-i18n="cat_metal">Precious Metals</button>
+            <button type="button" class="tab-btn" data-home-board-cat="fav" data-i18n="cat_fav">★ Favorites</button>
           </div>
         </div>
         <div class="trading-board-wrap">
@@ -361,11 +363,11 @@
           </div>
         </div>
         <div class="profile-actions">
-          <button class="quick-action profile-action" data-quick="deposit"><span class="action-icon">&#9636;</span><span>Deposit</span></button>
-          <button class="quick-action profile-action" data-quick="withdraw"><span class="action-icon">&#8673;</span><span>Withdrawal</span></button>
-          <button type="button" class="quick-action profile-action" onclick="openVipLevels()"><span class="action-icon">&#9733;</span><span>VIP Levels</span></button>
-          <button type="button" class="quick-action profile-action" onclick="openHelpCenter()"><span class="action-icon">&#10227;</span><span>Help Center</span></button>
-          <button class="quick-action profile-action" data-quick="lock"><span class="action-icon">&#10070;</span><span>Lock-up mining</span></button>
+          <button class="quick-action profile-action" data-quick="deposit"><span class="action-icon">&#9636;</span><span data-i18n="deposit">Deposit</span></button>
+          <button class="quick-action profile-action" data-quick="withdraw"><span class="action-icon">&#8673;</span><span data-i18n="withdrawal">Withdrawal</span></button>
+          <button type="button" class="quick-action profile-action" onclick="openVipLevels()"><span class="action-icon">&#9733;</span><span data-i18n="vip_levels">VIP Levels</span></button>
+          <button type="button" class="quick-action profile-action" onclick="openHelpCenter()"><span class="action-icon">&#10227;</span><span data-i18n="help_center">Help Center</span></button>
+          <button class="quick-action profile-action" data-quick="lock"><span class="action-icon">&#10070;</span><span data-i18n="lock_mining">Lock-up mining</span></button>
         </div>
         
         </article>
@@ -412,8 +414,8 @@
       <article class="panel login-panel auth-view-login">
         <form id="loginForm" class="login-screen-form login-mode-phone">
           <div class="login-head-row">
-            <h3 class="login-title">Welcome to login</h3>
-            <button class="lang-btn" type="button" aria-label="Language">&#127760;</button>
+            <h3 class="login-title" data-i18n="login_welcome">Welcome to login</h3>
+            <button class="lang-btn" type="button" id="openLangPickerLogin" aria-label="Language"><span data-lang-short>EN</span></button>
           </div>
 
           <div class="login-type-toggle">
@@ -577,11 +579,11 @@
   </footer>
 
   <nav class="mobile-tabbar">
-    <button data-tab="home" class="mobile-tab active"><span class="mobile-tab-icon">&#8962;</span><span>Home</span></button>
-    <button data-tab="market" class="mobile-tab"><span class="mobile-tab-icon">&#8601;</span><span>Market</span></button>
-    <button data-tab="trade" class="mobile-tab"><span class="mobile-tab-icon">&#9670;</span><span>Trade</span></button>
-    <button data-tab="coin" class="mobile-tab"><span class="mobile-tab-icon">&#9776;</span><span>Coin</span></button>
-    <button data-tab="user" class="mobile-tab"><span class="mobile-tab-icon">&#9728;</span><span>User</span></button>
+    <button data-tab="home" class="mobile-tab active"><span class="mobile-tab-icon">&#8962;</span><span data-i18n="nav_home">Home</span></button>
+    <button data-tab="market" class="mobile-tab"><span class="mobile-tab-icon">&#8601;</span><span data-i18n="nav_market">Market</span></button>
+    <button data-tab="trade" class="mobile-tab"><span class="mobile-tab-icon">&#9670;</span><span data-i18n="nav_trade">Trade</span></button>
+    <button data-tab="coin" class="mobile-tab"><span class="mobile-tab-icon">&#9776;</span><span data-i18n="nav_coin">Coin</span></button>
+    <button data-tab="user" class="mobile-tab"><span class="mobile-tab-icon">&#9728;</span><span data-i18n="nav_user">User</span></button>
   </nav>
 
   <div id="appToast" class="app-toast" role="status" aria-live="polite" hidden>
@@ -825,7 +827,7 @@
 
     <div class="overlay-sheet overlay-sheet-wide help-center-sheet" id="overlayService" role="dialog" aria-modal="true" aria-labelledby="serviceTitle" hidden>
       <header class="overlay-hdr">
-        <h3 id="serviceTitle">Customer Support</h3>
+        <h3 id="serviceTitle" data-i18n="customer_support">Customer Support</h3>
         <button type="button" class="overlay-close" data-close-overlay>&times;</button>
       </header>
       <p class="overlay-lead muted">Our support team is here to help you. Send us a message and we'll get back to you as soon as possible.</p>
@@ -837,11 +839,26 @@
       <div id="customerMessages" class="help-center-thread" aria-live="polite"></div>
       <p id="customerStatus" class="help-center-status muted"></p>
 
-      <div class="help-center-custom-message">
-        <textarea id="customMessageInput" class="help-center-textarea" placeholder="Type your message here... Our support team will assist you." rows="6"></textarea>
-        <button type="button" class="help-topic-btn" onclick="sendCustomCustomerMessage()">Send Message</button>
+      <div id="supportAttachPreview" class="help-attach-preview" hidden></div>
+      <div class="help-center-compose">
+        <input type="file" id="supportMediaInput" accept="image/*,.pdf,video/mp4,video/webm" hidden />
+        <button type="button" class="help-compose-attach" id="supportAttachBtn" title="Attach photo or file" aria-label="Attach file">📎</button>
+        <textarea id="customMessageInput" class="help-compose-input" placeholder="Type a message…" rows="2"></textarea>
+        <button type="button" class="help-compose-send" onclick="sendCustomCustomerMessage()">Send</button>
       </div>
       <p id="supportMsg" class="overlay-msg muted"></p>
+    </div>
+  </div>
+
+  <div id="langPickerRoot" class="lang-picker-root" hidden aria-hidden="true">
+    <button type="button" class="lang-picker-scrim" id="langPickerScrim" aria-label="Close"></button>
+    <div class="lang-picker-sheet" role="dialog" aria-labelledby="langPickerTitle">
+      <header class="lang-picker-hdr">
+        <h3 id="langPickerTitle" data-i18n="lang_title">Choose language</h3>
+        <button type="button" class="overlay-close" id="langPickerClose">&times;</button>
+      </header>
+      <div id="langPickerList" class="lang-picker-list"></div>
+      <button type="button" class="cta lang-picker-apply" id="langPickerApply" data-i18n="lang_apply">Apply</button>
     </div>
   </div>
 

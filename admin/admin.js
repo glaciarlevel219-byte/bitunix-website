@@ -1113,6 +1113,95 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+let pendingAdminAttachment = null;
+let pendingModalAttachment = null;
+
+function readAdminFileBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result || '');
+            const base64 = result.includes(',') ? result.split(',')[1] : result;
+            resolve({ base64, mime: file.type || 'application/octet-stream', name: file.name || 'file' });
+        };
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function formatAdminSupportBody(msg) {
+    const parts = [];
+    if (msg.message) {
+        parts.push(`<div class="msg-text">${escapeHtml(msg.message)}</div>`);
+    }
+    if (msg.mediaData) {
+        const mime = String(msg.mediaType || 'application/octet-stream');
+        const name = escapeHtml(msg.mediaName || 'attachment');
+        if (mime.startsWith('image/')) {
+            parts.push(`<div class="msg-media"><img src="data:${mime};base64,${msg.mediaData}" alt="${name}"/></div>`);
+        } else {
+            parts.push(`<div class="msg-media"><a href="data:${mime};base64,${msg.mediaData}" download="${name}">📎 ${name}</a></div>`);
+        }
+    }
+    if (!parts.length) parts.push('<div class="msg-text"><em>Attachment</em></div>');
+    return parts.join('');
+}
+
+function renderAdminChatBubble(msg) {
+    const isAdmin = msg.type === 'admin';
+    const cls = isAdmin ? 'msg-admin' : 'msg-user';
+    const time = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="msg-bubble ${cls}">${formatAdminSupportBody(msg)}<div class="msg-time">${time}</div></div>`;
+}
+
+function clearAdminAttachPreview(which) {
+    if (which === 'modal') {
+        pendingModalAttachment = null;
+        const preview = document.getElementById('modalAttachPreview');
+        const input = document.getElementById('modalSupportMediaInput');
+        if (preview) { preview.hidden = true; preview.innerHTML = ''; }
+        if (input) input.value = '';
+        return;
+    }
+    pendingAdminAttachment = null;
+    const preview = document.getElementById('adminAttachPreview');
+    const input = document.getElementById('adminSupportMediaInput');
+    if (preview) { preview.hidden = true; preview.innerHTML = ''; }
+    if (input) input.value = '';
+}
+
+function bindAdminSupportAttach(inputId, btnId, previewId, store) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input || !btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) {
+            showToast('Max file size 4MB', true);
+            input.value = '';
+            return;
+        }
+        try {
+            const payload = await readAdminFileBase64(file);
+            if (store === 'modal') pendingModalAttachment = payload;
+            else pendingAdminAttachment = payload;
+            const preview = document.getElementById(previewId);
+            if (preview) {
+                preview.hidden = false;
+                const isImg = file.type.startsWith('image/');
+                preview.innerHTML = `<div class="admin-attach-chip">${isImg ? `<img src="data:${file.type};base64,${payload.base64}" alt="">` : escapeHtml(file.name)} <button type="button" class="admin-attach-clear">&times;</button></div>`;
+                preview.querySelector('.admin-attach-clear')?.addEventListener('click', () => clearAdminAttachPreview(store === 'modal' ? 'modal' : 'inbox'));
+            }
+        } catch {
+            showToast('Could not read file', true);
+            clearAdminAttachPreview(store === 'modal' ? 'modal' : 'inbox');
+        }
+    });
+}
+
 // Customer Support Functions
 async function loadSupportTickets() {
     try {
@@ -1213,6 +1302,9 @@ async function selectChatUser(userId, name, email) {
         input.focus(); 
     }
     if (sendBtn) sendBtn.disabled = false;
+    const attachBtn = document.getElementById('adminSupportAttachBtn');
+    if (attachBtn) attachBtn.disabled = false;
+    clearAdminAttachPreview('inbox');
     if (profileBtn) {
         profileBtn.style.display = "block";
         profileBtn.onclick = () => {
@@ -1238,17 +1330,7 @@ async function loadActiveChatMessages(userId) {
         if (messages.length === 0) {
             container.innerHTML = '<div class="empty-chat-state">No messages in this thread</div>';
         } else {
-            container.innerHTML = messages.map(msg => {
-                const isAdmin = msg.type === "admin";
-                const cls = isAdmin ? "msg-admin" : "msg-user";
-                const time = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return `
-                    <div class="msg-bubble ${cls}">
-                        <div>${msg.message}</div>
-                        <div class="msg-time">${time}</div>
-                    </div>
-                `;
-            }).join("");
+            container.innerHTML = messages.map(renderAdminChatBubble).join("");
             container.scrollTop = container.scrollHeight;
         }
     } catch (e) {
@@ -1260,20 +1342,28 @@ async function sendAdminSupportReply() {
     if (!activeChatUserId) return;
     const input = document.getElementById("supportChatInput");
     const text = input.value.trim();
-    if (!text) return;
+    const attachment = pendingAdminAttachment;
+    if (!text && !attachment) return;
     
     try {
+        const payload = { userId: activeChatUserId, message: text };
+        if (attachment?.base64) {
+            payload.mediaData = attachment.base64;
+            payload.mediaType = attachment.mime;
+            payload.mediaName = attachment.name;
+        }
         const res = await fetch("/admin/api/support/reply", {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${currentAdminToken}` 
             },
-            body: JSON.stringify({ userId: activeChatUserId, message: text })
+            body: JSON.stringify(payload)
         });
         
         if (res.ok) {
             input.value = "";
+            clearAdminAttachPreview('inbox');
             await loadActiveChatMessages(activeChatUserId);
             await loadAllUserMessages(); // Update sidebar preview
         } else {
@@ -1370,21 +1460,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Support chat send button
-    const sendSupportMessageBtn = document.getElementById('sendSupportMessage');
-    if (sendSupportMessageBtn) {
-        sendSupportMessageBtn.addEventListener('click', sendSupportMessage);
-    }
-    
-    // Support chat input enter key
-    const supportChatInput = document.getElementById('supportChatInput');
-    if (supportChatInput) {
-        supportChatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendSupportMessage();
-            }
-        });
-    }
 });
 
 async function searchCustomer() {
@@ -1531,35 +1606,36 @@ function renderSupportChatMessages(messages) {
         return;
     }
     
-    messagesContainer.innerHTML = messages.map(msg => `
-        <div class="chat-message ${msg.type}">
-            <div class="sender">${msg.type === 'user' ? (msg.userName || 'User') : 'Admin'}</div>
-            <div class="message">${escapeHtml(msg.message || '')}</div>
-            <div class="time">${new Date(msg.time).toLocaleString()}</div>
-        </div>
-    `).join('');
+    messagesContainer.innerHTML = messages.map(renderAdminChatBubble).join('');
     
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-async function sendSupportMessage() {
-    const input = document.getElementById('supportChatInput');
+async function sendModalSupportReply() {
+    const input = document.getElementById('modalSupportChatInput');
     const message = input ? input.value.trim() : '';
-    
-    if (!message || !currentSupportUserId) return;
+    const attachment = pendingModalAttachment;
+    if ((!message && !attachment) || !currentSupportUserId) return;
     
     try {
+        const payload = { userId: currentSupportUserId, message };
+        if (attachment?.base64) {
+            payload.mediaData = attachment.base64;
+            payload.mediaType = attachment.mime;
+            payload.mediaName = attachment.name;
+        }
         const response = await fetch(`/admin/api/support/reply`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${currentAdminToken}`
             },
-            body: JSON.stringify({ userId: currentSupportUserId, message })
+            body: JSON.stringify(payload)
         });
         
         if (response.ok) {
             if (input) input.value = '';
+            clearAdminAttachPreview('modal');
             loadSupportChatMessages(currentSupportUserId);
             showToast('Message sent!');
         } else {
@@ -1598,6 +1674,12 @@ function initEventListeners() {
     document.getElementById('supportChatInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendAdminSupportReply();
     });
+    document.getElementById('modalSendSupportMessage')?.addEventListener('click', sendModalSupportReply);
+    document.getElementById('modalSupportChatInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendModalSupportReply();
+    });
+    bindAdminSupportAttach('adminSupportMediaInput', 'adminSupportAttachBtn', 'adminAttachPreview', 'inbox');
+    bindAdminSupportAttach('modalSupportMediaInput', 'modalSupportAttachBtn', 'modalAttachPreview', 'modal');
 
     // Other listeners...
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);

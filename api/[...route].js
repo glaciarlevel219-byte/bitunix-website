@@ -1455,11 +1455,30 @@ module.exports = async (req, res) => {
         }
 
         if (pathname === "/api/support/messages/send" && req.method === "POST") {
-            const { message } = await parseBody(req);
-            if (!message) return sendJson(res, 400, { message: "Message is required" });
-            const msg = { type: "user", message, time: Date.now(), status: "unread", userName: decoded.name, userEmail: decoded.email };
+            const body = await parseBody(req);
+            const message = String(body.message || "").trim();
+            const mediaData = body.mediaData ? String(body.mediaData) : "";
+            const mediaType = body.mediaType ? String(body.mediaType) : "";
+            const mediaName = body.mediaName ? String(body.mediaName) : "";
+            if (!message && !mediaData) return sendJson(res, 400, { message: "Message or attachment is required" });
+            if (mediaData && mediaData.length > 6_000_000) {
+                return sendJson(res, 400, { message: "Attachment too large (max ~4MB)" });
+            }
+            const msg = {
+                type: "user",
+                message,
+                time: Date.now(),
+                status: "unread",
+                userName: decoded.name,
+                userEmail: decoded.email,
+            };
+            if (mediaData) {
+                msg.mediaType = mediaType || "application/octet-stream";
+                msg.mediaData = mediaData;
+                msg.mediaName = mediaName || "attachment";
+            }
             const db = await connectToDatabase();
-            if(db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
+            if (db) await db.collection("support_chats").updateOne({ userId: decoded.id }, { $push: { messages: msg } }, { upsert: true });
             return sendJson(res, 200, { message: "Message sent successfully" });
         }
 
@@ -2064,10 +2083,25 @@ module.exports = async (req, res) => {
         }
 
         if (pathname === "/admin/api/support/reply" && req.method === "POST") {
-            const { userId, message } = await parseBody(req);
+            const body = await parseBody(req);
+            const userId = body.userId;
+            const message = String(body.message || "").trim();
+            const mediaData = body.mediaData ? String(body.mediaData) : "";
+            const mediaType = body.mediaType ? String(body.mediaType) : "";
+            const mediaName = body.mediaName ? String(body.mediaName) : "";
+            if (!userId) return sendJson(res, 400, { message: "userId is required" });
+            if (!message && !mediaData) return sendJson(res, 400, { message: "Message or attachment is required" });
+            if (mediaData && mediaData.length > 6_000_000) {
+                return sendJson(res, 400, { message: "Attachment too large (max ~4MB)" });
+            }
             const msg = { type: "admin", message, time: Date.now(), status: "sent" };
+            if (mediaData) {
+                msg.mediaType = mediaType || "application/octet-stream";
+                msg.mediaData = mediaData;
+                msg.mediaName = mediaName || "attachment";
+            }
             const db = await connectToDatabase();
-            if(db) await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } });
+            if (db) await db.collection("support_chats").updateOne({ userId }, { $push: { messages: msg } });
             return sendJson(res, 200, { message: "Success" });
         }
 

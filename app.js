@@ -253,7 +253,7 @@ function renderTradingBoard(rows) {
         <td class="tb-high">$${formatBoardPrice(high)}</td>
         <td class="tb-volume">${formatBoardVolume(row.volume)}</td>
         <td class="tb-chart">${sparklineSvg(row.sparkline, !String(chgFmt.cls).includes("negative"))}</td>
-        <td><button type="button" class="trade-btn" data-trade-label="${esc}" data-trade-cat="${cat}">Trade</button></td>
+        <td><button type="button" class="trade-btn" data-trade-label="${esc}" data-trade-cat="${cat}">${typeof BitunixI18n !== "undefined" ? BitunixI18n.t("trade") : "Trade"}</button></td>
       </tr>`;
     })
     .join("");
@@ -1080,8 +1080,31 @@ function closeProfileModule() {
   root.setAttribute("aria-hidden", "true");
 }
 
+let helpCenterPollTimer = null;
+let pendingSupportAttachment = null;
+
+function stopHelpCenterPoll() {
+  if (helpCenterPollTimer) {
+    clearInterval(helpCenterPollTimer);
+    helpCenterPollTimer = null;
+  }
+}
+
+function startHelpCenterPoll() {
+  stopHelpCenterPoll();
+  helpCenterPollTimer = setInterval(() => {
+    const panel = document.querySelector("#overlayService");
+    if (panel && !panel.hasAttribute("hidden")) {
+      loadHelpCenterThread(true);
+    }
+  }, 4000);
+}
+
 function closeFeatureOverlay() {
   clearDepositCountdown();
+  stopHelpCenterPoll();
+  pendingSupportAttachment = null;
+  clearSupportAttachPreview();
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
   root.hidden = true;
@@ -4139,8 +4162,48 @@ function applyLoginState() {
   if (profileLogoutBtn) profileLogoutBtn.style.display = loggedIn ? "" : "none";
 }
 
+function initLanguagePicker() {
+  const root = document.getElementById("langPickerRoot");
+  const list = document.getElementById("langPickerList");
+  if (!root || !list || typeof BitunixI18n === "undefined") return;
+
+  let pending = BitunixI18n.getLocale();
+
+  function closePicker() {
+    root.hidden = true;
+    root.setAttribute("aria-hidden", "true");
+  }
+
+  function openPicker() {
+    pending = BitunixI18n.getLocale();
+    list.innerHTML = BitunixI18n.renderPickerList(pending);
+    list.querySelectorAll("[data-locale]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        pending = btn.getAttribute("data-locale");
+        list.querySelectorAll(".lang-picker-option").forEach((b) => b.classList.toggle("is-selected", b === btn));
+      });
+    });
+    BitunixI18n.apply();
+    root.hidden = false;
+    root.removeAttribute("aria-hidden");
+  }
+
+  document.getElementById("openLangPickerTop")?.addEventListener("click", openPicker);
+  document.getElementById("openLangPickerLogin")?.addEventListener("click", openPicker);
+  document.getElementById("langPickerScrim")?.addEventListener("click", closePicker);
+  document.getElementById("langPickerClose")?.addEventListener("click", closePicker);
+  document.getElementById("langPickerApply")?.addEventListener("click", () => {
+    BitunixI18n.setLocale(pending, true);
+    loadHomeTradingBoard().catch(() => {});
+    closePicker();
+  });
+
+  BitunixI18n.setLocale(BitunixI18n.getLocale(), false);
+}
+
 async function init() {
   // Always set up UI regardless of API success
+  initLanguagePicker();
   renderTabs();
   updateSiteFooterVisibility(document.querySelector(".view.active")?.id || "home");
   bindQuickActions();
@@ -4154,6 +4217,7 @@ async function init() {
   bindMarketTabs();
   bindHomeBoardTabs();
   bindSiteFooter();
+  initSupportComposeUi();
   startHomeBoardPoll();
   loadHomeTradingBoard().catch(() => {});
   await bindAuth();
@@ -4222,6 +4286,8 @@ function openHelpCenter() {
   openFeatureOverlay("service");
   loadUserInfo();
   loadHelpCenterThread();
+  startHelpCenterPoll();
+  initSupportComposeUi();
 }
 
 function openSupportModal() {
@@ -4234,12 +4300,112 @@ function escapeHelpHtml(text) {
   return d.innerHTML;
 }
 
-async function loadHelpCenterThread() {
+function renderSupportMessageHtml(msg) {
+  const isAdmin = msg.type === "admin";
+  const cls = isAdmin ? "hc-msg-admin" : "hc-msg-user";
+  const who = isAdmin ? "Bitunix Support" : "You";
+  const time = new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const body = formatSupportMessageBody(msg);
+  return `
+    <div class="hc-msg ${cls}">
+      <div class="hc-msg-meta"><span class="hc-msg-who">${who}</span><span class="hc-msg-time">${time}</span></div>
+      <div class="hc-msg-body">${body}</div>
+    </div>`;
+}
+
+function formatSupportMessageBody(msg) {
+  const parts = [];
+  if (msg.message) {
+    parts.push(`<p class="hc-msg-text">${escapeHelpHtml(msg.message)}</p>`);
+  }
+  if (msg.mediaData) {
+    const mime = String(msg.mediaType || "application/octet-stream");
+    const name = escapeHelpHtml(msg.mediaName || "attachment");
+    if (mime.startsWith("image/")) {
+      parts.push(
+        `<div class="hc-msg-media"><img src="data:${mime};base64,${msg.mediaData}" alt="${name}" loading="lazy"/></div>`,
+      );
+    } else {
+      parts.push(
+        `<div class="hc-msg-media"><a class="hc-msg-file" href="data:${mime};base64,${msg.mediaData}" download="${name}">📎 ${name}</a></div>`,
+      );
+    }
+  }
+  if (!parts.length) parts.push('<p class="hc-msg-text muted"><em>Attachment</em></p>');
+  return parts.join("");
+}
+
+function readFileAsBase64Payload(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve({ base64, mime: file.type || "application/octet-stream", name: file.name || "file" });
+    };
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function clearSupportAttachPreview() {
+  pendingSupportAttachment = null;
+  const preview = document.getElementById("supportAttachPreview");
+  const input = document.getElementById("supportMediaInput");
+  if (preview) {
+    preview.hidden = true;
+    preview.innerHTML = "";
+  }
+  if (input) input.value = "";
+}
+
+function initSupportComposeUi() {
+  const attachBtn = document.getElementById("supportAttachBtn");
+  const fileInput = document.getElementById("supportMediaInput");
+  if (!attachBtn || !fileInput || attachBtn.dataset.bound) return;
+  attachBtn.dataset.bound = "1";
+  attachBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      showToast("File too large. Max 4MB.", true);
+      fileInput.value = "";
+      return;
+    }
+    try {
+      pendingSupportAttachment = await readFileAsBase64Payload(file);
+      const preview = document.getElementById("supportAttachPreview");
+      if (preview) {
+        preview.hidden = false;
+        const isImg = file.type.startsWith("image/");
+        preview.innerHTML = `
+          <div class="help-attach-chip">
+            ${isImg ? `<img src="data:${file.type};base64,${pendingSupportAttachment.base64}" alt="">` : `<span>📎 ${escapeHelpHtml(file.name)}</span>`}
+            <button type="button" class="help-attach-remove" aria-label="Remove attachment">&times;</button>
+          </div>`;
+        preview.querySelector(".help-attach-remove")?.addEventListener("click", clearSupportAttachPreview);
+      }
+    } catch {
+      showToast("Could not attach file.", true);
+      clearSupportAttachPreview();
+    }
+  });
+  const ta = document.getElementById("customMessageInput");
+  ta?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendCustomCustomerMessage();
+    }
+  });
+}
+
+async function loadHelpCenterThread(silent) {
   const container = document.getElementById("customerMessages");
   const statusEl = document.getElementById("customerStatus");
   if (!container) return;
   if (!state.token) {
-    container.innerHTML = '<p class="muted">Sign in to send a message and see replies.</p>';
+    container.innerHTML = '<div class="hc-empty">Sign in to chat with support.</div>';
     if (statusEl) statusEl.textContent = "";
     return;
   }
@@ -4250,24 +4416,21 @@ async function loadHelpCenterThread() {
     const data = response.ok ? await response.json() : { messages: [] };
     const messages = data.messages || [];
     if (!messages.length) {
-      container.innerHTML = '<p class="muted">No messages yet. Type your message below.</p>';
+      container.innerHTML = '<div class="hc-empty">Say hello — our team will reply here.</div>';
     } else {
-      container.innerHTML = messages
-        .map((msg) => {
-          const isAdmin = msg.type === "admin";
-          const cls = isAdmin ? "hc-msg-admin" : "hc-msg-user";
-          const who = isAdmin ? "Support" : "You";
-          return `<div class="hc-msg ${cls}"><strong>${who}</strong> · ${new Date(msg.time).toLocaleString()}<div>${escapeHelpHtml(msg.message)}</div></div>`;
-        })
-        .join("");
+      container.innerHTML = messages.map(renderSupportMessageHtml).join("");
       container.scrollTop = container.scrollHeight;
     }
     if (statusEl) {
       const hasAdmin = messages.some((m) => m.type === "admin");
-      statusEl.textContent = hasAdmin ? "You have a reply from support." : messages.length ? "Messages sync with the admin panel." : "";
+      statusEl.textContent = hasAdmin
+        ? "Support replied — scroll up to read."
+        : messages.length
+          ? "Live chat · synced with admin panel"
+          : "";
     }
   } catch {
-    container.innerHTML = '<p class="muted">Could not load messages.</p>';
+    if (!silent) container.innerHTML = '<div class="hc-empty">Could not load messages.</div>';
   }
 }
 
@@ -4293,14 +4456,16 @@ async function sendCustomCustomerMessage() {
     showToast("Please sign in to contact support.", true);
     return;
   }
-  const ok = await sendSupportMessage(text);
+  const attachment = pendingSupportAttachment;
+  if (!text && !attachment) {
+    showToast("Please enter a message or attach a file.", true);
+    return;
+  }
+  const ok = await sendSupportMessage(text, attachment);
   if (ok) {
-    // Clear the input field
-    if (customMessageInput) {
-      customMessageInput.value = '';
-    }
+    if (customMessageInput) customMessageInput.value = "";
+    clearSupportAttachPreview();
     await loadHelpCenterThread();
-    showToast("Message sent successfully!", false);
   }
 }
 
@@ -4336,12 +4501,19 @@ function closeSupportModal() {
   closeFeatureOverlay();
 }
 
-async function sendSupportMessage(message) {
+async function sendSupportMessage(message, attachment) {
   const text = String(message || "").trim();
-  if (!text) return false;
+  if (!text && !attachment) return false;
   if (!state.token) {
     showToast("Please sign in to send messages.", true);
     return false;
+  }
+
+  const payload = { message: text };
+  if (attachment?.base64) {
+    payload.mediaData = attachment.base64;
+    payload.mediaType = attachment.mime;
+    payload.mediaName = attachment.name;
   }
 
   try {
@@ -4351,16 +4523,11 @@ async function sendSupportMessage(message) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${state.token}`,
       },
-      body: JSON.stringify({ message: text, type: "user" }),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
-      showToast("Message sent!", false);
-      // Clear any textarea
-      const ta1 = document.getElementById("helpCenterTextarea");
-      const ta2 = document.getElementById("customMessageInput");
-      if (ta1) ta1.value = "";
-      if (ta2) ta2.value = "";
+      showToast("Sent!", false);
       return true;
     }
     const errData = await response.json().catch(() => ({}));
