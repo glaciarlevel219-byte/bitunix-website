@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=4.6">
-  <script defer src="./i18n.js?v=4.6"></script>
+  <link rel="stylesheet" href="./styles.css?v=4.8">
+  <script defer src="./i18n.js?v=4.8"></script>
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=4.6"></script>
+  <script defer src="./app.js?v=4.8"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -366,7 +366,7 @@
           <button class="quick-action profile-action" data-quick="deposit"><span class="action-icon">&#9636;</span><span data-i18n="deposit">Deposit</span></button>
           <button class="quick-action profile-action" data-quick="withdraw"><span class="action-icon">&#8673;</span><span data-i18n="withdrawal">Withdrawal</span></button>
           <button type="button" class="quick-action profile-action" onclick="openVipLevels()"><span class="action-icon">&#9733;</span><span data-i18n="vip_levels">VIP Levels</span></button>
-          <button type="button" class="quick-action profile-action" onclick="openHelpCenter()"><span class="action-icon">&#10227;</span><span data-i18n="help_center">Help Center</span></button>
+          <button type="button" class="quick-action profile-action help-center-open-btn" id="helpCenterBtn" onclick="openHelpCenter()"><span class="action-icon">&#10227;</span><span data-i18n="help_center">Help Center</span><span id="helpCenterUnreadBadge" class="support-unread-badge" hidden aria-hidden="true"></span></button>
           <button class="quick-action profile-action" data-quick="lock"><span class="action-icon">&#10070;</span><span data-i18n="lock_mining">Lock-up mining</span></button>
         </div>
         
@@ -823,13 +823,16 @@
     </div>
   </div>
 
+  </div>
 
-
-    <div class="overlay-sheet overlay-sheet-wide help-center-sheet" id="overlayService" role="dialog" aria-modal="true" aria-labelledby="serviceTitle" hidden>
+  <div id="supportChatRoot" class="support-chat-root" hidden aria-hidden="true">
+    <button type="button" class="support-chat-scrim" id="supportChatScrim" aria-label="Close"></button>
+    <div class="overlay-sheet overlay-sheet-wide help-center-sheet" id="overlayService" role="dialog" aria-modal="true" aria-labelledby="serviceTitle">
       <header class="overlay-hdr">
         <h3 id="serviceTitle" data-i18n="customer_support">Customer Support</h3>
-        <button type="button" class="overlay-close" data-close-overlay>&times;</button>
+        <button type="button" class="overlay-close" data-close-support-chat>&times;</button>
       </header>
+      <p id="helpCenterNotify" class="help-center-notify" hidden role="status"></p>
       <p class="overlay-lead muted">Our support team is here to help you. Send us a message and we'll get back to you as soon as possible.</p>
       <div class="help-center-user-row" id="helpCenterUserRow">
         <span class="muted">Signed in as:</span>
@@ -849,6 +852,11 @@
       <p id="supportMsg" class="overlay-msg muted"></p>
     </div>
   </div>
+
+  <button type="button" id="supportChatFab" class="support-chat-fab" hidden aria-label="Customer support">
+    <span class="support-chat-fab-icon" aria-hidden="true">💬</span>
+    <span id="supportFabBadge" class="support-unread-badge support-fab-badge" hidden aria-hidden="true"></span>
+  </button>
 
   <div id="langPickerRoot" class="lang-picker-root" hidden aria-hidden="true">
     <button type="button" class="lang-picker-scrim" id="langPickerScrim" aria-label="Close"></button>

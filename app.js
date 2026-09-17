@@ -1081,7 +1081,106 @@ function closeProfileModule() {
 }
 
 let helpCenterPollTimer = null;
+let supportUnreadPollTimer = null;
+let lastKnownSupportUnread = 0;
 let pendingSupportAttachment = null;
+
+function isSupportChatOpen() {
+  const root = document.getElementById("supportChatRoot");
+  return !!(root && !root.hidden);
+}
+
+function stopSupportUnreadPoll() {
+  if (supportUnreadPollTimer) {
+    clearInterval(supportUnreadPollTimer);
+    supportUnreadPollTimer = null;
+  }
+}
+
+function updateSupportUnreadBadge(count) {
+  const n = Math.max(0, Number(count) || 0);
+  const label = n > 99 ? "99+" : String(n);
+  const badges = [
+    document.getElementById("helpCenterUnreadBadge"),
+    document.getElementById("supportFabBadge"),
+  ];
+  badges.forEach((el) => {
+    if (!el) return;
+    if (n > 0) {
+      el.textContent = label;
+      el.hidden = false;
+      el.removeAttribute("aria-hidden");
+    } else {
+      el.textContent = "";
+      el.hidden = true;
+      el.setAttribute("aria-hidden", "true");
+    }
+  });
+  const notify = document.getElementById("helpCenterNotify");
+  if (notify) {
+    if (n > 0 && !isSupportChatOpen()) {
+      notify.hidden = false;
+      notify.textContent =
+        n === 1
+          ? "You have a new reply from Bitunix Support."
+          : `You have ${n} unread messages from Bitunix Support.`;
+    } else {
+      notify.hidden = true;
+      notify.textContent = "";
+    }
+  }
+  const fab = document.getElementById("supportChatFab");
+  if (fab) fab.hidden = !state.token;
+}
+
+async function markSupportMessagesRead() {
+  if (!state.token) return;
+  try {
+    await fetch("/api/support/messages/read", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+  } catch {
+    /* ignore */
+  }
+  lastKnownSupportUnread = 0;
+  updateSupportUnreadBadge(0);
+}
+
+async function refreshSupportUnreadBadge(options = {}) {
+  const { notifyOnNew = false } = options;
+  if (!state.token) {
+    lastKnownSupportUnread = 0;
+    updateSupportUnreadBadge(0);
+    return;
+  }
+  try {
+    const response = await fetch("/api/support/messages/user", {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    const messages = data.messages || [];
+    const count =
+      typeof data.unreadAdmin === "number"
+        ? data.unreadAdmin
+        : messages.filter((m) => m.type === "admin" && m.status !== "read").length;
+    if (notifyOnNew && count > lastKnownSupportUnread && !isSupportChatOpen()) {
+      showToast("New message from Bitunix Support — open Help Center.", false);
+    }
+    lastKnownSupportUnread = count;
+    updateSupportUnreadBadge(count);
+  } catch {
+    /* ignore */
+  }
+}
+
+function startSupportUnreadPoll() {
+  stopSupportUnreadPoll();
+  if (!state.token) return;
+  refreshSupportUnreadBadge();
+  supportUnreadPollTimer = setInterval(() => refreshSupportUnreadBadge({ notifyOnNew: true }), 25000);
+}
 
 function stopHelpCenterPoll() {
   if (helpCenterPollTimer) {
@@ -1093,16 +1192,27 @@ function stopHelpCenterPoll() {
 function startHelpCenterPoll() {
   stopHelpCenterPoll();
   helpCenterPollTimer = setInterval(() => {
-    const panel = document.querySelector("#overlayService");
-    if (panel && !panel.hasAttribute("hidden")) {
-      loadHelpCenterThread(true);
-    }
+    if (isSupportChatOpen()) loadHelpCenterThread(true);
   }, 4000);
 }
 
-function closeFeatureOverlay() {
-  clearDepositCountdown();
+function closeSupportChat() {
   stopHelpCenterPoll();
+  pendingSupportAttachment = null;
+  clearSupportAttachPreview();
+  document.body.classList.remove("support-chat-open");
+  const root = document.getElementById("supportChatRoot");
+  const panel = document.getElementById("overlayService");
+  if (panel) panel.setAttribute("hidden", "");
+  if (root) {
+    root.hidden = true;
+    root.setAttribute("aria-hidden", "true");
+  }
+}
+
+function closeFeatureOverlay() {
+  closeSupportChat();
+  clearDepositCountdown();
   pendingSupportAttachment = null;
   clearSupportAttachPreview();
   const root = document.querySelector("#overlayRoot");
@@ -1114,6 +1224,10 @@ function closeFeatureOverlay() {
 }
 
 function openFeatureOverlay(which) {
+  if (which === "service") {
+    openHelpCenter();
+    return;
+  }
   closeProfileModule();
   const root = document.querySelector("#overlayRoot");
   if (!root) return;
@@ -1121,7 +1235,7 @@ function openFeatureOverlay(which) {
   // Aggressively hide everything first
   closeFeatureOverlay();
   
-  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock", vip: "#overlayVip", service: "#overlayService" };
+  const map = { deposit: "#overlayDeposit", c2c: "#overlayC2c", lock: "#overlayLock", vip: "#overlayVip" };
   const sel = map[which];
   const panel = sel ? document.querySelector(sel) : null;
   
@@ -1226,7 +1340,17 @@ function renderC2cOrderList() {
     .join("");
 }
 
+function initSupportChatOverlay() {
+  const root = document.getElementById("supportChatRoot");
+  if (!root || root._bound) return;
+  root._bound = true;
+  document.getElementById("supportChatScrim")?.addEventListener("click", closeSupportChat);
+  root.querySelectorAll("[data-close-support-chat]").forEach((b) => b.addEventListener("click", closeSupportChat));
+  document.getElementById("supportChatFab")?.addEventListener("click", () => openHelpCenter());
+}
+
 function initFeatureOverlays() {
+  initSupportChatOverlay();
   const root = document.querySelector("#overlayRoot");
   const scrim = document.querySelector("#overlayScrim");
   if (!root || root._bound) return;
@@ -4142,6 +4266,13 @@ function initTradePage() {
 
 function applyLoginState() {
   const loggedIn = !!state.token;
+  if (loggedIn) startSupportUnreadPoll();
+  else {
+    stopSupportUnreadPoll();
+    lastKnownSupportUnread = 0;
+    updateSupportUnreadBadge(0);
+    closeSupportChat();
+  }
   // Show/hide login form vs profile content
   const loginPanel = document.querySelector(".login-panel");
   const profileHead = document.querySelector(".user-profile-head");
@@ -4283,8 +4414,28 @@ document.addEventListener("visibilitychange", () => {
 
 // Help Center (user messages → admin panel Customer Support)
 function openHelpCenter() {
-  openFeatureOverlay("service");
+  closeProfileModule();
+  const depRoot = document.querySelector("#overlayRoot");
+  if (depRoot && !depRoot.hidden) {
+    clearDepositCountdown();
+    depRoot.hidden = true;
+    depRoot.setAttribute("aria-hidden", "true");
+    depRoot.querySelectorAll(".overlay-sheet").forEach((s) => s.setAttribute("hidden", ""));
+  }
+  const root = document.getElementById("supportChatRoot");
+  const panel = document.getElementById("overlayService");
+  if (!root || !panel) return;
+  panel.removeAttribute("hidden");
+  root.hidden = false;
+  root.removeAttribute("aria-hidden");
+  document.body.classList.add("support-chat-open");
+  const notify = document.getElementById("helpCenterNotify");
+  if (notify) {
+    notify.hidden = true;
+    notify.textContent = "";
+  }
   loadUserInfo();
+  markSupportMessagesRead();
   loadHelpCenterThread();
   startHelpCenterPoll();
   initSupportComposeUi();
@@ -4421,6 +4572,14 @@ async function loadHelpCenterThread(silent) {
       container.innerHTML = messages.map(renderSupportMessageHtml).join("");
       container.scrollTop = container.scrollHeight;
     }
+    const unreadAdmin = messages.filter((m) => m.type === "admin" && m.status !== "read").length;
+    if (isSupportChatOpen()) {
+      lastKnownSupportUnread = 0;
+      updateSupportUnreadBadge(0);
+    } else {
+      lastKnownSupportUnread = unreadAdmin;
+      updateSupportUnreadBadge(unreadAdmin);
+    }
     if (statusEl) {
       const hasAdmin = messages.some((m) => m.type === "admin");
       statusEl.textContent = hasAdmin
@@ -4448,17 +4607,13 @@ async function sendCustomerMessage(message) {
 async function sendCustomCustomerMessage() {
   const customMessageInput = document.getElementById('customMessageInput');
   const text = String(customMessageInput ? customMessageInput.value : "").trim();
-  if (!text) {
-    showToast("Please enter a message.", true);
+  const attachment = pendingSupportAttachment;
+  if (!text && !attachment) {
+    showToast("Please enter a message or attach a file.", true);
     return;
   }
   if (!state.token) {
     showToast("Please sign in to contact support.", true);
-    return;
-  }
-  const attachment = pendingSupportAttachment;
-  if (!text && !attachment) {
-    showToast("Please enter a message or attach a file.", true);
     return;
   }
   const ok = await sendSupportMessage(text, attachment);
@@ -4498,7 +4653,7 @@ function loadUserInfo() {
 }
 
 function closeSupportModal() {
-  closeFeatureOverlay();
+  closeSupportChat();
 }
 
 async function sendSupportMessage(message, attachment) {

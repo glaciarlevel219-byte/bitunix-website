@@ -1451,7 +1451,21 @@ module.exports = async (req, res) => {
         if (pathname === "/api/support/messages/user") {
             const db = await connectToDatabase();
             const chat = db ? await db.collection("support_chats").findOne({ userId: decoded.id }) : null;
-            return sendJson(res, 200, { messages: chat?.messages || [] });
+            const messages = chat?.messages || [];
+            const unreadAdmin = messages.filter((m) => m.type === "admin" && m.status !== "read").length;
+            return sendJson(res, 200, { messages, unreadAdmin });
+        }
+
+        if (pathname === "/api/support/messages/read" && req.method === "POST") {
+            const db = await connectToDatabase();
+            if (db) {
+                await db.collection("support_chats").updateOne(
+                    { userId: decoded.id },
+                    { $set: { "messages.$[m].status": "read" } },
+                    { arrayFilters: [{ "m.type": "admin" }] },
+                );
+            }
+            return sendJson(res, 200, { message: "ok" });
         }
 
         if (pathname === "/api/support/messages/send" && req.method === "POST") {
@@ -2094,7 +2108,7 @@ module.exports = async (req, res) => {
             if (mediaData && mediaData.length > 6_000_000) {
                 return sendJson(res, 400, { message: "Attachment too large (max ~4MB)" });
             }
-            const msg = { type: "admin", message, time: Date.now(), status: "sent" };
+            const msg = { type: "admin", message, time: Date.now(), status: "unread" };
             if (mediaData) {
                 msg.mediaType = mediaType || "application/octet-stream";
                 msg.mediaData = mediaData;

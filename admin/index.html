@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Admin Panel - Bitunix</title>
-    <link rel="stylesheet" href="/admin/admin.css?v=4.2">
+    <link rel="stylesheet" href="/admin/admin.css?v=4.3">
     <script>
       window.onerror = function(msg, url, line) {
         console.error('ADMIN ERROR:', msg, 'at', url, 'line', line);
@@ -380,7 +380,7 @@
                             <div id="adminAttachPreview" class="admin-attach-preview" hidden></div>
                             <div class="chat-input-box">
                                 <input type="file" id="adminSupportMediaInput" accept="image/*,.pdf,video/mp4,video/webm" hidden />
-                                <button type="button" id="adminSupportAttachBtn" class="btn-attach-chat" title="Attach file" disabled>📎</button>
+                                <button type="button" id="adminSupportAttachBtn" class="btn-attach-chat" title="Attach file">📎</button>
                                 <input type="text" id="supportChatInput" class="chat-reply-input" placeholder="Type your reply..." disabled>
                                 <button type="button" id="sendSupportMessage" class="btn-send-chat" disabled>Send</button>
                             </div>
@@ -531,6 +531,6 @@
         </div>
     </div>
 
-    <script src="/admin/admin.js?v=4.0"></script>
+    <script src="/admin/admin.js?v=4.2"></script>
 </body>
 </html>

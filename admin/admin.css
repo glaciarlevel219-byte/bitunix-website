@@ -1235,6 +1235,22 @@ td code.clickable-user-id:hover {
 .msg-user {
     background: #fff !important;
     border: 1px solid #e5e5e5;
+    color: #1a1a1a !important;
+}
+
+.msg-user .msg-text,
+.msg-user .msg-media,
+.msg-user .msg-media a {
+    color: #1a1a1a !important;
+}
+
+.msg-user .msg-text em {
+    color: #555 !important;
+}
+
+.msg-bubble .msg-text {
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .chat-input-box input,

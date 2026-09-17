@@ -45,6 +45,19 @@ function setupEventListeners() {
     
     // Config form
     configForm.addEventListener('submit', handleConfigSave);
+
+    bindAdminSupportAttach('adminSupportMediaInput', 'adminSupportAttachBtn', 'adminAttachPreview', 'inbox');
+    bindAdminSupportAttach('modalSupportMediaInput', 'modalSupportAttachBtn', 'modalAttachPreview', 'modal');
+    const sendBtn = document.getElementById('sendSupportMessage');
+    const modalSendBtn = document.getElementById('modalSendSupportMessage');
+    if (sendBtn && !sendBtn.dataset.bound) {
+        sendBtn.dataset.bound = '1';
+        sendBtn.addEventListener('click', sendAdminSupportReply);
+    }
+    if (modalSendBtn && !modalSendBtn.dataset.bound) {
+        modalSendBtn.dataset.bound = '1';
+        modalSendBtn.addEventListener('click', sendModalSupportReply);
+    }
 }
 async function handleLogin(e) {
     e.preventDefault();
@@ -106,6 +119,7 @@ async function verifyToken() {
         
         if (response.ok) {
             const data = await response.json();
+            currentAdminToken = authToken;
             currentUser = data.user;
             showScreen('dashboard');
             loadDashboard();
@@ -182,16 +196,8 @@ function switchTab(tabName) {
             loadAllUserMessages();
             // Polling for new messages every 5s
             chatRefreshInterval = setInterval(loadAllUserMessages, 5000);
-            
-            // Bind listeners for new chat UI
-            const sendBtn = document.getElementById('sendSupportMessage');
-            const input = document.getElementById('supportChatInput');
-            if (sendBtn) sendBtn.onclick = sendAdminSupportReply;
-            if (input) {
-                input.onkeypress = (e) => {
-                    if (e.key === 'Enter') sendAdminSupportReply();
-                };
-            }
+            bindAdminSupportAttach('adminSupportMediaInput', 'adminSupportAttachBtn', 'adminAttachPreview', 'inbox');
+            bindAdminSupportAttach('modalSupportMediaInput', 'modalSupportAttachBtn', 'modalAttachPreview', 'modal');
             break;
         case 'config':
             loadConfig();
@@ -1116,6 +1122,10 @@ function escapeHtml(text) {
 let pendingAdminAttachment = null;
 let pendingModalAttachment = null;
 
+function getAdminBearerToken() {
+    return currentAdminToken || authToken || localStorage.getItem('admin_token') || '';
+}
+
 function readAdminFileBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1131,8 +1141,9 @@ function readAdminFileBase64(file) {
 
 function formatAdminSupportBody(msg) {
     const parts = [];
-    if (msg.message) {
-        parts.push(`<div class="msg-text">${escapeHtml(msg.message)}</div>`);
+    const text = String(msg.message ?? msg.text ?? msg.body ?? '').trim();
+    if (text) {
+        parts.push(`<div class="msg-text">${escapeHtml(text)}</div>`);
     }
     if (msg.mediaData) {
         const mime = String(msg.mediaType || 'application/octet-stream');
@@ -1170,12 +1181,29 @@ function clearAdminAttachPreview(which) {
     if (input) input.value = '';
 }
 
+function triggerAdminSupportFilePick(store) {
+    if (store !== 'modal' && !activeChatUserId) {
+        showToast('Select a conversation first', true);
+        return;
+    }
+    const inputId = store === 'modal' ? 'modalSupportMediaInput' : 'adminSupportMediaInput';
+    const input = document.getElementById(inputId);
+    if (!input) {
+        showToast('Upload not available', true);
+        return;
+    }
+    input.click();
+}
+
 function bindAdminSupportAttach(inputId, btnId, previewId, store) {
     const input = document.getElementById(inputId);
     const btn = document.getElementById(btnId);
     if (!input || !btn || btn.dataset.bound) return;
     btn.dataset.bound = '1';
-    btn.addEventListener('click', () => input.click());
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        triggerAdminSupportFilePick(store);
+    });
     input.addEventListener('change', async () => {
         const file = input.files?.[0];
         if (!file) return;
@@ -1229,7 +1257,7 @@ async function loadSupportTickets() {
 async function loadAllUserMessages() {
   try {
     const res = await fetch("/admin/api/support/all-messages", {
-      headers: { Authorization: `Bearer ${currentAdminToken}` },
+      headers: { Authorization: `Bearer ${getAdminBearerToken()}` },
     });
     const data = await res.json();
     const conversations = data.conversations || [];
@@ -1322,7 +1350,7 @@ async function loadActiveChatMessages(userId) {
     
     try {
         const res = await fetch(`/admin/api/support/history?userId=${userId}`, {
-            headers: { Authorization: `Bearer ${currentAdminToken}` }
+            headers: { Authorization: `Bearer ${getAdminBearerToken()}` }
         });
         const data = await res.json();
         const messages = data.messages || [];
@@ -1356,7 +1384,7 @@ async function sendAdminSupportReply() {
             method: "POST",
             headers: { 
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${currentAdminToken}` 
+                Authorization: `Bearer ${getAdminBearerToken()}` 
             },
             body: JSON.stringify(payload)
         });
@@ -1366,8 +1394,10 @@ async function sendAdminSupportReply() {
             clearAdminAttachPreview('inbox');
             await loadActiveChatMessages(activeChatUserId);
             await loadAllUserMessages(); // Update sidebar preview
+            if (attachment?.base64) showToast('Attachment sent', false);
         } else {
-            showToast("Error sending message", true);
+            const err = await res.json().catch(() => ({}));
+            showToast(err.message || "Error sending message", true);
         }
     } catch (e) {
         console.error("Reply error:", e);
@@ -1554,19 +1584,28 @@ function openSupportChat(userId = null) {
 async function sendModalSupportMessage() {
     const input = document.getElementById('modalSupportChatInput');
     const message = input ? input.value.trim() : '';
-    if (!message || !currentSupportUserId) return;
+    const attachment = pendingModalAttachment;
+    if ((!message && !attachment) || !currentSupportUserId) return;
     
+    const payload = { userId: currentSupportUserId, message };
+    if (attachment?.base64) {
+        payload.mediaData = attachment.base64;
+        payload.mediaType = attachment.mime;
+        payload.mediaName = attachment.name;
+    }
     const res = await fetch('/admin/api/support/reply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentAdminToken}` },
-        body: JSON.stringify({ userId: currentSupportUserId, message })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAdminBearerToken()}` },
+        body: JSON.stringify(payload)
     });
     if (res.ok) {
         if (input) input.value = '';
+        clearAdminAttachPreview('modal');
         loadSupportChatMessages(currentSupportUserId);
         showToast('Message sent!');
     } else {
-        showToast('Failed to send message', true);
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || 'Failed to send message', true);
     }
 }
 
@@ -1583,7 +1622,7 @@ function viewSupportHistory(userId = null) {
 async function loadSupportChatMessages(userId) {
     try {
         const res = await fetch(`/admin/api/support/history?userId=${userId}`, {
-            headers: { Authorization: `Bearer ${currentAdminToken}` }
+            headers: { Authorization: `Bearer ${getAdminBearerToken()}` }
         });
         if (res.ok) {
             const data = await res.json();
@@ -1628,7 +1667,7 @@ async function sendModalSupportReply() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentAdminToken}`
+                'Authorization': `Bearer ${getAdminBearerToken()}`
             },
             body: JSON.stringify(payload)
         });
@@ -1637,9 +1676,10 @@ async function sendModalSupportReply() {
             if (input) input.value = '';
             clearAdminAttachPreview('modal');
             loadSupportChatMessages(currentSupportUserId);
-            showToast('Message sent!');
+            showToast(attachment?.base64 ? 'Attachment sent!' : 'Message sent!');
         } else {
-            showToast('Failed to send message', true);
+            const err = await response.json().catch(() => ({}));
+            showToast(err.message || 'Failed to send message', true);
         }
     } catch (error) {
         console.error('Error sending message:', error);
@@ -1684,6 +1724,8 @@ function initEventListeners() {
     // Other listeners...
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
 }
+
+window.triggerAdminSupportFilePick = triggerAdminSupportFilePick;
 
 // Start the app
 init();
