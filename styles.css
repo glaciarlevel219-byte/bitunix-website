@@ -3617,7 +3617,9 @@ select {
 .trading-board tbody tr:hover { background: rgba(255,255,255,0.03); }
 .tb-pair { display: flex; align-items: center; gap: 0.5rem; min-width: 140px; }
 .tb-pair-meta { display: flex; flex-direction: column; line-height: 1.2; }
+.tb-pair-meta strong { white-space: nowrap; }
 .tb-pair-meta small { color: rgba(255,255,255,0.45); font-size: 0.72rem; }
+.tb-change-muted { color: var(--muted) !important; }
 .coin-icon { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.08); display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
 .fav-btn { background: none; border: none; color: rgba(255,255,255,0.45); cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; flex-shrink: 0; }
 .fav-btn.is-fav { color: #ffc107; }
@@ -3650,7 +3652,6 @@ select {
     align-items: stretch;
   }
 
-  .home-board-tabs,
   .market-tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -3661,7 +3662,6 @@ select {
     scrollbar-width: thin;
   }
 
-  .home-board-tabs .tab-btn,
   .market-tabs .tab-btn {
     flex-shrink: 0;
     font-size: 0.78rem;
@@ -3677,43 +3677,108 @@ select {
     max-width: none;
   }
 
+  .home-board-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    overflow: visible;
+    flex-wrap: wrap;
+  }
+
+  .home-board-tabs .tab-btn {
+    width: 100%;
+    text-align: center;
+    font-size: 0.72rem;
+    padding: 0.5rem 0.35rem;
+    line-height: 1.2;
+  }
+
   .trading-board-wrap {
     max-width: 100%;
-    margin: 0 -0.15rem;
+    margin: 0;
+    overflow-x: visible;
   }
 
   .trading-board {
     min-width: 0;
     width: 100%;
-    font-size: 0.72rem;
-    table-layout: fixed;
+    font-size: 0.82rem;
+    table-layout: auto;
   }
 
-  .trading-board th:nth-child(4),
-  .trading-board td:nth-child(4),
-  .trading-board th:nth-child(5),
-  .trading-board td:nth-child(5),
-  .trading-board th:nth-child(6),
-  .trading-board td:nth-child(6) {
+  .trading-board thead {
     display: none;
   }
 
-  .trading-board th,
-  .trading-board td {
-    padding: 0.5rem 0.25rem;
-    white-space: normal;
-    word-break: break-word;
+  .trading-board tbody {
+    display: block;
+  }
+
+  .trading-board tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas:
+      "pair pair pair"
+      "price change trade";
+    gap: 0.45rem 0.65rem;
+    align-items: center;
+    padding: 0.85rem 0.15rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .trading-board tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .trading-board tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .trading-board tbody td.tb-pair {
+    grid-area: pair;
+  }
+
+  .trading-board tbody td.tb-price {
+    grid-area: price;
+    font-size: 0.95rem;
+  }
+
+  .trading-board tbody td.tb-change {
+    grid-area: change;
+    text-align: right;
+    font-weight: 600;
+  }
+
+  .trading-board tbody td.tb-high,
+  .trading-board tbody td.tb-volume,
+  .trading-board tbody td.tb-chart {
+    display: none !important;
+  }
+
+  .trading-board tbody td:last-child {
+    grid-area: trade;
+    justify-self: end;
   }
 
   .tb-pair {
     min-width: 0;
+    width: 100%;
   }
 
   .trade-btn {
-    width: 100%;
-    max-width: 4.5rem;
-    padding: 0.35rem 0.4rem;
-    font-size: 0.68rem;
+    width: auto;
+    min-width: 4.25rem;
+    max-width: none;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.72rem;
+  }
+
+  #home.view.active {
+    padding-bottom: 0.75rem;
   }
 
   .quick-grid {
@@ -3738,11 +3803,6 @@ select {
 
   .panel {
     padding: 0.65rem;
-  }
-
-  .trading-board th:nth-child(3),
-  .trading-board td:nth-child(3) {
-    display: none;
   }
 
   .site-footer-inner {

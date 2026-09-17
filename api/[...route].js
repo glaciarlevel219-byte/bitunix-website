@@ -279,7 +279,10 @@ async function fetchTradingBoard(cat) {
           symbol: sym,
           name: CRYPTO_PAIR_NAMES[sym] || base,
           price: Number(t.lastPrice),
-          change: Number(t.priceChangePercent),
+          change: (() => {
+            const ch = Number(t.priceChangePercent);
+            return Number.isFinite(ch) ? ch : 0;
+          })(),
           high: Number(t.highPrice),
           volume: Number(t.quoteVolume || t.volume || 0),
           sparkline: [],

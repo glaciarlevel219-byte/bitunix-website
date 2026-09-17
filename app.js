@@ -204,6 +204,17 @@ function sparklineSvg(points, positive) {
   return `<svg class="spark" viewBox="0 0 96 32" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${coords}"/></svg>`;
 }
 
+function formatBoardChangeDisplay(change) {
+  const chg = Number(change);
+  if (!Number.isFinite(chg)) {
+    return { text: "—", cls: "tb-change-muted" };
+  }
+  return {
+    text: `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`,
+    cls: chg >= 0 ? "positive" : "negative",
+  };
+}
+
 function renderTradingBoard(rows) {
   const tbody = document.querySelector("#homeTradingBoard");
   if (!tbody) return;
@@ -222,8 +233,7 @@ function renderTradingBoard(rows) {
   }
   tbody.innerHTML = display
     .map((row) => {
-      const chg = Number(row.change || 0);
-      const cls = chg >= 0 ? "positive" : "negative";
+      const chgFmt = formatBoardChangeDisplay(row.change);
       const label = row.label || row.pair || "";
       const base = label.split("/")[0] || label;
       const price = Number(row.price || 0);
@@ -239,10 +249,10 @@ function renderTradingBoard(rows) {
           <div class="tb-pair-meta"><strong>${safeText(label)}</strong><small>${safeText(row.name || base)}</small></div>
         </td>
         <td class="tb-price"><strong>$${formatBoardPrice(price)}</strong></td>
-        <td class="${cls}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</td>
-        <td>$${formatBoardPrice(high)}</td>
-        <td>${formatBoardVolume(row.volume)}</td>
-        <td class="tb-chart">${sparklineSvg(row.sparkline, chg >= 0)}</td>
+        <td class="tb-change ${chgFmt.cls}">${chgFmt.text}</td>
+        <td class="tb-high">$${formatBoardPrice(high)}</td>
+        <td class="tb-volume">${formatBoardVolume(row.volume)}</td>
+        <td class="tb-chart">${sparklineSvg(row.sparkline, !String(chgFmt.cls).includes("negative"))}</td>
         <td><button type="button" class="trade-btn" data-trade-label="${esc}" data-trade-cat="${cat}">Trade</button></td>
       </tr>`;
     })
@@ -275,17 +285,16 @@ function patchTradingBoardRow(symbol, price, change, high) {
   const esc = String(row.label || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   const tr = document.querySelector(`#homeTradingBoard tr[data-board-label="${esc}"]`);
   if (!tr) return;
-  const chg = Number(change);
-  const cls = chg >= 0 ? "positive" : "negative";
+  const chgFmt = formatBoardChangeDisplay(change);
   const priceCell = tr.querySelector(".tb-price strong");
   if (priceCell) priceCell.textContent = `$${formatBoardPrice(row.price)}`;
-  const chgCell = tr.children[2];
+  const chgCell = tr.querySelector(".tb-change");
   if (chgCell) {
-    chgCell.textContent = `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`;
-    chgCell.className = cls;
+    chgCell.textContent = chgFmt.text;
+    chgCell.className = `tb-change ${chgFmt.cls}`;
   }
   const chartCell = tr.querySelector(".tb-chart");
-  if (chartCell) chartCell.innerHTML = sparklineSvg(row.sparkline, chg >= 0);
+  if (chartCell) chartCell.innerHTML = sparklineSvg(row.sparkline, chgFmt.cls === "positive");
 }
 
 function stopHomeBoardWs() {
@@ -316,7 +325,13 @@ function startHomeBoardWs() {
       try {
         const msg = JSON.parse(ev.data);
         const d = msg.data || msg;
-        patchTradingBoardRow(d.s, d.c, d.P, d.h);
+        const price = Number(d.c);
+        const open = Number(d.o);
+        let change = Number(d.P ?? d.p);
+        if (!Number.isFinite(change) && Number.isFinite(open) && open > 0 && Number.isFinite(price)) {
+          change = ((price - open) / open) * 100;
+        }
+        patchTradingBoardRow(d.s, price, change, d.h);
       } catch (_) {}
     };
     ws.onclose = () => {
