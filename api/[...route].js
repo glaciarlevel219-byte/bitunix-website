@@ -110,8 +110,14 @@ const CRYPTO_PAIR_NAMES = {
   MATICUSDT: "Polygon", TRXUSDT: "TRON", SHIBUSDT: "Shiba Inu", ATOMUSDT: "Cosmos", NEARUSDT: "NEAR",
   ARBUSDT: "Arbitrum", OPUSDT: "Optimism", SUIUSDT: "Sui",
   XMRUSDT: "Monero", YFIUSDT: "yearn.finance", MKRUSDT: "Maker", CVCUSDT: "Civic",
-  SUSHIUSDT: "SushiSwap", GALAUSDT: "Gala", PAXGUSDT: "Pax Gold", XAUTUSDT: "Tether Gold",
+  SUSHIUSDT: "SushiSwap", GALAUSDT: "Gala", PAXGUSDT: "Pax Gold", XAUTUSDT: "XAU Gold",
 };
+
+function boardLabelForSymbol(sym) {
+  if (sym === "PAXGUSDT") return "PAXG/USD";
+  if (sym === "XAUTUSDT") return "XAU/USD";
+  return `${String(sym).replace("USDT", "")}/USD`;
+}
 
 const FX_PAIRS = [
   { l: "INR/USD", t: "INR" }, { l: "EUR/USD", s: "EURUSDT" }, { l: "GBP/USD", s: "GBPUSDT" },
@@ -265,10 +271,11 @@ async function fetchTradingBoard(cat) {
       .filter((sym) => tickerMap.has(sym))
       .map((sym) => {
         const t = tickerMap.get(sym);
-        const base = sym.replace("USDT", "");
+        const label = boardLabelForSymbol(sym);
+        const base = label.split("/")[0];
         return {
-          label: `${base}/USD`,
-          pair: `${base}/USDT`,
+          label,
+          pair: `${sym.replace("USDT", "")}/USDT`,
           symbol: sym,
           name: CRYPTO_PAIR_NAMES[sym] || base,
           price: Number(t.lastPrice),
@@ -291,11 +298,12 @@ async function fetchTradingBoard(cat) {
         rows = syms
           .filter((sym) => cgMap[sym] && prices[cgMap[sym]])
           .map((sym) => {
-            const base = sym.replace("USDT", "");
+            const label = boardLabelForSymbol(sym);
+            const base = label.split("/")[0];
             const p = prices[cgMap[sym]];
             return {
-              label: `${base}/USD`,
-              pair: `${base}/USDT`,
+              label,
+              pair: `${sym.replace("USDT", "")}/USDT`,
               symbol: sym,
               name: CRYPTO_PAIR_NAMES[sym] || base,
               price: Number(p.usd),

@@ -158,6 +158,7 @@ function getFavoritePairs() {
 
 function toggleFavoritePair(label) {
   if (!label) return;
+  label = normalizePairLabel(label);
   const favs = getFavoritePairs();
   const i = favs.indexOf(label);
   if (i >= 0) favs.splice(i, 1);
@@ -394,8 +395,14 @@ const CRYPTO_LIST = [
 
 const METAL_LIST = [
   { symbol: "PAXG", sub: "PAXG/USD", id: "pax-gold", usdt: "PAXGUSDT" },
-  { symbol: "XAUT", sub: "XAUT/USD", id: "tether-gold", usdt: "XAUTUSDT" },
+  { symbol: "XAU", sub: "XAU/USD", id: "tether-gold", usdt: "XAUTUSDT" },
 ];
+
+/** Home board / favorites may use legacy XAUT/USD; trading chart uses XAU/USD. */
+function normalizePairLabel(label) {
+  if (label === "XAUT/USD") return "XAU/USD";
+  return label;
+}
 
 function safeText(value, fallback = "-") {
   return value === null || value === undefined || value === "" ? fallback : String(value);
@@ -1909,12 +1916,14 @@ function syncTradeCategoryButtons() {
 
 function findTradeCatalogIndex(cat, label) {
   const list = TRADE_CATALOGS[cat] || [];
-  return list.findIndex((x) => x.label === label);
+  const norm = normalizePairLabel(label);
+  return list.findIndex((x) => x.label === norm || x.label === label);
 }
 
 function findCategoryForLabel(label) {
+  const norm = normalizePairLabel(label);
   for (const cat in TRADE_CATALOGS) {
-    if (TRADE_CATALOGS[cat].some((x) => x.label === label)) return cat;
+    if (TRADE_CATALOGS[cat].some((x) => x.label === norm || x.label === label)) return cat;
   }
   return null;
 }
@@ -1926,6 +1935,7 @@ function openTradeFromMarketList(cat, label) {
     return;
   }
   if (!TRADE_CATALOGS[cat] || !TRADE_CATALOGS[cat].length) return;
+  label = normalizePairLabel(label);
   const idx = findTradeCatalogIndex(cat, label);
   if (idx < 0) {
     showToast("This pair is not available on the trading chart yet.", true);
