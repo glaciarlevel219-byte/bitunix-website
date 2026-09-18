@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bitunix - Digital Financial Platform</title>
   <meta name="description" content="Bitunix — spot trading, markets, wallet, and funding tools for digital assets.">
-  <link rel="stylesheet" href="./styles.css?v=4.8">
-  <script defer src="./i18n.js?v=4.8"></script>
+  <link rel="stylesheet" href="./styles.css?v=4.9">
+  <script defer src="./i18n.js?v=4.9"></script>
   <link rel="icon" href="logo.png" type="image/png">
   <script defer src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-  <script defer src="./app.js?v=4.8"></script>
+  <script defer src="./app.js?v=4.9"></script>
   <script>
     window.onerror = function(msg, url, line) {
       console.error('GLOBAL ERROR:', msg, 'at', url, 'line', line);
@@ -128,7 +128,24 @@
           <button type="button" class="tab-btn" data-market-cat="metal">Precious Metals</button>
           <button type="button" class="tab-btn" data-market-cat="fav">★ Favorites</button>
         </div>
-        <div id="marketList" class="market-list"></div>
+        <div class="trading-board-wrap market-trading-board-wrap">
+          <table class="trading-board">
+            <thead>
+              <tr>
+                <th>Trading Pairs</th>
+                <th>Last Traded Price</th>
+                <th>24H Change</th>
+                <th>24H High</th>
+                <th>24H Volume</th>
+                <th>Chart</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="marketTradingBoard">
+              <tr><td colspan="7" class="muted">Loading market data...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </article>
     </section>
 

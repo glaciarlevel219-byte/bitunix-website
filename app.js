@@ -145,6 +145,7 @@ const TRADE_TF_MAP = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "60m"
 
 const FAVORITES_KEY = "bitunix_fav_pairs";
 const homeBoard = { cat: "crypto", rows: [], ws: null, reconnectTimer: null, pollTimer: null };
+const marketBoard = { rows: [] };
 
 function getFavoritePairs() {
   try {
@@ -165,9 +166,12 @@ function toggleFavoritePair(label) {
   else favs.push(label);
   localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
   renderTradingBoard(homeBoard.rows);
-  if (document.querySelector("#market")?.classList.contains("active")) {
-    refreshMarketTabList().catch(() => {});
-  }
+  const mCat = state.marketCategory || "fx";
+  renderTradingBoard(marketBoard.rows, {
+    tbody: "#marketTradingBoard",
+    cat: mCat,
+    favMode: mCat === "fav",
+  });
 }
 
 function formatBoardPrice(price) {
@@ -200,7 +204,7 @@ function sparklineSvg(points, positive) {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const color = positive ? "#0ecb81" : "#f6465d";
+  const color = positive ? "#b9f641" : "#f6465d";
   return `<svg class="spark" viewBox="0 0 96 32" preserveAspectRatio="none"><polyline fill="none" stroke="${color}" stroke-width="1.6" points="${coords}"/></svg>`;
 }
 
@@ -215,12 +219,14 @@ function formatBoardChangeDisplay(change) {
   };
 }
 
-function renderTradingBoard(rows) {
-  const tbody = document.querySelector("#homeTradingBoard");
+function renderTradingBoard(rows, options = {}) {
+  const tbody = document.querySelector(options.tbody || "#homeTradingBoard");
   if (!tbody) return;
+  const boardCat = options.cat ?? homeBoard.cat;
+  const favMode = options.favMode ?? boardCat === "fav";
   let display = rows || [];
   const favSet = new Set(getFavoritePairs());
-  if (homeBoard.cat === "fav") {
+  if (favMode) {
     display = display.filter((r) => favSet.has(r.label));
     if (!display.length) {
       tbody.innerHTML = `<tr><td colspan="7" class="muted">No favorites yet. Click ☆ on any pair to save it here.</td></tr>`;
@@ -238,7 +244,7 @@ function renderTradingBoard(rows) {
       const base = label.split("/")[0] || label;
       const price = Number(row.price || 0);
       const high = Number(row.high || price);
-      const cat = row.cat || (homeBoard.cat === "fav" ? findCategoryForLabel(label) || "crypto" : homeBoard.cat);
+      const cat = row.cat || (favMode ? findCategoryForLabel(label) || "crypto" : boardCat);
       const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
       const isFav = favSet.has(label);
       return `
@@ -283,18 +289,26 @@ function patchTradingBoardRow(symbol, price, change, high) {
     if (row.sparkline.length > 24) row.sparkline.shift();
   }
   const esc = String(row.label || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-  const tr = document.querySelector(`#homeTradingBoard tr[data-board-label="${esc}"]`);
-  if (!tr) return;
   const chgFmt = formatBoardChangeDisplay(change);
-  const priceCell = tr.querySelector(".tb-price strong");
-  if (priceCell) priceCell.textContent = `$${formatBoardPrice(row.price)}`;
-  const chgCell = tr.querySelector(".tb-change");
-  if (chgCell) {
-    chgCell.textContent = chgFmt.text;
-    chgCell.className = `tb-change ${chgFmt.cls}`;
+  document.querySelectorAll(`#homeTradingBoard tr[data-board-label="${esc}"], #marketTradingBoard tr[data-board-label="${esc}"]`).forEach((tr) => {
+    const priceCell = tr.querySelector(".tb-price strong");
+    if (priceCell) priceCell.textContent = `$${formatBoardPrice(row.price)}`;
+    const chgCell = tr.querySelector(".tb-change");
+    if (chgCell) {
+      chgCell.textContent = chgFmt.text;
+      chgCell.className = `tb-change ${chgFmt.cls}`;
+    }
+    const highCell = tr.querySelector(".tb-high");
+    if (highCell && high) highCell.textContent = `$${formatBoardPrice(row.high)}`;
+    const chartCell = tr.querySelector(".tb-chart");
+    if (chartCell) chartCell.innerHTML = sparklineSvg(row.sparkline, chgFmt.cls === "positive");
+  });
+  const mRow = marketBoard.rows.find((r) => String(r.symbol || "").toUpperCase() === sym);
+  if (mRow) {
+    mRow.price = row.price;
+    mRow.change = row.change;
+    if (high) mRow.high = row.high;
   }
-  const chartCell = tr.querySelector(".tb-chart");
-  if (chartCell) chartCell.innerHTML = sparklineSvg(row.sparkline, chgFmt.cls === "positive");
 }
 
 function stopHomeBoardWs() {
@@ -610,6 +624,9 @@ function switchToTab(next) {
   updateSiteFooterVisibility(next);
   if (next === "home") {
     loadHomeTradingBoard().catch(() => {});
+  }
+  if (next === "market") {
+    refreshMarketTabList().catch(() => {});
   }
   if (next === "user" && !state.token) {
     showAuthView("login");
@@ -2247,101 +2264,36 @@ function openTradeFromMarketList(cat, label) {
 }
 
 async function refreshMarketTabList() {
-  const root = document.querySelector("#marketList");
-  if (!root) return;
+  const tbody = document.querySelector("#marketTradingBoard");
+  if (!tbody) return;
   const cat = state.marketCategory || "fx";
+  const renderOpts = { tbody: "#marketTradingBoard", cat, favMode: cat === "fav" };
   if (cat === "fav") {
     const favSet = new Set(getFavoritePairs());
     if (!favSet.size) {
-      root.innerHTML = `<p class="muted">No favorites yet. Click ☆ on any pair.</p>`;
+      marketBoard.rows = [];
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">No favorites yet. Click ☆ on any pair.</td></tr>`;
       return;
     }
     try {
-      const allRows = await loadAllTradingBoardRows();
-      const tradeRes = await Promise.all(
-        ["fx", "crypto", "metal"].map((c) => fetchJsonCached(`${endpoints.tradeRows}?cat=${encodeURIComponent(c)}`, 12000))
-      );
-      const merged = [
-        ...allRows,
-        ...tradeRes.flatMap((r) => (r.rows || []).map((row) => ({
-          label: row.label,
-          price: Number(row.last || 0),
-          change: Number(row.chg || 0),
-          cat: findCategoryForLabel(row.label) || "crypto",
-        }))),
-      ];
-      const seen = new Set();
-      const rows = merged.filter((r) => {
-        if (!favSet.has(r.label) || seen.has(r.label)) return false;
-        seen.add(r.label);
-        return true;
-      });
-      renderMarketListRows(root, rows, "fav");
+      marketBoard.rows = await loadAllTradingBoardRows();
+      renderTradingBoard(marketBoard.rows, renderOpts);
     } catch {
-      root.innerHTML = `<p class="muted">Could not load favorites.</p>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">Could not load favorites.</td></tr>`;
     }
     return;
   }
   try {
-    const res = await fetchJsonCached(`${endpoints.tradeRows}?cat=${encodeURIComponent(cat)}`, 12000);
-    const rows = (res.rows || []).map((r) => ({
-      label: r.label,
-      price: Number(r.last || 0),
-      change: Number(r.chg || 0),
-      cat,
-    }));
-    if (!rows.length) {
-      root.innerHTML = `<p class="muted">No market records available.</p>`;
+    const res = await fetchJsonCached(`${endpoints.tradingBoard}?cat=${encodeURIComponent(cat)}`, 10000);
+    marketBoard.rows = res.rows || [];
+    if (!marketBoard.rows.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="muted">No market records available.</td></tr>`;
       return;
     }
-    renderMarketListRows(root, rows, cat);
+    renderTradingBoard(marketBoard.rows, renderOpts);
   } catch {
-    root.innerHTML = `<p class="muted">Could not load markets.</p>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">Could not load markets.</td></tr>`;
   }
-}
-
-function renderMarketListRows(root, rows, cat) {
-  const favSet = new Set(getFavoritePairs());
-  root.innerHTML = rows
-    .map((r) => {
-      const chg = Number(r.change ?? r.chg ?? 0);
-      const cls = chg >= 0 ? "positive" : "negative";
-      const label = safeText(r.label);
-      const parts = label.split("/");
-      const legal = parts[0] || label;
-      const curr = parts[1] || "USD";
-      const esc = label.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-      const rowCat = r.cat || cat;
-      const isFav = favSet.has(label);
-      return `
-      <div class="market-row market-row-clickable" role="button" tabindex="0" data-mk-label="${esc}" data-mk-cat="${rowCat}">
-        <button type="button" class="fav-btn market-fav ${isFav ? "is-fav" : ""}" data-fav="${esc}" aria-label="Favorite">${isFav ? "★" : "☆"}</button>
-        <div class="pair">${safeText(legal)}/${safeText(curr)}</div>
-        <div>${Number(r.price ?? r.last ?? 0).toFixed(6)}</div>
-        <div class="badge ${cls}">${chg.toFixed(2)}%</div>
-      </div>`;
-    })
-    .join("");
-  root.querySelectorAll(".market-fav").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleFavoritePair(btn.getAttribute("data-fav"));
-    });
-  });
-  root.querySelectorAll(".market-row-clickable").forEach((row) => {
-    const go = () => {
-      const label = row.getAttribute("data-mk-label");
-      const c = row.getAttribute("data-mk-cat") || cat;
-      if (label) openTradeFromMarketList(c, label);
-    };
-    row.addEventListener("click", go);
-    row.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        go();
-      }
-    });
-  });
 }
 
 function renderMeta(configData, countryData) {

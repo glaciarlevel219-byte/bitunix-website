@@ -3992,8 +3992,9 @@ body.support-chat-open {
 .pair-list-premium li { padding: 12px 20px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; }
 .pair-list-premium li:hover { background: rgba(255,255,255,0.05); }
 
-/* Home trading board */
+/* Home + Market trading board */
 .home-trading-panel { overflow: hidden; }
+.market-trading-board-wrap { margin-top: 0.25rem; }
 .home-board-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
 .home-board-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .trading-board-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
